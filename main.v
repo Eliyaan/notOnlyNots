@@ -23,18 +23,35 @@ fn (mut app App) update_cycle() {
 	} 
 }
 
-const rid_bitmap = 0x07FF_FFFF_FFFF_FFFF // 0000_0000_011111... bit map to get the real id with &
+const rid_bitmap = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
+const elem_type_bitmap = u64(0xC000_0000_0000_0000)
 
-fn (mut app App) get_elem_state_by_id(id u64) {
+// TODO: Can be upgraded by using a binary search
+fn (mut app App) get_elem_state_by_id(id u64) bool {
+	rid := id & rid_bitmap
 	// the state in the id may be an old state so it needs to get the state from the state lists
-	if id & 0xC000_0000_0000_0000 == 0b00  // not
- 		
-	} else if id & 0xC000_0000_0000_0000 == 0b01 { // diode 
+	if id & elem_type_bitmap == 0b00 {  // not
+		for i, not in app.nots {
+			if not.rid == rid {
+				return app.n_states[app.actual_state][i]
+			}
+		}
+	} else if id & elem_type_bitmap == 0b01 { // diode 
+		for i, diode in app.diodes {
+			if diode.rid == rid {
+				return app.d_states[app.actual_state][i]
+			}
+		}
+	} else if id & elem_type_bitmap == 0b10 { // On
+		return true // a on is always ON
+	} else if id & elem_type_bitmap == 0b11 { // wire
+		for i, wire in app.wires {
+			if wire.rid == rid {
+				return app.w_states[app.actual_state][i]
+			}
+		}
 	}
-	} else if id & 0xC000_0000_0000_0000 == 0b10 { // On
-	}
-	} else if id & 0xC000_0000_0000_0000 == 0b11 { // wire
-	}
+	panic("id not found in get_elem_state_by_id: ${id}")
 }
 
 // Explain ids
@@ -49,9 +66,10 @@ struct Chunk {}
 
 // A gate that outputs the opposite of the input signal
 struct Nots {
+	rid u64 // real id
+mut:
 	inp u64 // id of the input element of the not gate
 	out u64 // id of the output of the not gate
-	rid // real id
 	// Map coordinates
 	x u32 
 	y u32
@@ -59,9 +77,10 @@ struct Nots {
 
 // A gate that transmit the input signal to the output element (unidirectionnal) and adds 1 tick delay (1 update cycle to update)
 struct Diode {
+	rid u64 // real id
+mut:
 	inp u64 // id of the input element of the not gate
 	out u64 // id of the output of the not gate
-	rid // real id
 	// Map coordinates
 	x u32 
 	y u32
@@ -69,8 +88,9 @@ struct Diode {
 
 // A gate that is always ON (only on one side)
 struct On {
+	rid u64 // real id
+mut:
 	out u64 // id of the output of the not gate
-	rid // real id
 	// Map coordinates
 	x u32 
 	y u32
@@ -83,20 +103,22 @@ struct On {
 // a Wire is made out of multiple cables that are connected
 // It outputs the OR of all it's inputs
 struct Wire {
+	rid u64 // real id
+mut:
 	inps []u64 // id of the input elements outputing to the wire
 	outs []u64 // id of the output elements whose inputs are the wire
 	cable_coords [][]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
-	rid // real id
 }
 
 struct App {
+mut:
 	map []Chunk
 	actual_state int // indicate which list is the old state list and which is the actual one (0 for the first, 1 for the second)
 	nots []Nots
-	n_states1 [2][]u8 // the old state and the actual state list
+	n_states [2][]bool // the old state and the actual state list
 	diodes []Diode
-	d_states1 [2][]u8
+	d_states [2][]bool
 	ons []On
 	wires []Wire
-	w_states1 [2][]u8 
+	w_states [2][]bool
 }
