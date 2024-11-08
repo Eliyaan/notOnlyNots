@@ -36,6 +36,17 @@ fn (mut app App) update_cycle() {
 	} 
 }
 
+fn (mut app App) get_chunk_coords(x u32, y u32) [chunk_size][chunk_size]u64 {
+	for chunk in app.map {
+		if x >= chunk.x && y >= chunk.y {
+			if x < chunk.x + chunk_size && y < chunk.y + chunk_size {
+				return chunk.id_map
+			}
+		}
+	}
+	panic("Chunk at ${x} ${y} not found")
+}
+
 const rid_bitmap = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
 const elem_type_bitmap = u64(0xC000_0000_0000_0000)
 
@@ -110,7 +121,12 @@ fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool {
 
 // Crossing: a special element that links it's north & south sides and (separately) it's west and east sides as if it was not there
 // Example: a not gate facing west placed next to a crossing (the not gate is on it's west side), will have as input the element placed next to the crossing on the east side
-struct Chunk {}
+const chunk_size = 100
+struct Chunk {
+	x u32
+	y u32
+	id_map [chunk_size][chunk_size]u64
+}
 
 // A gate that outputs the opposite of the input signal
 struct Nots {
