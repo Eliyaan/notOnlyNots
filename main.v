@@ -39,33 +39,65 @@ fn (mut app App) update_cycle() {
 const rid_bitmap = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
 const elem_type_bitmap = u64(0xC000_0000_0000_0000)
 
-// IMPORTANT TODO: Can be upgraded by using a binary search (for 1M elements -> 20 checks)
 // id of the concerned element
 // previous: 0 for actual state, 1 for the previous state
 fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool { 
 	concerned_state := (app.actual_state+previous)%2
 	rid := id & rid_bitmap
 	// the state in the id may be an old state so it needs to get the state from the state lists
-	if id & elem_type_bitmap == 0b00 {  // not
-		for i, not in app.nots {
-			if not.rid == rid {
-				return app.n_states[concerned_state][i]
+	if id & elem_type_bitmap == 0b00 { // not
+		mut low := 0
+		mut high := app.nots.len
+		mut mid := 0 // tmp value
+		for low <= high {
+			mid = low + ((high - low) >> 1) // low + half
+			// If x is smaller, ignore right half
+			if app.nots[mid].rid < rid {
+				high = mid - 1
+			}	
+			// If x greater, ignore left half
+			else if app.nots[mid].rid > rid {
+				low = mid + 1
+			}	
+			// Check if x is present at mid
+			else {
+				return app.n_states[concerned_state][mid]
 			}
-		}
+		}	
 	} else if id & elem_type_bitmap == 0b01 { // diode 
-		for i, diode in app.diodes {
-			if diode.rid == rid {
-				return app.d_states[concerned_state][i]
+		mut low := 0
+		mut high := app.diodes.len
+		mut mid := 0 // tmp value
+		for low <= high {
+			mid = low + ((high - low) >> 1) // low + half
+			if app.diodes[mid].rid < rid {
+				high = mid - 1
+			}	
+			else if app.diodes[mid].rid > rid {
+				low = mid + 1
+			}	
+			else {
+				return app.d_states[concerned_state][mid]
 			}
-		}
+		}	
 	} else if id & elem_type_bitmap == 0b10 { // On
 		return true // a on is always ON
 	} else if id & elem_type_bitmap == 0b11 { // wire
-		for i, wire in app.wires {
-			if wire.rid == rid {
-				return app.w_states[concerned_state][i]
+		mut low := 0
+		mut high := app.wires.len
+		mut mid := 0 // tmp value
+		for low <= high {
+			mid = low + ((high - low) >> 1) // low + half
+			if app.wires[mid].rid < rid {
+				high = mid - 1
+			}	
+			else if app.wires[mid].rid > rid {
+				low = mid + 1
+			}	
+			else {
+				return app.w_states[concerned_state][mid]
 			}
-		}
+		}	
 	}
 	panic("id not found in get_elem_state_by_id: ${id}")
 }
