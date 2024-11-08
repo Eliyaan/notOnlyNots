@@ -9,37 +9,53 @@ fn (mut app App) update_cycle() {
 	//1. done
 	app.actual_state = (app.actual_state+1)%2
 	//2. done
-	for not in app.nots {
-		//3. 
-		//4. wip
+	for i, not in app.nots {
+		//3. done
+		old_inp_state := app.get_elem_state_by_id(not.inp, 1)
+		//4. WIP need to update state in the chunk id 
+		app.n_states[app.actual_state][i] = !old_inp_state
+		
 	}
-	for diode in app.diodes {
-		//3. wip
-		//4. wip
+	for i, diode in app.diodes {
+		//3. done
+		old_inp_state := app.get_elem_state_by_id(diode.inp, 1)
+		//4. WIP need to update state in the chunk id 
+		app.d_states[app.actual_state][i] = old_inp_state
 	}
-	for wire in app.wires {
-		//3. wip
-		//4. wip
+	for i, wire in app.wires {
+		//3. done
+		mut old_or_inp_state := false // will be all the inputs of the wire ORed
+		for inp in wire.inps {
+			if app.get_elem_state_by_id(inp, 1) {
+				old_or_inp_state = true // only one is needed for the OR to be true
+				break
+			}
+		}
+		//4. WIP need to update state in the chunk id
+		app.w_states[app.actual_state][i] = old_or_inp_state
 	} 
 }
 
 const rid_bitmap = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
 const elem_type_bitmap = u64(0xC000_0000_0000_0000)
 
-// TODO: Can be upgraded by using a binary search
-fn (mut app App) get_elem_state_by_id(id u64) bool {
+// IMPORTANT TODO: Can be upgraded by using a binary search (for 1M elements -> 20 checks)
+// id of the concerned element
+// previous: 0 for actual state, 1 for the previous state
+fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool { 
+	concerned_state := (app.actual_state+previous)%2
 	rid := id & rid_bitmap
 	// the state in the id may be an old state so it needs to get the state from the state lists
 	if id & elem_type_bitmap == 0b00 {  // not
 		for i, not in app.nots {
 			if not.rid == rid {
-				return app.n_states[app.actual_state][i]
+				return app.n_states[concerned_state][i]
 			}
 		}
 	} else if id & elem_type_bitmap == 0b01 { // diode 
 		for i, diode in app.diodes {
 			if diode.rid == rid {
-				return app.d_states[app.actual_state][i]
+				return app.d_states[concerned_state][i]
 			}
 		}
 	} else if id & elem_type_bitmap == 0b10 { // On
@@ -47,7 +63,7 @@ fn (mut app App) get_elem_state_by_id(id u64) bool {
 	} else if id & elem_type_bitmap == 0b11 { // wire
 		for i, wire in app.wires {
 			if wire.rid == rid {
-				return app.w_states[app.actual_state][i]
+				return app.w_states[concerned_state][i]
 			}
 		}
 	}
