@@ -1,3 +1,65 @@
+const on_bitmap = u64(0x2000_0000_0000_0000) // 0010_0000_000...
+const elem_on_bitmap = u64(0xA000_0000_0000_0000) // 1010_0000_000...  always on
+const elem_not_bitmap = u64(0x0000_0000_0000_0000) // 0000_0000_000...
+const elem_diode_bitmap = u64(0x4000_0000_0000_0000) // 0100_0000_000...
+const elem_wire_bitmap = u64(0xC000_0000_0000_0000) // 1100_0000_000...
+const north = u64(0x0)
+const south = u64(0x0800_0000_0000_0000)
+const west = u64(0x1000_0000_0000_0000)
+const east = u64(0x1800_0000_0000_0000)
+const rid_bitmap = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
+const elem_type_bitmap = u64(0xC000_0000_0000_0000)
+
+enum Elem {
+	not // 00
+	diode // 01
+	on // 10
+	wire // 11
+	crossing // 111...111
+}
+
+fn (mut app App) placement(x u32, y u32) {
+	// 1.
+	// set the tile id to:
+	// the type (2 most sign bits)
+	// the state (3rd)
+	// the orientation (4,5th)
+	// 2.
+	// add the struct to the array (with the right fields)
+	// add the state to the array
+	// 3.
+	// update the output/inputs fields of the adjacent elements 
+	// 4.
+	// add one to the rid of the type
+	mut chunkmap := app.get_chunkmap_at_coords(x, y)
+	xmap := x % chunk_size
+	ymap := y % chunk_size
+	tile := &chunkmap[xmap][ymap]	
+	if tile != 0x0 {
+		return
+	} 
+	
+	match app.selected_item {
+		.not {
+			
+		}
+		.diode {
+		}
+		.on {
+			// 1. Done
+			tile = elem_on_bitmap & app.o_next_rid & app.selected_ori
+			// 2. WIP
+			// 3. WIP
+			// 4. Done
+			app.o_next_rid++
+		}
+		.wire {
+		}
+		.crossing {
+		}
+	}
+}
+
 // A tick is a unit of time. For each tick, a complete update cycle/process will be effected.
 // Update process: 
 // 1. change which states lists are the actual ones (/!\ when creating/destroying an element, the program must update the actual and the old state lists)
@@ -12,15 +74,30 @@ fn (mut app App) update_cycle() {
 	for i, not in app.nots {
 		//3. done
 		old_inp_state := app.get_elem_state_by_id(not.inp, 1)
-		//4. WIP need to update state in the chunk id 
+		//4. done 
 		app.n_states[app.actual_state][i] = !old_inp_state
-		
+		mut chunkmap := app.get_chunkmap_at_coords(not.x, not.y)
+		xmap := not.x % chunk_size
+		ymap := not.y % chunk_size
+		if !old_inp_state {
+			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bitmap
+		} else {
+			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bitmap)
+		}
 	}
 	for i, diode in app.diodes {
 		//3. done
 		old_inp_state := app.get_elem_state_by_id(diode.inp, 1)
-		//4. WIP need to update state in the chunk id 
+		//4. done 
 		app.d_states[app.actual_state][i] = old_inp_state
+		mut chunkmap := app.get_chunkmap_at_coords(diode.x, diode.y)
+		xmap := diode.x % chunk_size
+		ymap := diode.y % chunk_size
+		if old_inp_state {
+			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bitmap
+		} else {
+			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bitmap)
+		}
 	}
 	for i, wire in app.wires {
 		//3. done
@@ -31,12 +108,22 @@ fn (mut app App) update_cycle() {
 				break
 			}
 		}
-		//4. WIP need to update state in the chunk id
+		//4. done
 		app.w_states[app.actual_state][i] = old_or_inp_state
+		for cable_coo in wire.cable_coords {
+			mut chunkmap := app.get_chunkmap_at_coords(cable_coo[0], cable_coo[1])
+			xmap := cable_coo[0] % chunk_size
+			ymap := cable_coo[1] % chunk_size
+			if old_or_inp_state {
+				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bitmap
+			} else {
+				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bitmap)
+			}
+		}
 	} 
 }
 
-fn (mut app App) get_chunk_coords(x u32, y u32) [chunk_size][chunk_size]u64 {
+fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u64 {
 	for chunk in app.map {
 		if x >= chunk.x && y >= chunk.y {
 			if x < chunk.x + chunk_size && y < chunk.y + chunk_size {
@@ -47,8 +134,6 @@ fn (mut app App) get_chunk_coords(x u32, y u32) [chunk_size][chunk_size]u64 {
 	panic("Chunk at ${x} ${y} not found")
 }
 
-const rid_bitmap = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
-const elem_type_bitmap = u64(0xC000_0000_0000_0000)
 
 // id of the concerned element
 // previous: 0 for actual state, 1 for the previous state
@@ -125,7 +210,7 @@ const chunk_size = 100
 struct Chunk {
 	x u32
 	y u32
-	id_map [chunk_size][chunk_size]u64
+	id_map [chunk_size][chunk_size]u64 // [x][y]
 }
 
 // A gate that outputs the opposite of the input signal
@@ -177,12 +262,18 @@ mut:
 struct App {
 mut:
 	map []Chunk
+	selected_item Elem
+	selected_ori Orientation
 	actual_state int // indicate which list is the old state list and which is the actual one (0 for the first, 1 for the second)
 	nots []Nots
+	n_next_rid u64 = 1
 	n_states [2][]bool // the old state and the actual state list
 	diodes []Diode
+	d_next_rid u64 = 1
 	d_states [2][]bool
 	ons []On
+	o_next_rid u64 = 1
 	wires []Wire
+	w_next_rid u64 = 1
 	w_states [2][]bool
 }
