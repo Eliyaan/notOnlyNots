@@ -1,14 +1,17 @@
-const on_bitmap = u64(0x2000_0000_0000_0000) // 0010_0000_000...
-const elem_on_bitmap = u64(0xA000_0000_0000_0000) // 1010_0000_000...  always on
-const elem_not_bitmap = u64(0x0000_0000_0000_0000) // 0000_0000_000...
-const elem_diode_bitmap = u64(0x4000_0000_0000_0000) // 0100_0000_000...
-const elem_wire_bitmap = u64(0xC000_0000_0000_0000) // 1100_0000_000...
+const empty_id  = u64(0)
+const on_bits = u64(0x2000_0000_0000_0000) // 0010_0000_000...
+const elem_on_bits = u64(0xA000_0000_0000_0000) // 1010_0000_000...  always on
+const elem_not_bits = u64(0x0000_0000_0000_0000) // 0000_0000_000...
+const elem_diode_bits = u64(0x4000_0000_0000_0000) // 0100_0000_000...
+const elem_wire_bits = u64(0xC000_0000_0000_0000) // 1100_0000_000...
+const elem_crossing_bits = u64(0xFFFF_FFFF_FFFF_FFFF) // 1100_0000_000...
 const north = u64(0x0)
 const south = u64(0x0800_0000_0000_0000)
 const west = u64(0x1000_0000_0000_0000)
 const east = u64(0x1800_0000_0000_0000)
-const rid_bitmap = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
-const elem_type_bitmap = u64(0xC000_0000_0000_0000)
+const rid_mask = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
+const elem_type_mask = u64(0xC000_0000_0000_0000)
+const ori_mask = u64(0x1800_0000_0000_0000)
 
 enum Elem {
 	not // 00
@@ -18,7 +21,7 @@ enum Elem {
 	crossing // 111...111
 }
 
-fn (mut app App) placement(x u32, y u32) {
+fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 	// 1.
 	// set the tile id to:
 	// the type (2 most sign bits)
@@ -31,13 +34,6 @@ fn (mut app App) placement(x u32, y u32) {
 	// update the output/inputs fields of the adjacent elements 
 	// 4.
 	// add one to the rid of the type
-	mut chunkmap := app.get_chunkmap_at_coords(x, y)
-	xmap := x % chunk_size
-	ymap := y % chunk_size
-	tile := &chunkmap[xmap][ymap]	
-	if tile != 0x0 {
-		return
-	} 
 	
 	match app.selected_item {
 		.not {
@@ -46,18 +42,73 @@ fn (mut app App) placement(x u32, y u32) {
 		.diode {
 		}
 		.on {
-			// 1. Done
-			tile = elem_on_bitmap & app.o_next_rid & app.selected_ori
-			// 2. WIP
-			// 3. WIP
-			// 4. Done
-			app.o_next_rid++
+			mut x_ori, mut y_ori := match app.selected_ori {
+				north { u32(0), u32(-1)}
+				south { 0, 1}
+				east { 1, 0}
+				west { -1, 0}
+				else {panic("unknown orientation")}
+			}
+			for x in x_start..x_end {
+				for y in y_start..y_end {
+					mut chunkmap := app.get_chunkmap_at_coords(x, y)
+					tile := unsafe{&(chunkmap[x % chunk_size][y % chunk_size])}
+					if tile != 0x0 {
+						continue
+					} 
+					// 1. Done
+					unsafe{*tile = elem_on_bits & app.o_next_rid & app.selected_ori}
+					// 2. WIP
+					out_id := app.gate_out_id(x, y, x_ori, y_ori)
+					app.ons << On {
+						*tile,
+						out_id,
+						x,
+						y
+					}
+					// 3. WIP
+					// 4. Done
+					app.o_next_rid++
+				}
+			}
 		}
 		.wire {
 		}
 		.crossing {
 		}
 	}
+}
+
+fn (mut app App) gate_out_id(x u32, y u32, x_ori u32, y_ori u32) &u64 {
+	mut output_chunkmap := app.get_chunkmap_at_coords(x+x_ori, y+y_ori)
+	mut out_id := unsafe{&(output_chunkmap[(x+x_ori)%chunk_size][(y+y_ori)%chunk_size])}
+	// Check if output's orientation is matching and not orthogonal
+	if out_id == elem_crossing_bits {
+		// check until wire
+		mut x_off := x_ori
+		mut y_off := y_ori
+		for out_id == elem_crossing_bits {
+			x_off += x_ori
+			y_off += y_ori
+			output_chunkmap = app.get_chunkmap_at_coords(x+x_off, y+y_off)
+			out_id = unsafe{&(output_chunkmap[(x+x_off)%chunk_size][(y+y_off)%chunk_size])}
+		}
+		out_id = app.gate_out_id(x, y, x_ori, y_ori)
+	} else if out_id == 0x0 {
+		out_id = &empty_id
+	} else if out_id & elem_type_mask == elem_on_bits {
+		out_id = &empty_id
+	} else if out_id & elem_type_mask == elem_wire_bits {
+	} else if out_id & elem_type_mask == elem_not_bits {
+		if out_id & ori_mask != app.selected_ori {
+			out_id = &empty_id
+		}
+	} else if out_id & elem_type_mask == elem_diode_bits {
+		if out_id & ori_mask != app.selected_ori {
+			out_id = &empty_id
+		}
+	}
+	return out_id
 }
 
 // A tick is a unit of time. For each tick, a complete update cycle/process will be effected.
@@ -80,9 +131,9 @@ fn (mut app App) update_cycle() {
 		xmap := not.x % chunk_size
 		ymap := not.y % chunk_size
 		if !old_inp_state {
-			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bitmap
+			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
 		} else {
-			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bitmap)
+			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
 		}
 	}
 	for i, diode in app.diodes {
@@ -94,9 +145,9 @@ fn (mut app App) update_cycle() {
 		xmap := diode.x % chunk_size
 		ymap := diode.y % chunk_size
 		if old_inp_state {
-			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bitmap
+			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
 		} else {
-			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bitmap)
+			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
 		}
 	}
 	for i, wire in app.wires {
@@ -115,9 +166,9 @@ fn (mut app App) update_cycle() {
 			xmap := cable_coo[0] % chunk_size
 			ymap := cable_coo[1] % chunk_size
 			if old_or_inp_state {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bitmap
+				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
 			} else {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bitmap)
+				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
 			}
 		}
 	} 
@@ -139,9 +190,9 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 // previous: 0 for actual state, 1 for the previous state
 fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool { 
 	concerned_state := (app.actual_state+previous)%2
-	rid := id & rid_bitmap
+	rid := id & rid_mask
 	// the state in the id may be an old state so it needs to get the state from the state lists
-	if id & elem_type_bitmap == 0b00 { // not
+	if id & elem_type_mask == 0b00 { // not
 		mut low := 0
 		mut high := app.nots.len
 		mut mid := 0 // tmp value
@@ -160,7 +211,7 @@ fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool {
 				return app.n_states[concerned_state][mid]
 			}
 		}	
-	} else if id & elem_type_bitmap == 0b01 { // diode 
+	} else if id & elem_type_mask == 0b01 { // diode 
 		mut low := 0
 		mut high := app.diodes.len
 		mut mid := 0 // tmp value
@@ -176,9 +227,9 @@ fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool {
 				return app.d_states[concerned_state][mid]
 			}
 		}	
-	} else if id & elem_type_bitmap == 0b10 { // On
+	} else if id & elem_type_mask == 0b10 { // On
 		return true // a on is always ON
-	} else if id & elem_type_bitmap == 0b11 { // wire
+	} else if id & elem_type_mask == 0b11 { // wire
 		mut low := 0
 		mut high := app.wires.len
 		mut mid := 0 // tmp value
@@ -210,7 +261,7 @@ const chunk_size = 100
 struct Chunk {
 	x u32
 	y u32
-	id_map [chunk_size][chunk_size]u64 // [x][y]
+	id_map [chunk_size][chunk_size]u64 // [x][y] x++=east y++=south
 }
 
 // A gate that outputs the opposite of the input signal
@@ -263,7 +314,7 @@ struct App {
 mut:
 	map []Chunk
 	selected_item Elem
-	selected_ori Orientation
+	selected_ori u64
 	actual_state int // indicate which list is the old state list and which is the actual one (0 for the first, 1 for the second)
 	nots []Nots
 	n_next_rid u64 = 1
