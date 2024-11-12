@@ -52,22 +52,39 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 			for x in x_start..x_end {
 				for y in y_start..y_end {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
-					tile := unsafe{&(chunkmap[x % chunk_size][y % chunk_size])}
-					if tile != 0x0 {
+					x_map := x % chunk_size
+					y_map := y % chunk_size
+					if chunkmap[x_map][y_map] != 0x0 { // map not empty
 						continue
 					} 
-					// 1. Done
-					unsafe{*tile = elem_on_bits & app.o_next_rid & app.selected_ori}
-					// 2. WIP
+					// 1. done
+					id := elem_on_bits & app.o_next_rid & app.selected_ori
+					chunkmap[x_map][y_map] = id
+					// 2. done
 					out_id := app.gate_out_id(x, y, x_ori, y_ori)
 					app.ons << On {
-						*tile,
+						id,
 						out_id,
 						x,
 						y
 					}
-					// 3. WIP
-					// 4. Done
+					// no state arrays for the ons
+					// 3. done; only an input for other elements
+					if out_id != empty_id {
+						_, idx := app.get_elem_state_idx_by_id(out_id, 0) // do not want the state
+						if out_id & elem_type_mask == 0b00 { // not
+							app.nots[idx].inp = id
+						}
+						else if out_id & elem_type_mask == 0b01 { // diode
+							app.diodes[idx].inp = id
+						}
+						else if out_id & elem_type_mask == 0b10 { // on -> does not have inputs
+						}
+						else if out_id & elem_type_mask == 0b11 { // wire
+							app.wires[idx].inps << id
+						}
+					}
+					// 4. done
 					app.o_next_rid++
 				}
 			}
@@ -79,9 +96,11 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 	}
 }
 
-fn (mut app App) gate_out_id(x u32, y u32, x_ori u32, y_ori u32) &u64 {
+
+// Returns empty_id if not a valid output
+fn (mut app App) gate_out_id(x u32, y u32, x_ori u32, y_ori u32) u64 {
 	mut output_chunkmap := app.get_chunkmap_at_coords(x+x_ori, y+y_ori)
-	mut out_id := unsafe{&(output_chunkmap[(x+x_ori)%chunk_size][(y+y_ori)%chunk_size])}
+	mut out_id := output_chunkmap[(x+x_ori)%chunk_size][(y+y_ori)%chunk_size]
 	// Check if output's orientation is matching and not orthogonal
 	if out_id == elem_crossing_bits {
 		// check until wire
@@ -91,21 +110,21 @@ fn (mut app App) gate_out_id(x u32, y u32, x_ori u32, y_ori u32) &u64 {
 			x_off += x_ori
 			y_off += y_ori
 			output_chunkmap = app.get_chunkmap_at_coords(x+x_off, y+y_off)
-			out_id = unsafe{&(output_chunkmap[(x+x_off)%chunk_size][(y+y_off)%chunk_size])}
+			out_id = output_chunkmap[(x+x_off)%chunk_size][(y+y_off)%chunk_size]
 		}
-		out_id = app.gate_out_id(x, y, x_ori, y_ori)
+		return app.gate_out_id(x+x_off-x_ori, y+y_off-y_ori, x_ori, y_ori) // coords of the crossing just before the detected good elem 
 	} else if out_id == 0x0 {
-		out_id = &empty_id
+		out_id = empty_id
 	} else if out_id & elem_type_mask == elem_on_bits {
-		out_id = &empty_id
+		out_id = empty_id
 	} else if out_id & elem_type_mask == elem_wire_bits {
 	} else if out_id & elem_type_mask == elem_not_bits {
 		if out_id & ori_mask != app.selected_ori {
-			out_id = &empty_id
+			out_id = empty_id
 		}
 	} else if out_id & elem_type_mask == elem_diode_bits {
 		if out_id & ori_mask != app.selected_ori {
-			out_id = &empty_id
+			out_id = empty_id
 		}
 	}
 	return out_id
@@ -124,7 +143,7 @@ fn (mut app App) update_cycle() {
 	//2. done
 	for i, not in app.nots {
 		//3. done
-		old_inp_state := app.get_elem_state_by_id(not.inp, 1)
+		old_inp_state, _ := app.get_elem_state_idx_by_id(not.inp, 1)
 		//4. done 
 		app.n_states[app.actual_state][i] = !old_inp_state
 		mut chunkmap := app.get_chunkmap_at_coords(not.x, not.y)
@@ -138,7 +157,7 @@ fn (mut app App) update_cycle() {
 	}
 	for i, diode in app.diodes {
 		//3. done
-		old_inp_state := app.get_elem_state_by_id(diode.inp, 1)
+		old_inp_state, _ := app.get_elem_state_idx_by_id(diode.inp, 1)
 		//4. done 
 		app.d_states[app.actual_state][i] = old_inp_state
 		mut chunkmap := app.get_chunkmap_at_coords(diode.x, diode.y)
@@ -154,7 +173,8 @@ fn (mut app App) update_cycle() {
 		//3. done
 		mut old_or_inp_state := false // will be all the inputs of the wire ORed
 		for inp in wire.inps {
-			if app.get_elem_state_by_id(inp, 1) {
+			inp_state, _ := app.get_elem_state_idx_by_id(inp, 1)
+			if inp_state {
 				old_or_inp_state = true // only one is needed for the OR to be true
 				break
 			}
@@ -186,9 +206,9 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 }
 
 
-// id of the concerned element
+// id of the concerned element & the index in the list
 // previous: 0 for actual state, 1 for the previous state
-fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool { 
+fn (mut app App) get_elem_state_idx_by_id(id u64, previous u8) (bool, int) { 
 	concerned_state := (app.actual_state+previous)%2
 	rid := id & rid_mask
 	// the state in the id may be an old state so it needs to get the state from the state lists
@@ -208,7 +228,7 @@ fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool {
 			}	
 			// Check if x is present at mid
 			else {
-				return app.n_states[concerned_state][mid]
+				return app.n_states[concerned_state][mid], mid
 			}
 		}	
 	} else if id & elem_type_mask == 0b01 { // diode 
@@ -224,7 +244,7 @@ fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool {
 				low = mid + 1
 			}	
 			else {
-				return app.d_states[concerned_state][mid]
+				return app.d_states[concerned_state][mid], mid
 			}
 		}	
 	} else if id & elem_type_mask == 0b10 { // On
@@ -242,11 +262,11 @@ fn (mut app App) get_elem_state_by_id(id u64, previous u8) bool {
 				low = mid + 1
 			}	
 			else {
-				return app.w_states[concerned_state][mid]
+				return app.w_states[concerned_state][mid], mid
 			}
 		}	
 	}
-	panic("id not found in get_elem_state_by_id: ${id}")
+	panic("id not found in get_elem_state_idx_by_id: ${id}")
 }
 
 // Explain ids
