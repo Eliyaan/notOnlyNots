@@ -44,7 +44,36 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 		else { panic('unknown orientation') }
 	}
 	match app.selected_item {
-		.not {}
+		.not {
+			for x in x_start .. x_end {
+				for y in y_start .. y_end {
+					mut chunkmap := app.get_chunkmap_at_coords(x, y)
+					x_map := x % chunk_size
+					y_map := y % chunk_size
+					if chunkmap[x_map][y_map] != 0x0 { // map not empty
+						continue
+					}
+
+					// 1. done
+					id := elem_diode_bits & app.d_next_rid & app.selected_ori
+					chunkmap[x_map][y_map] = id
+
+					// 2. done
+					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					app.nots << Nots{id, inp_id ,out_id, x, y}
+					app.n_states[0] << false // default state & important to do the two lists
+					app.n_states[1] << false // default state 
+
+					// 3. done
+					app.add_input(out_id, id)
+					app.add_output(inp_id, id)
+
+					// 4. done
+					app.n_next_rid++
+				}
+			}
+		}
 		.diode {
 			for x in x_start .. x_end {
 				for y in y_start .. y_end {
@@ -66,7 +95,9 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 					app.d_states[0] << false // default state & important to do the two lists
 					app.d_states[1] << false // default state 
 
-					// 3. WIP
+					// 3. done
+					app.add_input(out_id, id)
+					app.add_output(inp_id, id)
 
 					// 4. done
 					app.d_next_rid++
@@ -100,8 +131,60 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 				}
 			}
 		}
-		.wire {}
-		.crossing {}
+		.wire {
+			for x in x_start .. x_end {
+				for y in y_start .. y_end {
+					mut chunkmap := app.get_chunkmap_at_coords(x, y)
+					x_map := x % chunk_size
+					y_map := y % chunk_size
+					if chunkmap[x_map][y_map] != 0x0 { // map not empty
+						continue
+					}
+
+		/!\ wire joining but not always
+
+					// Find if a part of a wire
+					mut adjacent_wires := []u64
+					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
+						mut adj_chunkmap := app.get_chunkmap_at_coords(x, y)
+						adj_id := adj_chunkmap[x+coo.x][y+coo.y]
+						if adj_id & elem_type_mask == elem_wire_bits {
+							adjacent_wires << ajd_id
+						}
+					}
+					
+					!!! Join the wires
+
+					// 1. wip
+					// 2. wip
+					// 3. wip
+					// 4. wip /!\ only if creating a new wire
+				}
+			}
+		}
+		.crossing {
+			for x in x_start .. x_end {
+				for y in y_start .. y_end {
+					mut chunkmap := app.get_chunkmap_at_coords(x, y)
+					x_map := x % chunk_size
+					y_map := y % chunk_size
+					if chunkmap[x_map][y_map] != 0x0 { // map not empty
+						continue
+					}
+					// 1. done; they all have a std id
+					chunkmap[x_map][y_map] = elem_crossing_bits
+
+					// 2. done: no state & no struct
+
+					// 3. WIP
+
+
+
+
+					// 4. done: no rid
+				}
+			}
+		}
 	}
 }
 
@@ -116,6 +199,21 @@ fn (mut app App) add_input(elem_id u64, input_id u64) {
 		} else if elem_id & elem_type_mask == 0b10 { // on -> does not have inputs
 		} else if elem_id & elem_type_mask == 0b11 { // wire
 			app.wires[idx].inps << input_id
+		}
+	}
+}
+
+// add output_id to the output(s) of elem_id
+fn (mut app App) add_output(elem_id u64, output_id u64) {
+	if elem_id != empty_id {
+		_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
+		if elem_id & elem_type_mask == 0b00 { // not
+			app.nots[idx].out = output_id
+		} else if elem_id & elem_type_mask == 0b01 { // diode
+			app.diodes[idx].out = output_id
+		} else if elem_id & elem_type_mask == 0b10 { // on -> does not have outputs
+		} else if elem_id & elem_type_mask == 0b11 { // wire
+			app.wires[idx].outs << output_id
 		}
 	}
 }
