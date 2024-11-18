@@ -5,6 +5,7 @@ const elem_not_bits = u64(0x0000_0000_0000_0000) // 0000_0000_000...
 const elem_diode_bits = u64(0x4000_0000_0000_0000) // 0100_0000_000...
 const elem_wire_bits = u64(0xC000_0000_0000_0000) // 1100_0000_000...
 const elem_crossing_bits = u64(0xFFFF_FFFF_FFFF_FFFF) // 1100_0000_000...
+// x++=east y++=south
 const north = u64(0x0)
 const south = u64(0x0800_0000_0000_0000)
 const west = u64(0x1000_0000_0000_0000)
@@ -59,8 +60,8 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
-					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, false)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, false)
 					app.nots << Nots{id, inp_id ,out_id, x, y}
 					app.n_states[0] << false // default state & important to do the two lists
 					app.n_states[1] << false // default state 
@@ -89,8 +90,8 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
-					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, false)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, false)
 					app.diodes << Diode{id, inp_id ,out_id, x, y}
 					app.d_states[0] << false // default state & important to do the two lists
 					app.d_states[1] << false // default state 
@@ -115,19 +116,18 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 					}
 
 					// 1. done
-					id := elem_on_bits & app.o_next_rid & app.selected_ori
+					id := elem_on_bits & app.selected_ori
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, false)
 					app.ons << On{id, out_id, x, y}
 					// no state arrays for the ons
 
 					// 3. done; only an input for other elements
 					app.add_input(out_id, id)
 
-					// 4. done
-					app.o_next_rid++
+					// 4. done, no need
 				}
 			}
 		}
@@ -143,14 +143,19 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 
 					// Find if a part of an existing wire
 					mut adjacent_wires := []u64
-					mut adjacent_other := []u64
+					mut adjacent_inps := []u64
+					mut adjacent_outs := []u64
 					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
-						adj_id := app.next_gate_id(x, y, coo[0], coo[1], true)
-						if adj_id & elem_type_mask == elem_wire_bits {
+						adj_id, is_input := app.wire_next_gate_id(x, y, coo[0], coo[1], true)
+						if adj_id == empty_id {
+						} else if adj_id & elem_type_mask == elem_wire_bits {
 							adjacent_wires << adj_id
 						} else {
-							
-							adjacent_other << adj_id // for the new inps/outs
+							if is_input {	
+								adjacent_inps << adj_id // for the new inps
+							} else {
+								adjacent_outs << adj_id // for the new inps
+							}
 						}
 					}
 					
@@ -168,10 +173,10 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 							}
 							// change the inputs / outputs' i/o ids
 							for inp in app.wires[i].inps {
-								app.add_input(inp, wire)
+								app.add_output(inp, wire)
 							}
 							for out in app.wires[i].outs {
-								app.add_output(out, wire)
+								app.add_input(out, wire)
 							}
 							// merge all the arrays in the new main wire
 							app.wires[first_i].cable_coords << app.wires[i].cable_coords
@@ -191,7 +196,6 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 						app.w_states[1] << false
 						// 4. done /!\ only if creating a new wire
 						app.w_next_rid++
-
 					}
 					_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
 
@@ -200,9 +204,16 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 
 					// 2. done
 					app.wires[first_i].cable_coords << [x, y]!
+					app.wires[first_i].inps << adjacent_inps
+					app.wires[first_i].outs << adjacent_outs
 
-					// 3. wip
-					
+					// 3. done
+					for inp_id in adjacent_inps {
+						app.add_output(inp_id, first_id)
+					}
+					for out_id in adjacent_outs {
+						app.add_output(out_id, first_id)
+					}
 				}
 			}
 		}
@@ -262,10 +273,107 @@ fn (mut app App) add_output(elem_id u64, output_id u64) {
 	}
 }
 
-// Returns empty_id if not a valid output
+// Returns empty_id if not a valid input/output
 // x_dir -> direction of the step
-// wire_ori -> if the selected ori is irrelevant and would need to use the step direction instead
-fn (mut app App) next_gate_id(x u32, y u32, x_dir u32, y_dir u32, wire_ori bool) u64 {
+// the selected ori is irrelevant and will need to use the step direction instead
+// returns id, (next_gate is input)
+fn (mut app App) wire_next_gate_id(x u32, y u32, x_dir u32, y_dir u32) (u64, bool) {
+	mut next_chunkmap := app.get_chunkmap_at_coords(x + x_dir, y + y_dir)
+	mut next_id := next_chunkmap[(x + x_dir) % chunk_size][(y + y_dir) % chunk_size]
+	mut input := false
+	// Check if next gate's orientation is matching and not orthogonal
+	if next_id == elem_crossing_bits {
+		// check until wire
+		mut x_off := x_dir
+		mut y_off := y_dir
+		for next_id == elem_crossing_bits {
+			x_off += x_dir
+			y_off += y_dir
+			next_chunkmap = app.get_chunkmap_at_coords(x + x_off, y + y_off)
+			next_id = next_chunkmap[(x + x_off) % chunk_size][(y + y_off) % chunk_size]
+		}
+		return app.next_gate_id(x + x_off - x_dir, y + y_off - y_dir, x_dir, y_dir, wire_ori) // coords of the crossing just before the detected good elem
+	} else if next_id == 0x0 {
+		next_id = empty_id
+	} else if next_id & elem_type_mask == elem_on_bits {
+		// need to return the id of an on gate not an empty one if it is an input
+		opp_step_ori := match [x_dir, y_dir]! {
+			[0, 1]! {
+				north
+			}
+			[0, -1]! {
+				south
+			}
+			[1, 0]! {
+				west
+			}
+			[-1, 0]! {
+				east
+			}
+			else {panic("not a valid step for an orientation")}
+		}
+		if opp_step_ori != next_id & ori_mask { // is not an input of the gate
+			next_id = empty_id
+		} else {
+			input = true
+		}
+	} else if next_id & elem_type_mask == elem_wire_bits {
+	} else if next_id & elem_type_mask == elem_not_bits {
+		// Need to find the ori of the step and do the check
+		ori, opposite_ori := match [x_dir, y_dir]! {
+			[0, 1]! {
+				south, north
+			}
+			[0, -1]! {
+				north, south
+			}
+			[1, 0]! {
+				east, west
+			}
+			[-1, 0]! {
+				west, east
+			}
+			else {panic("not a valid step for an orientation")}
+		}
+	
+		if next_id & ori_mask == ori {
+			input = false // output
+		} else if next_id & ori_mask == opposite_ori{
+			input = true
+		else {
+			next_id = empty_id
+		}
+	} else if next_id & elem_type_mask == elem_diode_bits {
+		ori, opposite_ori := match [x_dir, y_dir]! {
+			[0, 1]! {
+				south, north
+			}
+			[0, -1]! {
+				north, south
+			}
+			[1, 0]! {
+				east, west
+			}
+			[-1, 0]! {
+				west, east
+			}
+			else {panic("not a valid step for an orientation")}
+		}
+	
+		if next_id & ori_mask == ori {
+			input = false // output
+		} else if next_id & ori_mask == opposite_ori{
+			input = true
+		} else {
+			next_id = empty_id
+		}
+	}
+	return next_id, input
+}
+
+// Returns empty_id if not a valid input/output
+// x_dir -> direction of the step
+fn (mut app App) next_gate_id(x u32, y u32, x_dir u32, y_dir u32) u64 {
 	mut next_chunkmap := app.get_chunkmap_at_coords(x + x_dir, y + y_dir)
 	mut next_id := next_chunkmap[(x + x_dir) % chunk_size][(y + y_dir) % chunk_size]
 	// Check if next gate's orientation is matching and not orthogonal
@@ -283,33 +391,33 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir u32, y_dir u32, wire_ori bool)
 	} else if next_id == 0x0 {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
-		next_id = empty_id
+		// need to return the id of an on gate not an empty one if it is an input
+		step_ori := match [x_dir, y_dir]! {
+			[0, 1]! {
+				south
+			}
+			[0, -1]! {
+				north
+			}
+			[1, 0]! {
+				east
+			}
+			[-1, 0]! {
+				west
+			}
+			else {panic("not a valid step for an orientation")}
+		}
+		if step_ori == app.selected_ori || next_id & ori_mask != app.selected_ori { // is an output of the gate or is not aligned
+			next_id = empty_id
+		}
 	} else if next_id & elem_type_mask == elem_wire_bits {
 	} else if next_id & elem_type_mask == elem_not_bits {
-		if wire_ori {
-
-			// Need to find the ori of the step and do the check
-
-
-		
-
-		} else {
-			if next_id & ori_mask != app.selected_ori {
-				next_id = empty_id
-			}
+		if next_id & ori_mask != app.selected_ori {
+			next_id = empty_id
 		}
 	} else if next_id & elem_type_mask == elem_diode_bits {
-		if wire_ori {
-
-
-			/// same here
-
-
-
-		} else {
-			if next_id & ori_mask != app.selected_ori {
-				next_id = empty_id
-			}
+		if next_id & ori_mask != app.selected_ori {
+			next_id = empty_id
 		}
 	}
 	return next_id
@@ -536,7 +644,6 @@ mut:
 	d_next_rid    u64 = 1
 	d_states      [2][]bool
 	ons           []On
-	o_next_rid    u64 = 1
 	wires         []Wire
 	w_next_rid    u64 = 1
 	w_states      [2][]bool
