@@ -90,8 +90,8 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
-					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, false)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori, false)
+					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori)
 					app.diodes << Diode{id, inp_id ,out_id, x, y}
 					app.d_states[0] << false // default state & important to do the two lists
 					app.d_states[1] << false // default state 
@@ -120,7 +120,7 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
-					out_id := app.next_gate_id(x, y, x_ori, y_ori, false)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori)
 					app.ons << On{id, out_id, x, y}
 					// no state arrays for the ons
 
@@ -146,7 +146,7 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 					mut adjacent_inps := []u64
 					mut adjacent_outs := []u64
 					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
-						adj_id, is_input := app.wire_next_gate_id(x, y, coo[0], coo[1], true)
+						adj_id, is_input := app.wire_next_gate_id(x, y, coo[0], coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
 							adjacent_wires << adj_id
@@ -212,7 +212,7 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 						app.add_output(inp_id, first_id)
 					}
 					for out_id in adjacent_outs {
-						app.add_output(out_id, first_id)
+						app.add_input(out_id, first_id)
 					}
 				}
 			}
@@ -231,10 +231,29 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 
 					// 2. done: no state & no struct
 
-					// 3. WIP
-
-
-
+					// 3. done
+					s_adj_id, s_is_input := app.wire_next_gate_id(x, y, 0, 1)
+					n_adj_id, n_is_input := app.wire_next_gate_id(x, y, 0, -1)
+					e_adj_id, e_is_input := app.wire_next_gate_id(x, y, 1, 0)
+					w_adj_id, w_is_input := app.wire_next_gate_id(x, y, -1, 0)
+					if s_adj_id != empty_id && n_adj_id != empty_id {
+						if s_is_input && !n_is_input { // s is the input of n
+							app.add_input(n_adj_id, s_adj_id)
+							app.add_output(s_adj_id, n_adj_id)
+						else if !s_is_input && n_is_input {
+							app.add_input(s_adj_id, n_adj_id)
+							app.add_output(n_adj_id, s_adj_id)
+						}
+					}
+					if e_adj_id != empty_id && w_adj_id != empty_id {
+						if e_is_input && !w_is_input { // s is the input of n
+							app.add_input(w_adj_id, e_adj_id)
+							app.add_output(e_adj_id, w_adj_id)
+						else if !e_is_input && w_is_input {
+							app.add_input(e_adj_id, w_adj_id)
+							app.add_output(w_adj_id, e_adj_id)
+						}
+					}
 
 					// 4. done: no rid
 				}
@@ -276,7 +295,7 @@ fn (mut app App) add_output(elem_id u64, output_id u64) {
 // Returns empty_id if not a valid input/output
 // x_dir -> direction of the step
 // the selected ori is irrelevant and will need to use the step direction instead
-// returns id, (next_gate is input)
+// returns id, (next_gate is input of the gate)
 fn (mut app App) wire_next_gate_id(x u32, y u32, x_dir u32, y_dir u32) (u64, bool) {
 	mut next_chunkmap := app.get_chunkmap_at_coords(x + x_dir, y + y_dir)
 	mut next_id := next_chunkmap[(x + x_dir) % chunk_size][(y + y_dir) % chunk_size]
