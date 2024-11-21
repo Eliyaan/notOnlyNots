@@ -42,190 +42,115 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		_y_start, _y_end
 	}
 
-	mut x_ori, mut y_ori := match app.selected_ori {
-		// Output direction
-		north { 0, -1 }
-		south { 0, 1 }
-		east { 1, 0 }
-		west { -1, 0 }
-		else { panic('unknown orientation') }
-	}
-	match app.selected_item {
-		.not {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
-					x_map := x % chunk_size
-					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
-						continue
-					}
-
+	for x in x_start .. x_end {
+		for y in y_start .. y_end {
+			mut chunkmap := app.get_chunkmap_at_coords(x, y)
+			x_map := x % chunk_size
+			y_map := y % chunk_size
+			if chunkmap[x_map][y_map] == 0x0 { // map empty
+				continue
+			}
+			id := chunkmap[x_map][y_map]
+			mut x_ori, mut y_ori := match id & ori_mask {
+				// Output direction
+				north { 0, -1 }
+				south { 0, 1 }
+				east { 1, 0 }
+				west { -1, 0 }
+				else { panic('unknown orientation') }
+			}
+			match id & elem_type_mask {
+				elem_not_bits {
 					// 1. done
 					chunkmap[x_map][y_map] = empty_id
 
-					// 2. WIP
-					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
-					app.nots << Nots{id, inp_id, out_id, x, y}
-					app.n_states[0] << false // default state & important to do the two lists
-					app.n_states[1] << false // default state
+					// 2. done
+					_, idx := app.get_elem_state_idx_by_id(id, 0)
+					app.nots.delete(idx)
+					app.n_states[0].delete(idx)
+					app.n_states[1].delete(idx)
 
 					// 3. done
+					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori)
 					app.add_input(out_id, empty_id)
 					app.add_output(inp_id, empty_id)
 				}
-			}
-		}
-		.diode {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
-					x_map := x % chunk_size
-					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
-						continue
-					}
+				elem_diode_bits {
+					// 1. done
+					chunkmap[x_map][y_map] = empty_id
 
-					// 1. WIP
-					id := elem_diode_bits & app.d_next_rid & app.selected_ori
-					chunkmap[x_map][y_map] = id
+					// 2. done
+					_, idx := app.get_elem_state_idx_by_id(id, 0)
+					app.diodes.delete(idx)
+					app.d_states[0].delete(idx)
+					app.d_states[1].delete(idx)
 
-					// 2. WIP
+					// 3. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
 					out_id := app.next_gate_id(x, y, x_ori, y_ori)
-					app.diodes << Diode{id, inp_id, out_id, x, y}
-					app.d_states[0] << false // default state & important to do the two lists
-					app.d_states[1] << false // default state
-
-					// 3. WIP
-					app.add_input(out_id, id)
-					app.add_output(inp_id, id)
+					app.add_input(out_id, empty_id)
+					app.add_output(inp_id, empty_id)
 				}
-			}
-		}
-		.on {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
-					x_map := x % chunk_size
-					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
-						continue
-					}
+				elem_on_bits {
+					// 1. done
+					chunkmap[x_map][y_map] = empty_id
 
-					// 1. WIP
-					id := elem_on_bits & app.selected_ori
-					chunkmap[x_map][y_map] = id
+					// 2. done
+					// no arrays for the ons
 
-					// 2. WIP
+					// 3. done; only an input for other elements
 					out_id := app.next_gate_id(x, y, x_ori, y_ori)
-					app.ons << On{id, out_id, x, y}
-					// no state arrays for the ons
-
-					// 3. WIP; only an input for other elements
-					app.add_input(out_id, id)
+					app.add_input(out_id, empty_id)
 				}
-			}
-		}
-		.wire {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
-					x_map := x % chunk_size
-					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
-						continue
-					}
-
+				elem_wire_bits {
 					// Find if a part of an existing wire
-					mut adjacent_wires := []u64{}
+					mut adjacent_wire := u64(0)
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
 					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
 						adj_id, is_input := app.wire_next_gate_id(x, y, coo[0], coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
-							adjacent_wires << adj_id
+							adjacent_wire = adj_id
 						} else {
 							if is_input {
-								adjacent_inps << adj_id // for the new inps
+								adjacent_inps << adj_id // for the old inps
 							} else {
-								adjacent_outs << adj_id // for the new inps
+								adjacent_outs << adj_id // for the old inps
 							}
 						}
 					}
-
-					// Join the wires:
-					if adjacent_wires.len > 0 {
-						adjacent_wires.sort() // the id order is the same as the idx order so no problem for deletion
-						_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0],
-							0)
-						for wire in adjacent_wires[1..] {
-							_, i := app.get_elem_state_idx_by_id(wire, 0)
-							for coo in app.wires[i].cable_coords {
-								// change the id of all the cables on the map
-								mut w_chunkmap := app.get_chunkmap_at_coords(coo[0], coo[1])
-								w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] &= ~elem_type_mask
-								w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] |= adjacent_wires[0]
-							}
-							// change the inputs / outputs' i/o ids
-							for inp in app.wires[i].inps {
-								app.add_output(inp, wire)
-							}
-							for out in app.wires[i].outs {
-								app.add_input(out, wire)
-							}
-							// merge all the arrays in the new main wire
-							app.wires[first_i].cable_coords << app.wires[i].cable_coords
-							app.wires[first_i].inps << app.wires[i].inps
-							app.wires[first_i].outs << app.wires[i].outs
-							// delete the old wires
-							app.wires.delete(i)
-							app.w_states[0].delete(i)
-							app.w_states[1].delete(i)
-						}
-					} else {
-						app.wires << Wire{
-							rid: app.w_next_rid
-						}
-						adjacent_wires << app.w_next_rid
-						app.w_states[0] << false
-						app.w_states[1] << false
-					}
-					_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
-
-					// 1. WIP 
-					chunkmap[x_map][y_map] = elem_wire_bits & adjacent_wires[0] // no orientation
 
 					// 2. WIP 
-					app.wires[first_i].cable_coords << [x, y]!
-					app.wires[first_i].inps << adjacent_inps
-					app.wires[first_i].outs << adjacent_outs
+					// Separate the wires:
+					if adjacent_wire != 0 {
+						// BIG TASK TO DO CAREFULLY
 
-					// 3. WIP 
+
+					} else {
+						_, idx := app.get_elem_state_idx_by_id(id, 0)
+						app.wires.delete(idx)
+						app.w_states[0].delete(idx)
+						app.w_states[1].delete(idx)
+					}
+
+					// 1. done
+					chunkmap[x_map][y_map] = empty_id
+
+					// 3. done
 					for inp_id in adjacent_inps {
-						app.add_output(inp_id, first_id)
+						app.add_output(inp_id, empty_id)
 					}
 					for out_id in adjacent_outs {
-						app.add_input(out_id, first_id)
+						app.add_input(out_id, empty_id)
 					}
 				}
-			}
-		}
-		.crossing {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
-					x_map := x % chunk_size
-					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
-						continue
-					}
-					// 1. WIP; they all have the same id
-					chunkmap[x_map][y_map] = elem_crossing_bits
+				elem_crossing_bits {
+					// 1. done
+					chunkmap[x_map][y_map] = empty_id
 
-					// 2. WIP: no state & no struct
+					// 2. done: no state & no struct
 
 					// 3. WIP 
 					s_adj_id, s_is_input := app.wire_next_gate_id(x, y, 0, 1)
@@ -367,11 +292,10 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
-					app.ons << On{id, out_id, x, y}
-					// no state arrays for the ons
+					// no arrays for the ons
 
 					// 3. done; only an input for other elements
+					out_id := app.next_gate_id(x, y, x_ori, y_ori)
 					app.add_input(out_id, id)
 
 					// 4. done, no need
@@ -773,8 +697,9 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 	panic('Chunk at ${x} ${y} not found')
 }
 
-// returns id of the concerned element & the index in the list
 // previous: 0 for actual state, 1 for the previous state
+// returns id of the concerned element & the index in the list
+// crossing & ons dont have different states nor idx
 fn (mut app App) get_elem_state_idx_by_id(id u64, previous u8) (bool, int) {
 	concerned_state := (app.actual_state + previous) % 2
 	rid := id & rid_mask
@@ -810,20 +735,6 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous u8) (bool, int) {
 				low = mid + 1
 			} else {
 				return app.d_states[concerned_state][mid], mid
-			}
-		}
-	} else if id & elem_type_mask == 0b10 { // On
-		mut low := 0
-		mut high := app.ons.len
-		mut mid := 0 // tmp value
-		for low <= high {
-			mid = low + ((high - low) >> 1) // low + half
-			if app.ons[mid].rid < rid {
-				high = mid - 1
-			} else if app.ons[mid].rid > rid {
-				low = mid + 1
-			} else {
-				return true, mid
 			}
 		}
 	} else if id & elem_type_mask == 0b11 { // wire
@@ -918,7 +829,6 @@ mut:
 	diodes        []Diode
 	d_next_rid    u64 = 1
 	d_states      [2][]bool
-	ons           []On
 	wires         []Wire
 	w_next_rid    u64 = 1
 	w_states      [2][]bool
