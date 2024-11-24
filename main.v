@@ -57,7 +57,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				south { 0, 1 }
 				east { 1, 0 }
 				west { -1, 0 }
-				else { panic('unknown orientation') }
+				else { log_quit('${@LINE}unknown orientation') }
 			}
 			match id & elem_type_mask {
 				elem_not_bits {
@@ -105,14 +105,14 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				}
 				elem_wire_bits {
 					// Find if a part of an existing wire
-					mut adjacent_wire := u64(0)
+					mut coo_adj_wire := [][]int{}
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
-					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
+					for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] {
 						adj_id, is_input := app.wire_next_gate_id(x, y, coo[0], coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
-							adjacent_wire = adj_id
+							coo_adj_wire << coo
 						} else {
 							if is_input {
 								adjacent_inps << adj_id // for the old inps
@@ -124,9 +124,66 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 
 					// 2. WIP 
 					// Separate the wires:
-					if adjacent_wire != 0 {
+					if adjacent_wire.len > 0 {
 						// BIG TASK TO DO CAREFULLY
+						// pour chaque fil de la pile
+						// 	pour chaque adjacent
+						// 		si un i/o -> dans la liste i/o du fil
+						//		si fil_adj
+						//			si est déjà dans une liste de fils
+						// 				si c'est la même que fil rien faire
+						//				sinon :
+						//				 fusionner les deux: 
+						// 					copier tous les arrays du deuxième dans le premier
+						//					remplacer tous les ids du deuxième dans la pile par ceux du premier
+						// 			sinon l'ajouter dans la liste de fils de fil
+						//			ajouter fil_adj dans la pile (avec une pile associée pour savoir
+						//		sinon ne rien faire
+					
+						mut new_wires := []Wire{len: adjacent_wires.len, init:Wire{rid: index, cable_coords: [coo_adj_wire[index]]}}
+						mut w_stack := [][]int{len: adjacent_wires.len, init: coo_adj_wire[index]}
+						mut id_stack := []int{len: adjacent_wires.len, init: index}
 
+						for w_stack.len > 0 {
+							cable := w_stack.pop()
+							cable_id := id_stack.pop()
+							for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] {
+								total_x := x+cable[0]+coo[0]
+								total_y := y+cable[1]+coo[1]
+								mut adj_chunkmap := app.get_chunkmap_at_coords(total_x, total_y)
+								x_map := total_x % chunk_size
+								y_map := total_y % chunk_size
+								if adj_chunkmap[x_map][y_map] == 0x0 { // map empty
+									continue
+								}
+								id := adj_chunkmap[x_map][y_map]
+								if id & elem_type_mask == elem_wire_bits {
+									adj_coo := [cable[0]+coo[0], cable[1]+coo[1]]
+									mut id_adj := which_wire(new_wires, adj_coo)
+									if id_adj == -1 {
+										for mut wire in new_wires {
+											if wire.rid == cable_id {
+												id = cable_id
+												wire.cable_coords << adj_coo
+											}
+										}
+										if id_ajd == -1 {
+											log_quit("${@LINE} should have found the appropriate wire")
+										}
+									} else {
+										if id != cable_id {
+											
+										}
+									}
+								} else {
+									// TODO check i/o / crossing / empty tile / orientation maybe use get_next_gate_id with cable in this dir
+								}
+							}
+						}
+							
+						// modifier le fil déjà existant
+						// creer les nouveaux fils si besoin
+						// changer les ids des cables qui ont changé de fils et les I/O
 
 					} else {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
@@ -181,6 +238,16 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	}
 }
 
+fn which_wire(new_wires []Wire, coo []int) int {
+	for wire in new_wires {
+		i := wire.cable_coords.index(coo)
+		if i != -1 {
+			return i
+		}
+	}
+	return -1
+}
+
 fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// 1.
 	// set the tile id to:
@@ -214,7 +281,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		south { 0, 1 }
 		east { 1, 0 }
 		west { -1, 0 }
-		else { panic('unknown orientation') }
+		else { log_quit('${@LINE} unknown orientation') }
 	}
 	match app.selected_item {
 		.not {
@@ -502,7 +569,7 @@ fn (mut app App) wire_next_gate_id(x u32, y u32, x_dir int, y_dir int) (u64, boo
 				east
 			}
 			else {
-				panic('not a valid step for an orientation')
+				log_quit('${LINE} not a valid step for an orientation')
 			}
 		}
 		if opp_step_ori != next_id & ori_mask { // is not an input of the gate
@@ -527,7 +594,7 @@ fn (mut app App) wire_next_gate_id(x u32, y u32, x_dir int, y_dir int) (u64, boo
 				west, east
 			}
 			else {
-				panic('not a valid step for an orientation')
+				log_quit('${LINE} not a valid step for an orientation')
 			}
 		}
 
@@ -553,7 +620,7 @@ fn (mut app App) wire_next_gate_id(x u32, y u32, x_dir int, y_dir int) (u64, boo
 				west, east
 			}
 			else {
-				panic('not a valid step for an orientation')
+				log_quit('${LINE} not a valid step for an orientation')
 			}
 		}
 
@@ -603,7 +670,7 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int) u64 {
 				west
 			}
 			else {
-				panic('not a valid step for an orientation')
+				log_quit('${LINE} not a valid step for an orientation')
 			}
 		}
 		if step_ori == app.selected_ori || next_id & ori_mask != app.selected_ori { // is an output of the gate or is not aligned
@@ -694,7 +761,7 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 			}
 		}
 	}
-	panic('Chunk at ${x} ${y} not found')
+	log_quit('${@LINE} Chunk at ${x} ${y} not found')
 }
 
 // previous: 0 for actual state, 1 for the previous state
@@ -752,7 +819,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous u8) (bool, int) {
 			}
 		}
 	}
-	panic('id not found in get_elem_state_idx_by_id: ${id}')
+	log_quit('${LINE} id not found in get_elem_state_idx_by_id: ${id}')
 }
 
 // TODO: Explain ids
