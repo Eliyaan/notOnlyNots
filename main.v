@@ -125,29 +125,29 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. WIP 
 					// Separate the wires:
 					if adjacent_wire.len > 0 {
-						// BIG TASK TO DO CAREFULLY
-						// pour chaque fil de la pile
-						// 	pour chaque adjacent
-						// 		si un i/o -> dans la liste i/o du fil
-						//		si fil_adj
-						//			si est déjà dans une liste de fils
-						// 				si c'est la même que fil rien faire
-						//				sinon :
-						//				 fusionner les deux: 
-						// 					copier tous les arrays du deuxième dans le premier
-						//					remplacer tous les ids du deuxième dans la pile par ceux du premier
-						// 			sinon l'ajouter dans la liste de fils de fil
-						//			ajouter fil_adj dans la pile (avec une pile associée pour savoir
-						//		sinon ne rien faire
+						// for each cable on the cable (positions) stack
+						// 	for each adjacent tile
+						// 		if the tile is an i/o -> put in the i/o lists of the wire corresponding to the id of the cable
+						//		if it is a cable (adj_cable) 
+						//			if adj_cable is already in a wire list:
+						// 				if it is the same list as cable : already processed -> continue the for loop
+						//				else :
+						//				 merge the two wire lists: done
+						// 					copy all the arrays of the first one into the second one
+						//					replace all the ids of the second one by the first one's in the id_stack
+						//					delete the second wire
+						// 			else: add adj_cable to the wire list of cable
+						//			add adj_cable in the stack (with it's wire id on the id_stack) 
+						//		else: do nothing
 					
 						mut new_wires := []Wire{len: adjacent_wires.len, init:Wire{rid: index, cable_coords: [coo_adj_wire[index]]}}
-						mut w_stack := [][]int{len: adjacent_wires.len, init: coo_adj_wire[index]}
+						mut c_stack := [][]int{len: adjacent_wires.len, init: coo_adj_wire[index]}
 						mut id_stack := []int{len: adjacent_wires.len, init: index}
 
-						for w_stack.len > 0 {
+						for c_stack.len > 0 { // for each wire in the stack
 							cable := w_stack.pop()
 							cable_id := id_stack.pop()
-							for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] {
+							for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] { // for each adjacent tile
 								total_x := x+cable[0]+coo[0]
 								total_y := y+cable[1]+coo[1]
 								mut adj_chunkmap := app.get_chunkmap_at_coords(total_x, total_y)
@@ -157,33 +157,58 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 									continue
 								}
 								id := adj_chunkmap[x_map][y_map]
-								if id & elem_type_mask == elem_wire_bits {
+								if id & elem_type_mask == elem_wire_bits { // if is a wire
 									adj_coo := [cable[0]+coo[0], cable[1]+coo[1]]
-									mut id_adj := which_wire(new_wires, adj_coo)
-									if id_adj == -1 {
-										for mut wire in new_wires {
+									mut wid_adj := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
+									if wid_adj == -1 { // if the coord is not already in a wire list
+										for mut wire in new_wires { // find the wire where cable is
 											if wire.rid == cable_id {
-												id = cable_id
+												wid_adj = cable_id
 												wire.cable_coords << adj_coo
 											}
 										}
-										if id_ajd == -1 {
+										if wid_ajd == -1 {
 											log_quit("${@LINE} should have found the appropriate wire")
 										}
 									} else {
-										if id != cable_id {
-											
+										if id != cable_id { // if is in a list but not the same as cable
+											wid_adj = cable_id
+											// merge the lists
+											mut i_first := -1
+											mut i_sec := -1
+											for iw, wire in new_wires {
+												if wire.rid == cable_id {
+													i_first = iw
+												} else wire.rid == id {
+													i_sec = iw
+												}
+											}
+
+											new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
+											new_wires[i_first].inps << new_wires[i_sec].inps
+											new_wires[i_first].outs << new_wires[i_sec].outs
+											for mut ids in id_stack {
+												if ids == i_sec {
+													ids = i_first
+												}
+											}
+											new_wires.delete(i_sec)
+										} else {
+											continue // was already processed
 										}
 									}
+									// put the actual adj cable on the stack
+									c_stack << adj_coo
+									id_stack << wid_adj
 								} else {
 									// TODO check i/o / crossing / empty tile / orientation maybe use get_next_gate_id with cable in this dir
 								}
 							}
 						}
 							
-						// modifier le fil déjà existant
-						// creer les nouveaux fils si besoin
-						// changer les ids des cables qui ont changé de fils et les I/O
+						// modify the real wire that was already there
+						// create new wires if needed
+						// change the ids of the cables and the I/O (previous I/O and actual I/O)
 
 					} else {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
