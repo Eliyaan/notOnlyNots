@@ -109,7 +109,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
 					for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] {
-						adj_id, is_input := app.wire_next_gate_id(x, y, coo[0], coo[1])
+						adj_id, is_input, _, _ := app.wire_next_gate_id(x, y, coo[0], coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
 							coo_adj_wire << coo
@@ -148,60 +148,65 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 							cable := w_stack.pop()
 							cable_id := id_stack.pop()
 							for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] { // for each adjacent tile
-								total_x := x+cable[0]+coo[0]
-								total_y := y+cable[1]+coo[1]
-								mut adj_chunkmap := app.get_chunkmap_at_coords(total_x, total_y)
-								x_map := total_x % chunk_size
-								y_map := total_y % chunk_size
-								if adj_chunkmap[x_map][y_map] == 0x0 { // map empty
-									continue
-								}
-								id := adj_chunkmap[x_map][y_map]
-								if id & elem_type_mask == elem_wire_bits { // if is a wire
-									adj_coo := [cable[0]+coo[0], cable[1]+coo[1]]
-									mut wid_adj := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
-									if wid_adj == -1 { // if the coord is not already in a wire list
-										for mut wire in new_wires { // find the wire where cable is
-											if wire.rid == cable_id {
-												wid_adj = cable_id
-												wire.cable_coords << adj_coo
-											}
-										}
-										if wid_ajd == -1 {
-											log_quit("${@LINE} should have found the appropriate wire")
-										}
-									} else {
-										if id != cable_id { // if is in a list but not the same as cable
-											wid_adj = cable_id
-											// merge the lists
-											mut i_first := -1
-											mut i_sec := -1
-											for iw, wire in new_wires {
+								ajd_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(x+cable[0], y+cable[1], coo[0], coo[1])
+								if ajd_id != empty_id {
+									total_x := x+cable[0]+x_off
+									total_y := y+cable[1]+y_off
+									mut adj_chunkmap := app.get_chunkmap_at_coords(total_x, total_y)
+									adj_x_map := total_x % chunk_size
+									adj_y_map := total_y % chunk_size
+									assert adj_id == adj_chunkmap[adj_x_map][adj_y_map]
+									if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
+										adj_coo := [cable[0]+x_off, cable[1]+y_off]
+										mut wid_adj := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
+										if wid_adj == -1 { // if the coord is not already in a wire list
+											for mut wire in new_wires { // find the wire where cable is
 												if wire.rid == cable_id {
-													i_first = iw
-												} else wire.rid == id {
-													i_sec = iw
+													wid_adj = cable_id
+													wire.cable_coords << adj_coo
 												}
 											}
-
-											new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
-											new_wires[i_first].inps << new_wires[i_sec].inps
-											new_wires[i_first].outs << new_wires[i_sec].outs
-											for mut ids in id_stack {
-												if ids == i_sec {
-													ids = i_first
-												}
+											if wid_ajd == -1 {
+												log_quit("${@LINE} should have found the appropriate wire")
 											}
-											new_wires.delete(i_sec)
 										} else {
-											continue // was already processed
+											if wid_adj != cable_id { // if is in a list but not the same as cable
+												wid_adj = cable_id
+												// merge the lists
+												mut i_first := -1
+												mut i_sec := -1
+												for iw, wire in new_wires {
+													if wire.rid == cable_id {
+														i_first = iw
+													} else if wire.rid == id {
+														i_sec = iw
+													}
+												}
+
+												new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
+												new_wires[i_first].inps << new_wires[i_sec].inps
+												new_wires[i_first].outs << new_wires[i_sec].outs
+												for mut ids in id_stack {
+													if ids == i_sec {
+														ids = i_first
+													}
+												}
+												new_wires.delete(i_sec)
+											} else {
+												continue // was already processed
+											}
 										}
+										// put the actual adj cable on the stack
+										c_stack << adj_coo
+										id_stack << wid_adj
+									} else {
+										// it is an input or an output, or else the wire_next_gate_id_coo function would have returned empty_id
+										if is_input {
+											
+										} else {
+										}
+										// TODO check i/o / crossing / empty tile / orientation maybe use get_next_gate_id with cable in this dir
 									}
-									// put the actual adj cable on the stack
-									c_stack << adj_coo
-									id_stack << wid_adj
-								} else {
-									// TODO check i/o / crossing / empty tile / orientation maybe use get_next_gate_id with cable in this dir
 								}
 							}
 						}
@@ -235,10 +240,10 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done: no state & no struct
 
 					// 3. WIP 
-					s_adj_id, s_is_input := app.wire_next_gate_id(x, y, 0, 1)
-					n_adj_id, n_is_input := app.wire_next_gate_id(x, y, 0, -1)
-					e_adj_id, e_is_input := app.wire_next_gate_id(x, y, 1, 0)
-					w_adj_id, w_is_input := app.wire_next_gate_id(x, y, -1, 0)
+					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id(x, y, 0, 1)
+					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id(x, y, 0, -1)
+					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id(x, y, 1, 0)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id(x, y, -1, 0)
 					if s_adj_id != empty_id && n_adj_id != empty_id {
 						if s_is_input && !n_is_input { // s is the input of n
 							app.add_input(n_adj_id, s_adj_id)
@@ -409,7 +414,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
 					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
-						adj_id, is_input := app.wire_next_gate_id(x, y, coo[0], coo[1])
+						adj_id, is_input, _, _ := app.wire_next_gate_id(x, y, coo[0], coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
 							adjacent_wires << adj_id
@@ -496,10 +501,10 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done: no state & no struct
 
 					// 3. done
-					s_adj_id, s_is_input := app.wire_next_gate_id(x, y, 0, 1)
-					n_adj_id, n_is_input := app.wire_next_gate_id(x, y, 0, -1)
-					e_adj_id, e_is_input := app.wire_next_gate_id(x, y, 1, 0)
-					w_adj_id, w_is_input := app.wire_next_gate_id(x, y, -1, 0)
+					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id(x, y, 0, 1)
+					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id(x, y, 0, -1)
+					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id(x, y, 1, 0)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id(x, y, -1, 0)
 					if s_adj_id != empty_id && n_adj_id != empty_id {
 						if s_is_input && !n_is_input { // s is the input of n
 							app.add_input(n_adj_id, s_adj_id)
@@ -556,11 +561,14 @@ fn (mut app App) add_output(elem_id u64, output_id u64) {
 	}
 }
 
+// Returns - the id of the next gate that is not orthogonal with these coordinates on the x/y_dir specified
+//         - whether or not the next gate is an input or an output of the wire
 // Returns empty_id if not a valid input/output
 // x_dir -> direction of the step
 // the selected ori is irrelevant and will need to use the step direction instead
-// returns id, (next_gate is input of the gate)
-fn (mut app App) wire_next_gate_id(x u32, y u32, x_dir int, y_dir int) (u64, bool) {
+// returns id, (next_gate is input of the gate), x_delta, y_delta
+// example: id, false, 21, 23 -> is an output
+fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64, bool, int, int) {
 	mut next_chunkmap := app.get_chunkmap_at_coords(u32(x + x_dir), u32(y + y_dir))
 	mut next_id := next_chunkmap[(x + x_dir) % chunk_size][(y + y_dir) % chunk_size]
 	mut input := false
@@ -575,11 +583,12 @@ fn (mut app App) wire_next_gate_id(x u32, y u32, x_dir int, y_dir int) (u64, boo
 			next_chunkmap = app.get_chunkmap_at_coords(u32(x + x_off), u32(y + y_off))
 			next_id = next_chunkmap[(x + x_off) % chunk_size][(y + y_off) % chunk_size]
 		}
-		return app.wire_next_gate_id(u32(x + x_off - x_dir), u32(y + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
+		next_id, input, _, _ = app.wire_next_gate_id(u32(x + x_off - x_dir), u32(y + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
+		return 	next_id, input, x_off, y_off
 	} else if next_id == 0x0 {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
-		// need to return the id of an on gate not an empty one if it is an input
+		// need to return the id of the on gates (all the ons have the same) not an empty one if it is an input -> to know it is always ON
 		opp_step_ori := match [x_dir, y_dir]! {
 			[0, 1]! {
 				north
@@ -657,9 +666,10 @@ fn (mut app App) wire_next_gate_id(x u32, y u32, x_dir int, y_dir int) (u64, boo
 			next_id = empty_id
 		}
 	}
-	return next_id, input
+	return next_id, input, x_dir, y_dir
 }
 
+// Returns the id of the next gate that is not orthogonal with these coordinates on the x/y_dir specified
 // Returns empty_id if not a valid input/output
 // x_dir -> direction of the step
 fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int) u64 {
@@ -680,7 +690,7 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int) u64 {
 	} else if next_id == 0x0 {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
-		// need to return the id of an on gate not an empty one if it is an input
+		// need to return the id of the on gates (all the ons have the same) not an empty one if it is an input -> to know it is always ON
 		step_ori := match [x_dir, y_dir]! {
 			[0, 1]! {
 				south
@@ -698,7 +708,7 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int) u64 {
 				log_quit('${LINE} not a valid step for an orientation')
 			}
 		}
-		if step_ori == app.selected_ori || next_id & ori_mask != app.selected_ori { // is an output of the gate or is not aligned
+		if step_ori == app.selected_ori || next_id & ori_mask != app.selected_ori { // is an output of the gate or is not aligned (because the next is a ON)
 			next_id = empty_id
 		}
 	} else if next_id & elem_type_mask == elem_wire_bits {
