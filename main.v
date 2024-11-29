@@ -26,11 +26,11 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// 1.
 	// set the tile id to empty_id
 	// 2.
-	// remove the struct from the array 
+	// remove the struct from the array
 	// remove the state from the arrays (there are 2 state arrays to modify /!\)
 	// 3.
 	// update the output/inputs fields of the adjacent elements
-	
+
 	x_start, x_end := if _x_start > _x_end {
 		_x_end, _x_start
 	} else {
@@ -109,10 +109,11 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
 					for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] {
-						adj_id, is_input, _, _ := app.wire_next_gate_id(x, y, coo[0], coo[1])
+						adj_id, is_input, _, _ := app.wire_next_gate_id(x, y, coo[0],
+							coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
-							coo_adj_wire << coo
+							coo_adj_wire << [x + coo[0], y + coo[1]]
 						} else {
 							if is_input {
 								adjacent_inps << adj_id // for the old inps
@@ -122,13 +123,13 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 
-					// 2. WIP 
+					// 2. WIP
 					// Separate the wires:
 					if adjacent_wire.len > 0 {
 						// for each cable on the cable (positions) stack
 						// 	for each adjacent tile
 						// 		if the tile is an i/o -> put in the i/o lists of the wire corresponding to the id of the cable
-						//		if it is a cable (adj_cable) 
+						//		if it is a cable (adj_cable)
 						//			if adj_cable is already in a wire list:
 						// 				if it is the same list as cable : already processed -> continue the for loop
 						//				else :
@@ -137,27 +138,33 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						//					replace all the ids of the second one by the first one's in the id_stack
 						//					delete the second wire
 						// 			else: add adj_cable to the wire list of cable
-						//			add adj_cable in the stack (with it's wire id on the id_stack) 
+						//			add adj_cable in the stack (with it's wire id on the id_stack)
 						//		else: do nothing
-					
-						mut new_wires := []Wire{len: adjacent_wires.len, init:Wire{rid: index, cable_coords: [coo_adj_wire[index]]}}
+
+						mut new_wires := []Wire{len: adjacent_wires.len, init: Wire{
+							rid:          index
+							cable_coords: [coo_adj_wire[index]]
+						}}
 						mut c_stack := [][]int{len: adjacent_wires.len, init: coo_adj_wire[index]}
 						mut id_stack := []int{len: adjacent_wires.len, init: index}
 
 						for c_stack.len > 0 { // for each wire in the stack
 							cable := w_stack.pop()
 							cable_id := id_stack.pop()
-							for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] { // for each adjacent tile
-								ajd_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(x+cable[0], y+cable[1], coo[0], coo[1])
+							for coo in [[0, 1], [0, -1], [1, 0],
+								[-1, 0]] { // for each adjacent tile
+								ajd_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable[0],
+									cable[1], coo[0], coo[1])
 								if ajd_id != empty_id {
-									total_x := x+cable[0]+x_off
-									total_y := y+cable[1]+y_off
-									mut adj_chunkmap := app.get_chunkmap_at_coords(total_x, total_y)
+									total_x := cable[0] + x_off
+									total_y := cable[1] + y_off
+									mut adj_chunkmap := app.get_chunkmap_at_coords(total_x,
+										total_y)
 									adj_x_map := total_x % chunk_size
 									adj_y_map := total_y % chunk_size
 									assert adj_id == adj_chunkmap[adj_x_map][adj_y_map]
 									if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
-										adj_coo := [cable[0]+x_off, cable[1]+y_off]
+										adj_coo := [total_x, total_y]
 										mut wid_adj := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
 										if wid_adj == -1 { // if the coord is not already in a wire list
 											for mut wire in new_wires { // find the wire where cable is
@@ -167,7 +174,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 												}
 											}
 											if wid_ajd == -1 {
-												log_quit("${@LINE} should have found the appropriate wire")
+												log_quit('${@LINE} should have found the appropriate wire')
 											}
 										} else {
 											if wid_adj != cable_id { // if is in a list but not the same as cable
@@ -201,20 +208,41 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 										id_stack << wid_adj
 									} else {
 										// it is an input or an output, or else the wire_next_gate_id_coo function would have returned empty_id
-										if is_input {
-											
-										} else {
+										for mut wire in new_wires { // find the wire where cable is
+											if wire.rid == cable_id {
+												if is_input {
+													wire.inps << adj_id
+												} else {
+													wire.outs << adj_id
+												}
+											}
 										}
-										// TODO check i/o / crossing / empty tile / orientation maybe use get_next_gate_id with cable in this dir
 									}
 								}
 							}
 						}
-							
-						// modify the real wire that was already there
-						// create new wires if needed
-						// change the ids of the cables and the I/O (previous I/O and actual I/O)
 
+						_, idx := app.get_elem_state_idx_by_id(id, 0)
+						new_wires[0].rid = id
+						app.wires[idx] = new_wires[0]
+						for mut wire in new_wires[1..] {
+							wire.rid = app.w_next_rid | elem_wire_bits
+							app.wires << wire
+							app.w_next_rid++
+						}
+
+						// change the ids of the cables on the map and the I/O's i/o (the previous I/O (that were next to the wire) and actual I/O of the new wires)
+						for wire in new_wires {
+							for coo in wire.cable_coos {
+								mut adj_chunkmap := app.get_chunkmap_at_coords(coo[0],
+									coo[1])
+								adj_x_map := coo[0] % chunk_size
+								adj_y_map := coo[1] % chunk_size
+								adj_chunkmap[adj_x_map][adj_y_map] = wire.rid
+							}
+
+							WIPP
+						}
 					} else {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
 						app.wires.delete(idx)
@@ -239,7 +267,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 
 					// 2. done: no state & no struct
 
-					// 3. WIP 
+					// 3. WIP
 					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id(x, y, 0, 1)
 					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id(x, y, 0, -1)
 					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id(x, y, 1, 0)
@@ -292,7 +320,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// update the output/inputs fields of the adjacent elements
 	// 4.
 	// add one to the rid of the type
-	
+
 	x_start, x_end := if _x_start > _x_end {
 		_x_end, _x_start
 	} else {
@@ -303,7 +331,6 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	} else {
 		_y_start, _y_end
 	}
-
 
 	mut x_ori, mut y_ori := match app.selected_ori {
 		// Output direction
@@ -325,7 +352,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 
 					// 1. done
-					id := elem_not_bits & app.n_next_rid & app.selected_ori
+					id := elem_not_bits | app.n_next_rid | app.selected_ori
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
@@ -355,7 +382,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 
 					// 1. done
-					id := elem_diode_bits & app.d_next_rid & app.selected_ori
+					id := elem_diode_bits | app.d_next_rid | app.selected_ori
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
@@ -385,7 +412,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 
 					// 1. done
-					id := elem_on_bits & app.selected_ori
+					id := elem_on_bits | app.selected_ori
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
@@ -414,7 +441,8 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
 					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
-						adj_id, is_input, _, _ := app.wire_next_gate_id(x, y, coo[0], coo[1])
+						adj_id, is_input, _, _ := app.wire_next_gate_id(x, y, coo[0],
+							coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
 							adjacent_wires << adj_id
@@ -469,7 +497,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
 
 					// 1. done
-					chunkmap[x_map][y_map] = elem_wire_bits & adjacent_wires[0] // no orientation
+					chunkmap[x_map][y_map] = elem_wire_bits | adjacent_wires[0] // no orientation
 
 					// 2. done
 					app.wires[first_i].cable_coords << [x, y]!
@@ -583,8 +611,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			next_chunkmap = app.get_chunkmap_at_coords(u32(x + x_off), u32(y + y_off))
 			next_id = next_chunkmap[(x + x_off) % chunk_size][(y + y_off) % chunk_size]
 		}
-		next_id, input, _, _ = app.wire_next_gate_id(u32(x + x_off - x_dir), u32(y + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
-		return 	next_id, input, x_off, y_off
+		next_id, input, _, _ = app.wire_next_gate_id(u32(x + x_off - x_dir), u32(y + y_off - y_dir),
+			x_dir, y_dir) // coords of the crossing just before the detected good elem
+		return next_id, input, x_off, y_off
 	} else if next_id == 0x0 {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
@@ -686,7 +715,8 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int) u64 {
 			next_chunkmap = app.get_chunkmap_at_coords(u32(x + x_off), u32(y + y_off))
 			next_id = next_chunkmap[(x + x_off) % chunk_size][(y + y_off) % chunk_size]
 		}
-		return app.next_gate_id(u32(x + x_off - x_dir), u32(y + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
+		return app.next_gate_id(u32(x + x_off - x_dir), u32(y + y_off - y_dir), x_dir,
+			y_dir) // coords of the crossing just before the detected good elem
 	} else if next_id == 0x0 {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
