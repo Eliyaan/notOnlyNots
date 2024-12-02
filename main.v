@@ -22,6 +22,11 @@ enum Elem {
 	crossing // 111...111
 }
 
+@[noreturn]
+fn log_quit(message string) {
+	panic("Very TODO")
+}
+
 fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// 1.
 	// set the tile id to empty_id
@@ -109,7 +114,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
 					for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] {
-						adj_id, is_input, _, _ := app.wire_next_gate_id(x, y, coo[0],
+						adj_id, is_input, _, _ := app.wire_next_gate_id_coo(x, y, coo[0],
 							coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
@@ -123,7 +128,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 
-					// 2. WIP
+					// 2. done
 					// Separate the wires:
 					if adjacent_wire.len > 0 {
 						// for each cable on the cable (positions) stack
@@ -232,6 +237,12 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 
 						// change the ids of the cables on the map and the I/O's i/o (the previous I/O (that were next to the wire) and actual I/O of the new wires)
+						for inp in adjacent_inps {
+							app.add_output(inp, empty_id)
+						}
+						for out in adjacent_outs {
+							app.add_output(out, empty_id)
+						}
 						for wire in new_wires {
 							for coo in wire.cable_coos {
 								mut adj_chunkmap := app.get_chunkmap_at_coords(coo[0],
@@ -240,8 +251,13 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 								adj_y_map := coo[1] % chunk_size
 								adj_chunkmap[adj_x_map][adj_y_map] = wire.rid
 							}
-
-							WIPP
+							
+							for inp in wire.inps {
+								app.add_output(inp, wire.rid)
+							}
+							for out in wire.outs {
+								app.add_output(out, wire.rid)
+							}
 						}
 					} else {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
@@ -268,10 +284,10 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done: no state & no struct
 
 					// 3. WIP
-					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id(x, y, 0, 1)
-					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id(x, y, 0, -1)
-					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id(x, y, 1, 0)
-					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id(x, y, -1, 0)
+					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
+					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
+					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_co_cooo(x, y, -1, 0)
 					if s_adj_id != empty_id && n_adj_id != empty_id {
 						if s_is_input && !n_is_input { // s is the input of n
 							app.add_input(n_adj_id, s_adj_id)
@@ -290,6 +306,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 							app.add_output(w_adj_id, e_adj_id)
 						}
 					}
+				} else {
+					log_quit("${@LINE} should not get into this else")
 				}
 			}
 		}
@@ -441,7 +459,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
 					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
-						adj_id, is_input, _, _ := app.wire_next_gate_id(x, y, coo[0],
+						adj_id, is_input, _, _ := app.wire_next_gate_id_coo(x, y, coo[0],
 							coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
@@ -529,10 +547,10 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done: no state & no struct
 
 					// 3. done
-					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id(x, y, 0, 1)
-					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id(x, y, 0, -1)
-					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id(x, y, 1, 0)
-					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id(x, y, -1, 0)
+					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
+					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
+					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
 					if s_adj_id != empty_id && n_adj_id != empty_id {
 						if s_is_input && !n_is_input { // s is the input of n
 							app.add_input(n_adj_id, s_adj_id)
@@ -611,7 +629,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			next_chunkmap = app.get_chunkmap_at_coords(u32(x + x_off), u32(y + y_off))
 			next_id = next_chunkmap[(x + x_off) % chunk_size][(y + y_off) % chunk_size]
 		}
-		next_id, input, _, _ = app.wire_next_gate_id(u32(x + x_off - x_dir), u32(y + y_off - y_dir),
+		next_id, input, _, _ = app.wire_next_gate_id_coo(u32(x + x_off - x_dir), u32(y + y_off - y_dir),
 			x_dir, y_dir) // coords of the crossing just before the detected good elem
 		return next_id, input, x_off, y_off
 	} else if next_id == 0x0 {
@@ -632,7 +650,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				east
 			}
 			else {
-				log_quit('${LINE} not a valid step for an orientation')
+				log_quit('${@LINE} not a valid step for an orientation')
 			}
 		}
 		if opp_step_ori != next_id & ori_mask { // is not an input of the gate
@@ -657,7 +675,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				west, east
 			}
 			else {
-				log_quit('${LINE} not a valid step for an orientation')
+				log_quit('${@LINE} not a valid step for an orientation')
 			}
 		}
 
@@ -683,7 +701,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				west, east
 			}
 			else {
-				log_quit('${LINE} not a valid step for an orientation')
+				log_quit('${@LINE} not a valid step for an orientation')
 			}
 		}
 
@@ -735,7 +753,7 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int) u64 {
 				west
 			}
 			else {
-				log_quit('${LINE} not a valid step for an orientation')
+				log_quit('${@LINE} not a valid step for an orientation')
 			}
 		}
 		if step_ori == app.selected_ori || next_id & ori_mask != app.selected_ori { // is an output of the gate or is not aligned (because the next is a ON)
@@ -884,7 +902,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous u8) (bool, int) {
 			}
 		}
 	}
-	log_quit('${LINE} id not found in get_elem_state_idx_by_id: ${id}')
+	log_quit('${@LINE} id not found in get_elem_state_idx_by_id: ${id}')
 }
 
 // TODO: Explain ids
