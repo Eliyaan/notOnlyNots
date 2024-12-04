@@ -1,8 +1,8 @@
 const empty_id = u64(0)
 const on_bits = u64(0x2000_0000_0000_0000) // 0010_0000_000...
-const elem_on_bits = u64(0xA000_0000_0000_0000) // 1010_0000_000...  always on
 const elem_not_bits = u64(0x0000_0000_0000_0000) // 0000_0000_000...
 const elem_diode_bits = u64(0x4000_0000_0000_0000) // 0100_0000_000...
+const elem_on_bits = u64(0xA000_0000_0000_0000) // 1010_0000_000...  always on
 const elem_wire_bits = u64(0xC000_0000_0000_0000) // 1100_0000_000...
 const elem_crossing_bits = u64(0xFFFF_FFFF_FFFF_FFFF) // 1111_1111_...
 // x++=east y++=south
@@ -63,6 +63,42 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				east { 1, 0 }
 				west { -1, 0 }
 				else { log_quit('${@LINE}unknown orientation') }
+			}
+			if id == elem_crossing_bits { // same bits as wires so need to be separated
+				// 1. done
+				chunkmap[x_map][y_map] = empty_id
+
+				// 2. done: no state & no struct
+
+				// 3. WIP
+				s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
+				n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
+				e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
+				w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_co_cooo(x, y, -1, 0)
+				if s_adj_id != empty_id && n_adj_id != empty_id {
+					// TODO: if one side is a wire : remove the i/o from the wire & from the gate
+					// TODO: if the two sides are wires: separate them
+					// If the two sides are standard gates:
+					if s_is_input && !n_is_input { // s is the input of n
+						app.add_input(n_adj_id, empty_id)
+						app.add_output(s_adj_id, empty_id)
+					} else if !s_is_input && n_is_input {
+						app.add_input(s_adj_id, empty_id)
+						app.add_output(n_adj_id, empty_id)
+					}
+				}
+				if e_adj_id != empty_id && w_adj_id != empty_id {
+					// TODO: if one side is a wire : remove the i/o from the wire & from the gate
+					// TODO: if the two sides are wires: separate them
+					// If the two sides are standard gates:
+					if e_is_input && !w_is_input { // s is the input of n
+						app.add_input(w_adj_id, empty_id)
+						app.add_output(e_adj_id, empty_id)
+					} else if !e_is_input && w_is_input {
+						app.add_input(e_adj_id, empty_id)
+						app.add_output(w_adj_id, empty_id)
+					}
+				}
 			}
 			match id & elem_type_mask {
 				elem_not_bits {
@@ -277,35 +313,6 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						app.add_input(out_id, empty_id)
 					}
 				}
-				elem_crossing_bits {
-					// 1. done
-					chunkmap[x_map][y_map] = empty_id
-
-					// 2. done: no state & no struct
-
-					// 3. WIP
-					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
-					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
-					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_co_cooo(x, y, -1, 0)
-					if s_adj_id != empty_id && n_adj_id != empty_id {
-						if s_is_input && !n_is_input { // s is the input of n
-							app.add_input(n_adj_id, s_adj_id)
-							app.add_output(s_adj_id, n_adj_id)
-						} else if !s_is_input && n_is_input {
-							app.add_input(s_adj_id, n_adj_id)
-							app.add_output(n_adj_id, s_adj_id)
-						}
-					}
-					if e_adj_id != empty_id && w_adj_id != empty_id {
-						if e_is_input && !w_is_input { // s is the input of n
-							app.add_input(w_adj_id, e_adj_id)
-							app.add_output(e_adj_id, w_adj_id)
-						} else if !e_is_input && w_is_input {
-							app.add_input(e_adj_id, w_adj_id)
-							app.add_output(w_adj_id, e_adj_id)
-						}
-					}
 				} else {
 					log_quit("${@LINE} should not get into this else")
 				}
@@ -546,27 +553,75 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 
 					// 2. done: no state & no struct
 
-					// 3. done
+					// 3. WIP
 					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
 					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
 					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
 					if s_adj_id != empty_id && n_adj_id != empty_id {
-						if s_is_input && !n_is_input { // s is the input of n
-							app.add_input(n_adj_id, s_adj_id)
-							app.add_output(s_adj_id, n_adj_id)
-						} else if !s_is_input && n_is_input {
-							app.add_input(s_adj_id, n_adj_id)
-							app.add_output(n_adj_id, s_adj_id)
+						// TODO
+						if s_ajd_id & elem_type_mask == elem_wire_bits && n_adj_id & elem_type_mask == elem_wire_bits { 
+							// two wires: join them
+						} else if s_ajd_id & elem_type_mask == elem_wire_bits { 
+							// one side is a wire: add the new i/o for the wire & for the gate
+							if n_is_input {
+								app.add_input(s_adj_id, n_adj_id) // add an input to the wire
+								app.add_output(n_adj_id, s_adj_id) // add an output to the gate
+							} else {	
+								app.add_input(n_adj_id, s_adj_id)
+								app.add_output(s_adj_id, n_adj_id)
+							}
+						} else if n_adj_id & elem_type_mask == elem_wire_bits {
+							// one side is a wire: add the new i/o for the wire & for the gate
+							if s_is_input {
+								app.add_input(n_adj_id, s_adj_id)
+								app.add_output(s_adj_id, n_adj_id)
+							} else {	
+								app.add_input(s_adj_id, n_adj_id)
+								app.add_output(n_adj_id, s_adj_id)
+							}
+						else {
+							// gates on the two sides
+							if s_is_input && !n_is_input { // s is the input of n
+								app.add_input(n_adj_id, s_adj_id)
+								app.add_output(s_adj_id, n_adj_id)
+							} else if !s_is_input && n_is_input {
+								app.add_input(s_adj_id, n_adj_id)
+								app.add_output(n_adj_id, s_adj_id)
+							}
 						}
 					}
 					if e_adj_id != empty_id && w_adj_id != empty_id {
-						if e_is_input && !w_is_input { // s is the input of n
-							app.add_input(w_adj_id, e_adj_id)
-							app.add_output(e_adj_id, w_adj_id)
-						} else if !e_is_input && w_is_input {
-							app.add_input(e_adj_id, w_adj_id)
-							app.add_output(w_adj_id, e_adj_id)
+						// TODO
+						if e_ajd_id & elem_type_mask == elem_wire_bits && w_adj_id & elem_type_mask == elem_wire_bits { 
+							// two wires: join them
+						} else if e_ajd_id & elem_type_mask == elem_wire_bits { 
+							// one side is a wire: add the new i/o for the wire & for the gate
+							if w_is_input {
+								app.add_input(e_adj_id, w_adj_id) // add an input to the wire
+								app.add_output(w_adj_id, e_adj_id) // add an output to the gate
+							} else {	
+								app.add_input(w_adj_id, e_adj_id)
+								app.add_output(e_adj_id, w_adj_id)
+							}
+						} else if w_adj_id & elem_type_mask == elem_wire_bits {
+							// one side is a wire: add the new i/o for the wire & for the gate
+							if e_is_input {
+								app.add_input(w_adj_id, e_adj_id) // add an input to the wire
+								app.add_output(e_adj_id, w_adj_id) // add an output to the gate
+							} else {	
+								app.add_input(e_adj_id, w_adj_id)
+								app.add_output(w_adj_id, e_adj_id)
+							}
+						else {
+							// gates on the two sides
+							if e_is_input && !w_is_input { // s is the input of n
+								app.add_input(w_adj_id, e_adj_id)
+								app.add_output(e_adj_id, w_adj_id)
+							} else if !e_is_input && w_is_input {
+								app.add_input(e_adj_id, w_adj_id)
+								app.add_output(w_adj_id, e_adj_id)
+							}
 						}
 					}
 
