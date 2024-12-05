@@ -24,7 +24,7 @@ enum Elem {
 
 @[noreturn]
 fn log_quit(message string) {
-	panic("Very TODO")
+	panic('Very TODO')
 }
 
 fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
@@ -74,7 +74,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 				n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
 				e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-				w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_co_cooo(x, y, -1, 0)
+				w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_co_cooo(x, y, -1,
+					0)
 				if s_adj_id != empty_id && n_adj_id != empty_id {
 					// TODO: if one side is a wire : remove the i/o from the wire & from the gate
 					// TODO: if the two sides are wires: separate them
@@ -164,146 +165,28 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 
+					// 1. done; doing it before the join because it would count it as a valid wire
+					chunkmap[x_map][y_map] = empty_id
+
 					// 2. done
 					// Separate the wires:
-					if adjacent_wire.len > 0 {
-						// for each cable on the cable (positions) stack
-						// 	for each adjacent tile
-						// 		if the tile is an i/o -> put in the i/o lists of the wire corresponding to the id of the cable
-						//		if it is a cable (adj_cable)
-						//			if adj_cable is already in a wire list:
-						// 				if it is the same list as cable : already processed -> continue the for loop
-						//				else :
-						//				 merge the two wire lists: done
-						// 					copy all the arrays of the first one into the second one
-						//					replace all the ids of the second one by the first one's in the id_stack
-						//					delete the second wire
-						// 			else: add adj_cable to the wire list of cable
-						//			add adj_cable in the stack (with it's wire id on the id_stack)
-						//		else: do nothing
-
-						mut new_wires := []Wire{len: adjacent_wires.len, init: Wire{
-							rid:          index
-							cable_coords: [coo_adj_wire[index]]
-						}}
-						mut c_stack := [][]int{len: adjacent_wires.len, init: coo_adj_wire[index]}
-						mut id_stack := []int{len: adjacent_wires.len, init: index}
-
-						for c_stack.len > 0 { // for each wire in the stack
-							cable := w_stack.pop()
-							cable_id := id_stack.pop()
-							for coo in [[0, 1], [0, -1], [1, 0],
-								[-1, 0]] { // for each adjacent tile
-								ajd_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable[0],
-									cable[1], coo[0], coo[1])
-								if ajd_id != empty_id {
-									total_x := cable[0] + x_off
-									total_y := cable[1] + y_off
-									mut adj_chunkmap := app.get_chunkmap_at_coords(total_x,
-										total_y)
-									adj_x_map := total_x % chunk_size
-									adj_y_map := total_y % chunk_size
-									assert adj_id == adj_chunkmap[adj_x_map][adj_y_map]
-									if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
-										adj_coo := [total_x, total_y]
-										mut wid_adj := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
-										if wid_adj == -1 { // if the coord is not already in a wire list
-											for mut wire in new_wires { // find the wire where cable is
-												if wire.rid == cable_id {
-													wid_adj = cable_id
-													wire.cable_coords << adj_coo
-												}
-											}
-											if wid_ajd == -1 {
-												log_quit('${@LINE} should have found the appropriate wire')
-											}
-										} else {
-											if wid_adj != cable_id { // if is in a list but not the same as cable
-												wid_adj = cable_id
-												// merge the lists
-												mut i_first := -1
-												mut i_sec := -1
-												for iw, wire in new_wires {
-													if wire.rid == cable_id {
-														i_first = iw
-													} else if wire.rid == id {
-														i_sec = iw
-													}
-												}
-
-												new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
-												new_wires[i_first].inps << new_wires[i_sec].inps
-												new_wires[i_first].outs << new_wires[i_sec].outs
-												for mut ids in id_stack {
-													if ids == i_sec {
-														ids = i_first
-													}
-												}
-												new_wires.delete(i_sec)
-											} else {
-												continue // was already processed
-											}
-										}
-										// put the actual adj cable on the stack
-										c_stack << adj_coo
-										id_stack << wid_adj
-									} else {
-										// it is an input or an output, or else the wire_next_gate_id_coo function would have returned empty_id
-										for mut wire in new_wires { // find the wire where cable is
-											if wire.rid == cable_id {
-												if is_input {
-													wire.inps << adj_id
-												} else {
-													wire.outs << adj_id
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-
-						_, idx := app.get_elem_state_idx_by_id(id, 0)
-						new_wires[0].rid = id
-						app.wires[idx] = new_wires[0]
-						for mut wire in new_wires[1..] {
-							wire.rid = app.w_next_rid | elem_wire_bits
-							app.wires << wire
-							app.w_next_rid++
-						}
-
-						// change the ids of the cables on the map and the I/O's i/o (the previous I/O (that were next to the wire) and actual I/O of the new wires)
-						for inp in adjacent_inps {
-							app.add_output(inp, empty_id)
-						}
-						for out in adjacent_outs {
-							app.add_output(out, empty_id)
-						}
-						for wire in new_wires {
-							for coo in wire.cable_coos {
-								mut adj_chunkmap := app.get_chunkmap_at_coords(coo[0],
-									coo[1])
-								adj_x_map := coo[0] % chunk_size
-								adj_y_map := coo[1] % chunk_size
-								adj_chunkmap[adj_x_map][adj_y_map] = wire.rid
-							}
-							
-							for inp in wire.inps {
-								app.add_output(inp, wire.rid)
-							}
-							for out in wire.outs {
-								app.add_output(out, wire.rid)
-							}
-						}
-					} else {
+					if adjacent_wire.len > 1 {
+						app.separe_wires()
+					} else if adjacent_wires.len == 0 {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
 						app.wires.delete(idx)
 						app.w_states[0].delete(idx)
 						app.w_states[1].delete(idx)
+					} else { // if only 1 adjacent wire: remove the cable from the wire
+						_, idx := app.get_elem_state_idx_by_id(id, 0)
+						app.wires[idx].cable_coords.delete([x, y])
+						for inp_id in adjacent_inps {
+							app.wires[idx].inps.delete(inp_id)
+						}
+						for out_id in adjacent_outs {
+							app.wires[idx].outs.delete(out_id)
+						}
 					}
-
-					// 1. done
-					chunkmap[x_map][y_map] = empty_id
 
 					// 3. done
 					for inp_id in adjacent_inps {
@@ -313,10 +196,133 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						app.add_input(out_id, empty_id)
 					}
 				}
-				} else {
-					log_quit("${@LINE} should not get into this else")
+				else {
+					log_quit('${@LINE} should not get into this else')
 				}
 			}
+		}
+	}
+}
+
+// id: the id of the wire to separate (to reuse the old wire struct)
+fn (mut app App) separe_wires(coo_adj_wires [][]int, id u64) {
+	// for each cable on the cable (positions) stack
+	// 	for each adjacent tile
+	// 		if the tile is an i/o -> put in the i/o lists of the wire corresponding to the id of the cable
+	//		if it is a cable (adj_cable)
+	//			if adj_cable is already in a wire list:
+	// 				if it is the same list as cable : already processed -> continue the for loop
+	//				else :
+	//				 merge the two wire lists: done
+	// 					copy all the arrays of the first one into the second one
+	//					replace all the ids of the second one by the first one's in the id_stack
+	//					delete the second wire
+	// 			else: add adj_cable to the wire list of cable
+	//			add adj_cable in the stack (with it's wire id on the id_stack)
+	//		else: do nothing
+
+	mut new_wires := []Wire{len: coo_adj_wires.len, init: Wire{
+		rid:          index
+		cable_coords: [coo_adj_wires[index]]
+	}}
+	mut c_stack := [][]int{len: coo_adj_wires.len, init: coo_adj_wires[index]}
+	mut id_stack := []int{len: coo_adj_wires.len, init: index}
+
+	for c_stack.len > 0 { // for each wire in the stack
+		cable := w_stack.pop()
+		cable_id := id_stack.pop()
+		for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] { // for each adjacent tile
+			ajd_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable[0], cable[1], coo[0], coo[1])
+			if ajd_id != empty_id {
+				total_x := cable[0] + x_off
+				total_y := cable[1] + y_off
+				mut adj_chunkmap := app.get_chunkmap_at_coords(total_x, total_y)
+				adj_x_map := total_x % chunk_size
+				adj_y_map := total_y % chunk_size
+				assert adj_id == adj_chunkmap[adj_x_map][adj_y_map]
+				if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
+					adj_coo := [total_x, total_y]
+					mut wid_adj := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
+					if wid_adj == -1 { // if the coord is not already in a wire list
+						for mut wire in new_wires { // find the wire where cable is
+							if wire.rid == cable_id {
+								wid_adj = cable_id
+								wire.cable_coords << adj_coo
+							}
+						}
+						if wid_ajd == -1 {
+							log_quit('${@LINE} should have found the appropriate wire')
+						}
+					} else {
+						if wid_adj != cable_id { // if is in a list but not the same as cable
+							wid_adj = cable_id
+							// merge the lists
+							mut i_first := -1
+							mut i_sec := -1
+							for iw, wire in new_wires {
+								if wire.rid == cable_id {
+									i_first = iw
+								} else if wire.rid == id {
+									i_sec = iw
+								}
+							}
+
+							new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
+							new_wires[i_first].inps << new_wires[i_sec].inps
+							new_wires[i_first].outs << new_wires[i_sec].outs
+							for mut ids in id_stack {
+								if ids == i_sec {
+									ids = i_first
+								}
+							}
+							new_wires.delete(i_sec)
+						} else {
+							continue // was already processed
+						}
+					}
+					// put the actual adj cable on the stack
+					c_stack << adj_coo
+					id_stack << wid_adj
+				} else {
+					// it is an input or an output, or else the wire_next_gate_id_coo function would have returned empty_id
+					for mut wire in new_wires { // find the wire where cable is
+						if wire.rid == cable_id {
+							if is_input {
+								wire.inps << adj_id
+							} else {
+								wire.outs << adj_id
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Create/Modify the new wires
+	_, idx := app.get_elem_state_idx_by_id(id, 0)
+	new_wires[0].rid = id
+	app.wires[idx] = new_wires[0]
+	for mut wire in new_wires[1..] {
+		wire.rid = app.w_next_rid | elem_wire_bits
+		app.wires << wire
+		app.w_next_rid++
+	}
+
+	// change the ids of the cables on the map and the I/O's i/o (actual I/O of the new wires)
+	for wire in new_wires {
+		for coo in wire.cable_coos {
+			mut adj_chunkmap := app.get_chunkmap_at_coords(coo[0], coo[1])
+			adj_x_map := coo[0] % chunk_size
+			adj_y_map := coo[1] % chunk_size
+			adj_chunkmap[adj_x_map][adj_y_map] = wire.rid
+		}
+
+		for inp in wire.inps {
+			app.add_output(inp, wire.rid)
+		}
+		for out in wire.outs {
+			app.add_output(out, wire.rid)
 		}
 	}
 }
@@ -481,35 +487,9 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 
 					// Join the wires:
-					if adjacent_wires.len > 0 {
-						adjacent_wires.sort() // the id order is the same as the idx order so no problem for deletion
-						_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0],
-							0)
-						for wire in adjacent_wires[1..] {
-							_, i := app.get_elem_state_idx_by_id(wire, 0)
-							for coo in app.wires[i].cable_coords {
-								// change the id of all the cables on the map
-								mut w_chunkmap := app.get_chunkmap_at_coords(coo[0], coo[1])
-								w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] &= ~elem_type_mask
-								w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] |= adjacent_wires[0]
-							}
-							// change the inputs / outputs' i/o ids
-							for inp in app.wires[i].inps {
-								app.add_output(inp, wire)
-							}
-							for out in app.wires[i].outs {
-								app.add_input(out, wire)
-							}
-							// merge all the arrays in the new main wire
-							app.wires[first_i].cable_coords << app.wires[i].cable_coords
-							app.wires[first_i].inps << app.wires[i].inps
-							app.wires[first_i].outs << app.wires[i].outs
-							// delete the old wires
-							app.wires.delete(i)
-							app.w_states[0].delete(i)
-							app.w_states[1].delete(i)
-						}
-					} else {
+					if adjacent_wires.len > 1 { // if only one wire, there is no need to join it
+						app.join_wires(mut adjacent_wires)
+					} else if adjacent_wires.len == 0 {
 						app.wires << Wire{
 							rid: app.w_next_rid
 						}
@@ -553,21 +533,24 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 
 					// 2. done: no state & no struct
 
-					// 3. WIP
+					// 3. done
 					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
 					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1,
+						0)
 					if s_adj_id != empty_id && n_adj_id != empty_id {
-						// TODO
-						if s_ajd_id & elem_type_mask == elem_wire_bits && n_adj_id & elem_type_mask == elem_wire_bits { 
+						if s_ajd_id & elem_type_mask == elem_wire_bits
+							&& n_adj_id & elem_type_mask == elem_wire_bits {
 							// two wires: join them
-						} else if s_ajd_id & elem_type_mask == elem_wire_bits { 
+							mut adjacent_wires := [s_adj_id, n_adj_id]
+							app.join_wires(mut adjacent_wires)
+						} else if s_ajd_id & elem_type_mask == elem_wire_bits {
 							// one side is a wire: add the new i/o for the wire & for the gate
 							if n_is_input {
 								app.add_input(s_adj_id, n_adj_id) // add an input to the wire
 								app.add_output(n_adj_id, s_adj_id) // add an output to the gate
-							} else {	
+							} else {
 								app.add_input(n_adj_id, s_adj_id)
 								app.add_output(s_adj_id, n_adj_id)
 							}
@@ -576,11 +559,11 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 							if s_is_input {
 								app.add_input(n_adj_id, s_adj_id)
 								app.add_output(s_adj_id, n_adj_id)
-							} else {	
+							} else {
 								app.add_input(s_adj_id, n_adj_id)
 								app.add_output(n_adj_id, s_adj_id)
 							}
-						else {
+						} else {
 							// gates on the two sides
 							if s_is_input && !n_is_input { // s is the input of n
 								app.add_input(n_adj_id, s_adj_id)
@@ -592,15 +575,17 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 					if e_adj_id != empty_id && w_adj_id != empty_id {
-						// TODO
-						if e_ajd_id & elem_type_mask == elem_wire_bits && w_adj_id & elem_type_mask == elem_wire_bits { 
+						if e_ajd_id & elem_type_mask == elem_wire_bits
+							&& w_adj_id & elem_type_mask == elem_wire_bits {
 							// two wires: join them
-						} else if e_ajd_id & elem_type_mask == elem_wire_bits { 
+							mut adjacent_wires := [e_adj_id, w_adj_id]
+							app.join_wires(mut adjacent_wires)
+						} else if e_ajd_id & elem_type_mask == elem_wire_bits {
 							// one side is a wire: add the new i/o for the wire & for the gate
 							if w_is_input {
 								app.add_input(e_adj_id, w_adj_id) // add an input to the wire
 								app.add_output(w_adj_id, e_adj_id) // add an output to the gate
-							} else {	
+							} else {
 								app.add_input(w_adj_id, e_adj_id)
 								app.add_output(e_adj_id, w_adj_id)
 							}
@@ -609,11 +594,11 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 							if e_is_input {
 								app.add_input(w_adj_id, e_adj_id) // add an input to the wire
 								app.add_output(e_adj_id, w_adj_id) // add an output to the gate
-							} else {	
+							} else {
 								app.add_input(e_adj_id, w_adj_id)
 								app.add_output(w_adj_id, e_adj_id)
 							}
-						else {
+						} else {
 							// gates on the two sides
 							if e_is_input && !w_is_input { // s is the input of n
 								app.add_input(w_adj_id, e_adj_id)
@@ -629,6 +614,35 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				}
 			}
 		}
+	}
+}
+
+fn (mut app App) join_wires(mut adjacent_wires []u64) {
+	adjacent_wires.sort() // the id order is the same as the idx order so no problem for deletion
+	_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
+	for wire in adjacent_wires[1..] {
+		_, i := app.get_elem_state_idx_by_id(wire, 0)
+		for coo in app.wires[i].cable_coords {
+			// change the id of all the cables on the map
+			mut w_chunkmap := app.get_chunkmap_at_coords(coo[0], coo[1])
+			w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] &= ~elem_type_mask
+			w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] |= adjacent_wires[0]
+		}
+		// change the inputs / outputs' i/o ids
+		for inp in app.wires[i].inps {
+			app.add_output(inp, wire)
+		}
+		for out in app.wires[i].outs {
+			app.add_input(out, wire)
+		}
+		// merge all the arrays in the new main wire
+		app.wires[first_i].cable_coords << app.wires[i].cable_coords
+		app.wires[first_i].inps << app.wires[i].inps
+		app.wires[first_i].outs << app.wires[i].outs
+		// delete the old wires
+		app.wires.delete(i)
+		app.w_states[0].delete(i)
+		app.w_states[1].delete(i)
 	}
 }
 
