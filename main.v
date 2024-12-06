@@ -74,29 +74,33 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 				n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
 				e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-				w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_co_cooo(x, y, -1, 0)
+				w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
 				if s_adj_id != empty_id && n_adj_id != empty_id {
-					if s_ajd_id & elem_type_mask == elem_wire_bits && n_adj_id & elem_type_mask == elem_wire_bits {
+					if s_adj_id & elem_type_mask == elem_wire_bits && n_adj_id & elem_type_mask == elem_wire_bits {
 						// two wires: separate them
 						app.separate_wires([[0, 1], [0, -1]], s_adj_id) // same id for north and south
-					} else if s_ajd_id & elem_type_mask == elem_wire_bits {
+					} else if s_adj_id & elem_type_mask == elem_wire_bits {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						_, idx := app.get_elem_state_idx_by_id(s_adj_id, 0)
 						if n_is_input {
-							app.wires[idx].inps.delete(n_adj_id) // remove the input from the wire
+							i := app.wires[idx].inps.index(n_adj_id)
+							app.wires[idx].inps.delete(i) // remove the input from the wire
 							app.add_output(s_adj_id, empty_id) // remove output of the gate
 						} else {
-							app.wires[idx].outs.delete(n_adj_id) // remove the input from the wire
+							i := app.wires[idx].outs.index(n_adj_id)
+							app.wires[idx].outs.delete(i) // remove the input from the wire
 							app.add_input(s_adj_id, empty_id) // remove output of the gate
 						}
 					} else if n_adj_id & elem_type_mask == elem_wire_bits {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						_, idx := app.get_elem_state_idx_by_id(n_adj_id, 0)
 						if s_is_input {
-							app.wires[idx].inps.delete(s_adj_id) // remove the input from the wire
+							i := app.wires[idx].inps.index(s_adj_id)
+							app.wires[idx].inps.delete(i) // remove the input from the wire
 							app.add_output(n_adj_id, empty_id) // remove output of the gate
 						} else {
-							app.wires[idx].outs.delete(s_adj_id) // remove the input from the wire
+							i := app.wires[idx].outs.index(s_adj_id)
+							app.wires[idx].outs.delete(i) // remove the input from the wire
 							app.add_input(n_adj_id, empty_id) // remove output of the gate
 						}
 					} else {
@@ -111,10 +115,10 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 				}
 				if e_adj_id != empty_id && w_adj_id != empty_id {
-					if s_ajd_id & elem_type_mask == elem_wire_bits && w_adj_id & elem_type_mask == elem_wire_bits {
+					if e_adj_id & elem_type_mask == elem_wire_bits && w_adj_id & elem_type_mask == elem_wire_bits {
 						// two wires: separate them
 						app.separate_wires([[1, 0], [-1, 0]], e_adj_id) // same id for east and west
-					} else if e_ajd_id & elem_type_mask == elem_wire_bits {
+					} else if e_adj_id & elem_type_mask == elem_wire_bits {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						_, idx := app.get_elem_state_idx_by_id(e_adj_id, 0)
 						if w_is_input {
@@ -216,7 +220,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					// Separate the wires:
 					if adjacent_wire.len > 1 {
-						app.separe_wires()
+						app.separate_wires()
 					} else if adjacent_wires.len == 0 {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
 						app.wires.delete(idx)
@@ -250,7 +254,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 }
 
 // id: the id of the wire to separate (to reuse the old wire struct)
-fn (mut app App) separe_wires(coo_adj_wires [][]int, id u64) {
+fn (mut app App) separate_wires(coo_adj_wires [][]int, id u64) {
 	// for each cable on the cable (positions) stack
 	// 	for each adjacent tile
 	// 		if the tile is an i/o -> put in the i/o lists of the wire corresponding to the id of the cable
@@ -277,8 +281,8 @@ fn (mut app App) separe_wires(coo_adj_wires [][]int, id u64) {
 		cable := w_stack.pop()
 		cable_id := id_stack.pop()
 		for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] { // for each adjacent tile
-			ajd_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable[0], cable[1], coo[0], coo[1])
-			if ajd_id != empty_id {
+			adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable[0], cable[1], coo[0], coo[1])
+			if adj_id != empty_id {
 				total_x := cable[0] + x_off
 				total_y := cable[1] + y_off
 				mut adj_chunkmap := app.get_chunkmap_at_coords(total_x, total_y)
@@ -295,7 +299,7 @@ fn (mut app App) separe_wires(coo_adj_wires [][]int, id u64) {
 								wire.cable_coords << adj_coo
 							}
 						}
-						if wid_ajd == -1 {
+						if wid_adj == -1 {
 							log_quit('${@LINE} should have found the appropriate wire')
 						}
 					} else {
@@ -585,12 +589,12 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1,
 						0)
 					if s_adj_id != empty_id && n_adj_id != empty_id {
-						if s_ajd_id & elem_type_mask == elem_wire_bits
+						if s_adj_id & elem_type_mask == elem_wire_bits
 							&& n_adj_id & elem_type_mask == elem_wire_bits {
 							// two wires: join them
 							mut adjacent_wires := [s_adj_id, n_adj_id]
 							app.join_wires(mut adjacent_wires)
-						} else if s_ajd_id & elem_type_mask == elem_wire_bits {
+						} else if s_adj_id & elem_type_mask == elem_wire_bits {
 							// one side is a wire: add the new i/o for the wire & for the gate
 							if n_is_input {
 								app.add_input(s_adj_id, n_adj_id) // add an input to the wire
@@ -620,12 +624,12 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 					if e_adj_id != empty_id && w_adj_id != empty_id {
-						if e_ajd_id & elem_type_mask == elem_wire_bits
+						if e_adj_id & elem_type_mask == elem_wire_bits
 							&& w_adj_id & elem_type_mask == elem_wire_bits {
 							// two wires: join them
 							mut adjacent_wires := [e_adj_id, w_adj_id]
 							app.join_wires(mut adjacent_wires)
-						} else if e_ajd_id & elem_type_mask == elem_wire_bits {
+						} else if e_adj_id & elem_type_mask == elem_wire_bits {
 							// one side is a wire: add the new i/o for the wire & for the gate
 							if w_is_input {
 								app.add_input(e_adj_id, w_adj_id) // add an input to the wire
