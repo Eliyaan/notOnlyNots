@@ -70,34 +70,79 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 
 				// 2. done: no state & no struct
 
-				// 3. WIP
+				// 3. done
 				s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 				n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
 				e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-				w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_co_cooo(x, y, -1,
-					0)
+				w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_co_cooo(x, y, -1, 0)
 				if s_adj_id != empty_id && n_adj_id != empty_id {
-					// TODO: if one side is a wire : remove the i/o from the wire & from the gate
-					// TODO: if the two sides are wires: separate them
-					// If the two sides are standard gates:
-					if s_is_input && !n_is_input { // s is the input of n
-						app.add_input(n_adj_id, empty_id)
-						app.add_output(s_adj_id, empty_id)
-					} else if !s_is_input && n_is_input {
-						app.add_input(s_adj_id, empty_id)
-						app.add_output(n_adj_id, empty_id)
+					if s_ajd_id & elem_type_mask == elem_wire_bits && n_adj_id & elem_type_mask == elem_wire_bits {
+						// two wires: separate them
+						app.separate_wires([[0, 1], [0, -1]], s_adj_id) // same id for north and south
+					} else if s_ajd_id & elem_type_mask == elem_wire_bits {
+						// one side is a wire: add the new i/o for the wire & for the gate
+						_, idx := app.get_elem_state_idx_by_id(s_adj_id, 0)
+						if n_is_input {
+							app.wires[idx].inps.delete(n_adj_id) // remove the input from the wire
+							app.add_output(s_adj_id, empty_id) // remove output of the gate
+						} else {
+							app.wires[idx].outs.delete(n_adj_id) // remove the input from the wire
+							app.add_input(s_adj_id, empty_id) // remove output of the gate
+						}
+					} else if n_adj_id & elem_type_mask == elem_wire_bits {
+						// one side is a wire: add the new i/o for the wire & for the gate
+						_, idx := app.get_elem_state_idx_by_id(n_adj_id, 0)
+						if s_is_input {
+							app.wires[idx].inps.delete(s_adj_id) // remove the input from the wire
+							app.add_output(n_adj_id, empty_id) // remove output of the gate
+						} else {
+							app.wires[idx].outs.delete(s_adj_id) // remove the input from the wire
+							app.add_input(n_adj_id, empty_id) // remove output of the gate
+						}
+					} else {
+						// If the two sides are standard gates:
+						if s_is_input && !n_is_input { // s is the input of n
+							app.add_input(n_adj_id, empty_id)
+							app.add_output(s_adj_id, empty_id)
+						} else if !s_is_input && n_is_input {
+							app.add_input(s_adj_id, empty_id)
+							app.add_output(n_adj_id, empty_id)
+						}
 					}
 				}
 				if e_adj_id != empty_id && w_adj_id != empty_id {
-					// TODO: if one side is a wire : remove the i/o from the wire & from the gate
-					// TODO: if the two sides are wires: separate them
-					// If the two sides are standard gates:
-					if e_is_input && !w_is_input { // s is the input of n
-						app.add_input(w_adj_id, empty_id)
-						app.add_output(e_adj_id, empty_id)
-					} else if !e_is_input && w_is_input {
-						app.add_input(e_adj_id, empty_id)
-						app.add_output(w_adj_id, empty_id)
+					if s_ajd_id & elem_type_mask == elem_wire_bits && w_adj_id & elem_type_mask == elem_wire_bits {
+						// two wires: separate them
+						app.separate_wires([[1, 0], [-1, 0]], e_adj_id) // same id for east and west
+					} else if e_ajd_id & elem_type_mask == elem_wire_bits {
+						// one side is a wire: add the new i/o for the wire & for the gate
+						_, idx := app.get_elem_state_idx_by_id(e_adj_id, 0)
+						if w_is_input {
+							app.wires[idx].inps.delete(w_adj_id) // remove the input from the wire
+							app.add_output(e_adj_id, empty_id) // remove output of the gate
+						} else {
+							app.wires[idx].outs.delete(e_adj_id) // remove the input from the wire
+							app.add_input(e_adj_id, empty_id) // remove output of the gate
+						}
+					} else if w_adj_id & elem_type_mask == elem_wire_bits {
+						// one side is a wire: add the new i/o for the wire & for the gate
+						_, idx := app.get_elem_state_idx_by_id(w_adj_id, 0)
+						if e_is_input {
+							app.wires[idx].inps.delete(e_adj_id) // remove the input from the wire
+							app.add_output(w_adj_id, empty_id) // remove output of the gate
+						} else {
+							app.wires[idx].outs.delete(e_adj_id) // remove the input from the wire
+							app.add_input(w_adj_id, empty_id) // remove output of the gate
+						}
+					} else {
+						// If the two sides are standard gates:
+						if e_is_input && !w_is_input { // s is the input of n
+							app.add_input(w_adj_id, empty_id)
+							app.add_output(e_adj_id, empty_id)
+						} else if !e_is_input && w_is_input {
+							app.add_input(e_adj_id, empty_id)
+							app.add_output(w_adj_id, empty_id)
+						}
 					}
 				}
 			}
