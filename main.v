@@ -35,6 +35,18 @@ struct PlaceInstruction {
 	rel_y u32
 }
 
+fn (mut app App) paste(x_start u32, y_start u32) {
+	old_item := app.selected_item
+	old_ori := app.selected_ori
+	for place in app.copied {
+		app.selected_item = place.elem
+		app.selected_ori = u64(place.orientation) << 56
+		app.placement(place.rel_x + x_start, place.rel_y + y_start, place.rel_x + x_start, place.rel_y + y_start)
+	}
+	app.selected_ori = old_ori
+	app.selected_item = old_item
+}
+
 fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// for all the elements in the rectangle
 	// 	add an instruction with the info needed to place the elem later
@@ -49,60 +61,36 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	} else {
 		_y_start, _y_end
 	}
-	
+
 	app.copied = []
 
-	for x in x_start .. x_end {
-		for y in y_start .. y_end {
+	for x in x_start .. x_end + 1 {
+		for y in y_start .. y_end + 1 {
 			mut chunkmap := app.get_chunkmap_at_coords(x, y)
 			x_map := x % chunk_size
 			y_map := y % chunk_size
-			if chunkmap[x_map][y_map] == 0x0 { // map empty
+			id := chunkmap[x_map][y_map]
+			if id == 0x0 { // map empty
 				continue
 			}
 			if id == elem_crossing_bits { // same bits as wires so need to be separated
-				app.copied << PlaceInstruction {
-					.crossing
-					u8(0) // no ori for crossings
-					x - x_start
-					y - y_start
-				}
+				app.copied << PlaceInstruction{.crossing, u8(0), x - x_start, y - y_start}
 				continue
 			}
-			
+
 			ori := id & ori_mask
 			match id & elem_type_mask {
 				elem_not_bits {
-					app.copied << PlaceInstruction {
-						.not
-						u8(ori >> 56)
-						x - x_start
-						y - y_start
-					}
+					app.copied << PlaceInstruction{.not, u8(ori >> 56), x - x_start, y - y_start}
 				}
 				elem_diode_bits {
-					app.copied << PlaceInstruction {
-						.diode
-						u8(ori >> 56)
-						x - x_start
-						y - y_start
-					}
+					app.copied << PlaceInstruction{.diode, u8(ori >> 56), x - x_start, y - y_start}
 				}
 				elem_on_bits {
-					app.copied << PlaceInstruction {
-						.on
-						u8(ori >> 56)
-						x - x_start
-						y - y_start
-					}
+					app.copied << PlaceInstruction{.on, u8(ori >> 56), x - x_start, y - y_start}
 				}
 				elem_wire_bits {
-					app.copied << PlaceInstruction {
-						.wire
-						u8(0) // no ori for wires
-						x - x_start
-						y - y_start
-					}
+					app.copied << PlaceInstruction{.wire, u8(0), x - x_start, y - y_start}
 				}
 				else {
 					log_quit('${@LINE} should not get into this else')
@@ -132,8 +120,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		_y_start, _y_end
 	}
 
-	for x in x_start .. x_end {
-		for y in y_start .. y_end {
+	for x in x_start .. x_end + 1 {
+		for y in y_start .. y_end + 1 {
 			mut chunkmap := app.get_chunkmap_at_coords(x, y)
 			x_map := x % chunk_size
 			y_map := y % chunk_size
@@ -519,8 +507,8 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	}
 	match app.selected_item {
 		.not {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
+			for x in x_start .. x_end + 1 {
+				for y in y_start .. y_end + 1 {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -549,8 +537,8 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			}
 		}
 		.diode {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
+			for x in x_start .. x_end + 1 {
+				for y in y_start .. y_end + 1 {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -579,8 +567,8 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			}
 		}
 		.on {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
+			for x in x_start .. x_end + 1 {
+				for y in y_start .. y_end + 1 {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -604,8 +592,8 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			}
 		}
 		.wire {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
+			for x in x_start .. x_end + 1 {
+				for y in y_start .. y_end + 1 {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -666,8 +654,8 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			}
 		}
 		.crossing {
-			for x in x_start .. x_end {
-				for y in y_start .. y_end {
+			for x in x_start .. x_end + 1 {
+				for y in y_start .. y_end + 1 {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -1194,7 +1182,7 @@ struct App {
 mut:
 	map           []Chunk
 	selected_item Elem
-	selected_ori  u64
+	selected_ori  u64 = north
 	copied        []PlaceInstruction
 	actual_state  int // indicate which list is the old state list and which is the actual one (0 for the first, 1 for the second)
 	nots          []Nots
