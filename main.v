@@ -70,9 +70,8 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				continue
 			}
 			
-			ori := match id & ori_mask
+			ori := id & ori_mask
 			match id & elem_type_mask {
-/*
 				elem_not_bits {
 					app.copied << PlaceInstruction {
 						.not
@@ -108,7 +107,6 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				else {
 					log_quit('${@LINE} should not get into this else')
 				}
-			*/
 			}
 		}
 	}
