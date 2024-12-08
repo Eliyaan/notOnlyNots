@@ -27,6 +27,93 @@ fn log_quit(message string) {
 	panic('Very TODO')
 }
 
+struct PlaceInstruction {
+	elem        Elem
+	orientation u8
+	// relative coos to the selection/gate
+	rel_x u32
+	rel_y u32
+}
+
+fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
+	// for all the elements in the rectangle
+	// 	add an instruction with the info needed to place the elem later
+
+	x_start, x_end := if _x_start > _x_end {
+		_x_end, _x_start
+	} else {
+		_x_start, _x_end
+	}
+	y_start, y_end := if _y_start > _y_end {
+		_y_end, _y_start
+	} else {
+		_y_start, _y_end
+	}
+	
+	app.copied = []
+
+	for x in x_start .. x_end {
+		for y in y_start .. y_end {
+			mut chunkmap := app.get_chunkmap_at_coords(x, y)
+			x_map := x % chunk_size
+			y_map := y % chunk_size
+			if chunkmap[x_map][y_map] == 0x0 { // map empty
+				continue
+			}
+			if id == elem_crossing_bits { // same bits as wires so need to be separated
+				app.copied << PlaceInstruction {
+					.crossing
+					u8(0) // no ori for crossings
+					x - x_start
+					y - y_start
+				}
+				continue
+			}
+			
+			ori := match id & ori_mask
+			match id & elem_type_mask {
+/*
+				elem_not_bits {
+					app.copied << PlaceInstruction {
+						.not
+						u8(ori >> 56)
+						x - x_start
+						y - y_start
+					}
+				}
+				elem_diode_bits {
+					app.copied << PlaceInstruction {
+						.diode
+						u8(ori >> 56)
+						x - x_start
+						y - y_start
+					}
+				}
+				elem_on_bits {
+					app.copied << PlaceInstruction {
+						.on
+						u8(ori >> 56)
+						x - x_start
+						y - y_start
+					}
+				}
+				elem_wire_bits {
+					app.copied << PlaceInstruction {
+						.wire
+						u8(0) // no ori for wires
+						x - x_start
+						y - y_start
+					}
+				}
+				else {
+					log_quit('${@LINE} should not get into this else')
+				}
+			*/
+			}
+		}
+	}
+}
+
 fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// 1.
 	// set the tile id to empty_id
@@ -62,7 +149,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				south { 0, 1 }
 				east { 1, 0 }
 				west { -1, 0 }
-				else { log_quit('${@LINE}unknown orientation') }
+				else { log_quit('${@LINE} unknown orientation') }
 			}
 			if id == elem_crossing_bits { // same bits as wires so need to be separated
 				// 1. done
@@ -76,7 +163,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
 				w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
 				if s_adj_id != empty_id && n_adj_id != empty_id {
-					if s_adj_id & elem_type_mask == elem_wire_bits && n_adj_id & elem_type_mask == elem_wire_bits {
+					if s_adj_id & elem_type_mask == elem_wire_bits
+						&& n_adj_id & elem_type_mask == elem_wire_bits {
 						// two wires: separate them
 						app.separate_wires([[u32(0), 1]!, [u32(0), -1]!], s_adj_id) // same id for north and south
 					} else if s_adj_id & elem_type_mask == elem_wire_bits {
@@ -115,7 +203,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 				}
 				if e_adj_id != empty_id && w_adj_id != empty_id {
-					if e_adj_id & elem_type_mask == elem_wire_bits && w_adj_id & elem_type_mask == elem_wire_bits {
+					if e_adj_id & elem_type_mask == elem_wire_bits
+						&& w_adj_id & elem_type_mask == elem_wire_bits {
 						// two wires: separate them
 						app.separate_wires([[u32(1), 0]!, [u32(-1), 0]!], e_adj_id) // same id for east and west
 					} else if e_adj_id & elem_type_mask == elem_wire_bits {
@@ -153,6 +242,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 				}
+				continue // do not get in the match
 			}
 			match id & elem_type_mask {
 				elem_not_bits {
@@ -224,7 +314,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					// Separate the wires:
 					if coo_adj_wire.len > 1 {
-						app.separate_wires(coo_adj_wire,id)
+						app.separate_wires(coo_adj_wire, id)
 					} else if coo_adj_wire.len == 0 {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
 						app.wires.delete(idx)
@@ -288,7 +378,8 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 		cable := c_stack.pop()
 		cable_id := id_stack.pop()
 		for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] { // for each adjacent tile
-			adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable[0], cable[1], coo[0], coo[1])
+			adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable[0], cable[1],
+				coo[0], coo[1])
 			if adj_id != empty_id {
 				total_x := u32(int(cable[0]) + x_off)
 				total_y := u32(int(cable[1]) + y_off)
@@ -355,7 +446,7 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 			}
 		}
 	}
-	
+
 	// Create/Modify the new wires
 	_, idx := app.get_elem_state_idx_by_id(id, 0)
 	new_wires[0].rid = id
@@ -759,8 +850,8 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			next_chunkmap = app.get_chunkmap_at_coords(x_conv, y_conv)
 			next_id = next_chunkmap[x_conv % chunk_size][y_conv % chunk_size]
 		}
-		next_id, input, _, _ = app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir), u32(int(y) + y_off - y_dir),
-			x_dir, y_dir) // coords of the crossing just before the detected good elem
+		next_id, input, _, _ = app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir),
+			u32(int(y) + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
 		return next_id, input, x_off, y_off
 	} else if next_id == 0x0 {
 		next_id = empty_id
@@ -867,8 +958,8 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int) u64 {
 			next_chunkmap = app.get_chunkmap_at_coords(x_conv, y_conv)
 			next_id = next_chunkmap[x_conv % chunk_size][y_conv % chunk_size]
 		}
-		return app.next_gate_id(u32(int(x) + x_off - x_dir), u32(int(y) + y_off - y_dir), x_dir,
-			y_dir) // coords of the crossing just before the detected good elem
+		return app.next_gate_id(u32(int(x) + x_off - x_dir), u32(int(y) + y_off - y_dir),
+			x_dir, y_dir) // coords of the crossing just before the detected good elem
 	} else if next_id == 0x0 {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
@@ -1095,7 +1186,7 @@ mut:
 // It outputs the OR of all it's inputs
 struct Wire {
 mut:
-	rid u64 // real id
+	rid          u64      // real id
 	inps         []u64    // id of the input elements outputing to the wire
 	outs         []u64    // id of the output elements whose inputs are the wire
 	cable_coords [][2]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
@@ -1106,6 +1197,7 @@ mut:
 	map           []Chunk
 	selected_item Elem
 	selected_ori  u64
+	copied        []PlaceInstruction
 	actual_state  int // indicate which list is the old state list and which is the actual one (0 for the first, 1 for the second)
 	nots          []Nots
 	n_next_rid    u64 = 1
