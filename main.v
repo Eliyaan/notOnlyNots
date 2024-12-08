@@ -1,3 +1,4 @@
+import os
 const empty_id = u64(0)
 const on_bits = u64(0x2000_0000_0000_0000) // 0010_0000_000...
 const elem_not_bits = u64(0x0000_0000_0000_0000) // 0000_0000_000...
@@ -33,6 +34,17 @@ struct PlaceInstruction {
 	// relative coos to the selection/gate
 	rel_x u32
 	rel_y u32
+}
+
+fn (mut app App) save_copied() {
+	if os.exists("saved_gates") {
+		mut nb_name := 0
+		for os.exists("saved_gates/${nb_name}") {
+			nb_name += 1
+		}
+		mut file := os.open_file("saved_gates/${nb_name}", "w") or {log_quit("${@LINE} ${err}")}
+		unsafe{file.write_full_buffer(app.copied, u32(app.copied.len)*sizeof(PlaceInstruction)) or {log_quit("${@LINE} ${err}")} }
+	}
 }
 
 fn (mut app App) paste(x_start u32, y_start u32) {
