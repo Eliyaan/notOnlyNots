@@ -15,7 +15,7 @@ const rid_mask = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get
 const elem_type_mask = u64(0xC000_0000_0000_0000) // 1100_0000...
 const ori_mask = u64(0x1800_0000_0000_0000) // 0001_1000...
 
-enum Elem {
+enum Elem as u8 {
 	not      // 00
 	diode    // 01
 	on       // 10
@@ -44,6 +44,21 @@ fn (mut app App) save_copied() {
 		}
 		mut file := os.open_file("saved_gates/${nb_name}", "w") or {log_quit("${@LINE} ${err}")}
 		unsafe{file.write_full_buffer(app.copied, u32(app.copied.len)*sizeof(PlaceInstruction)) or {log_quit("${@LINE} ${err}")} }
+	}
+}
+
+fn (mut app App) rotate_copied() {
+	// find size of the patern
+	mut max_x := 0
+	for place in app.copied {
+		if place.rel_x > max_x {
+			max_x = place.rel_x
+		}
+	}
+	for mut place in app.copied { // matrix rotation by 90 deg
+		tmp_x := place.rel_x
+		place.rel_x = place.rel_y
+		place.rel_y = max_x - tmp_x - 1
 	}
 }
 
