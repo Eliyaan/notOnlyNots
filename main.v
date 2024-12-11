@@ -28,7 +28,13 @@ fn log_quit(message string) {
 	panic('Very TODO')
 }
 
+@[noreturn]
+fn log(message string) {
+	panic('TODO')
+}
+
 struct PlaceInstruction {
+mut:
 	elem        Elem
 	orientation u8
 	// relative coos to the selection/gate
@@ -42,14 +48,93 @@ fn (mut app App) save_copied() {
 		for os.exists("saved_gates/${nb_name}") {
 			nb_name += 1
 		}
-		mut file := os.open_file("saved_gates/${nb_name}", "w") or {log_quit("${@LINE} ${err}")}
-		unsafe{file.write_full_buffer(app.copied, u32(app.copied.len)*sizeof(PlaceInstruction)) or {log_quit("${@LINE} ${err}")} }
+		mut file := os.open_file("saved_gates/${nb_name}", "w") or {log("${@LINE} ${err}")}
+		unsafe{file.write_ptr(app.copied, u32(app.copied.len)*sizeof(PlaceInstruction)) or {log_quit("${@LINE} ${err}")} }
+		file.close()
 	}
+}
+
+fn (mut app App) save_map(map_name string) {
+	// TODO: description of the file format
+	mut file := os.open_file("saved_maps/${nb_name}", "w") or {log("${@LINE} ${err}")}
+	mut offset := 0
+	save_version := u32(0) // must be careful when V changes of int size, especially for array lenghts
+	file.write_struct_at(save_version, offset)
+	offset += sizeof(save_version)
+	file.write_raw_at(app.map.len, offset)
+	offset += sizeof(app.map.len)
+	for chunk in app.map {
+		file.write_raw_at(chunk.x, offset)
+		offset += sizeof(chunk.x)
+		file.write_raw_at(chunk.y, offset)
+		offset += sizeof(chunk.y)
+		unsafe{file.write_ptr_at(chunk.id_map, chunk_size*chunk_size*sizeof(u64), offset)}
+		offset += chunk_size*chunk_size*sizeof(u64)
+	}
+	file.write_raw_at(app.actual_state, offset)
+	offset += sizeof(app.actual_state)
+	file.write_raw_at(app.nots.len, offset)
+	offset += sizeof(app.nots.len)
+	unsafe{file.write_ptr_at(app.nots, app.nots.len*sizeof(Nots), offset)}
+	offset += app.nots.len*sizeof(Nots)
+	unsafe{file.write_ptr_at(app.n_states[0], app.nots.len*sizeof(bool), offset)}
+	offset += app.diodes.len*sizeof(bool)
+	unsafe{file.write_ptr_at(app.n_states[1], app.nots.len*sizeof(bool), offset)}
+	offset += app.diodes.len*sizeof(bool)
+	
+	file.write_raw_at(app.diodes.len, offset)
+	offset += sizeof(app.diodes.len)
+	unsafe{file.write_ptr_at(app.diodes, app.diodes.len*sizeof(Diode), offset)}
+	offset += app.diodes.len*sizeof(Diode)
+	unsafe{file.write_ptr_at(app.d_states[0], app.diodes.len*sizeof(bool), offset)}
+	offset += app.diodes.len*sizeof(bool)
+	unsafe{file.write_ptr_at(app.d_states[1], app.diodes.len*sizeof(bool), offset)}
+	offset += app.diodes.len*sizeof(bool)
+	
+	// wires
+	
+	/* 
+	save:
+		map           []Chunk // done
+		struct Chunk {
+			x      u32
+			y      u32
+			id_map [chunk_size][chunk_size]u64 // [x][y] x++=east y++=south
+		}
+		actual_state  int // done
+		nots          []Nots // done
+		n_states      [2][]bool // done
+		diodes        []Diode // done
+		d_states      [2][]bool // done
+		wires         []Wire
+		struct Wire {
+		mut:
+			rid          u64      // real id
+			inps         []u64    // id of the input elements outputing to the wire
+			outs         []u64    // id of the output elements whose inputs are the wire
+			cable_coords [][2]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
+		}
+		w_states      [2][]bool
+	*/ 
+}
+
+fn (mut app App) load_gate_to_copied(gate_name string) {
+	mut f := os.open('saved_gates/${gate_name}') or {log("${@LINE} ${err}")}
+	mut read_n := u32(0)
+	size := os.inode('saved_gates/${gate_name}').size
+	app.copied = []
+	mut place := PlaceInstruction{}
+	for read_n * sizeof(PlaceInstruction) < size {
+		f.read_struct_at(mut place, read_n * sizeof(PlaceInstruction)) or {log("${@LINE} ${err}")}
+		app.copied << place
+		read_n += 1
+	}
+	f.close()
 }
 
 fn (mut app App) rotate_copied() {
 	// find size of the patern
-	mut max_x := 0
+	mut max_x := u32(0)
 	for place in app.copied {
 		if place.rel_x > max_x {
 			max_x = place.rel_x
@@ -1181,15 +1266,7 @@ mut:
 	y u32
 }
 
-// A gate that is always ON (only on one side)
-struct On {
-	rid u64 // real id
-mut:
-	out u64 // id of the output of the not gate
-	// Map coordinates
-	x u32
-	y u32
-}
+// ON: a gate that is always ON (only on one side)
 
 // Cables are the individually placable element and two cables are connected if one of
 // them is already connected to one that is connected to the other or the two cables are next to each other
