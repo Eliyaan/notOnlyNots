@@ -49,50 +49,77 @@ fn (mut app App) save_copied() {
 			nb_name += 1
 		}
 		mut file := os.open_file("saved_gates/${nb_name}", "w") or {log("${@LINE} ${err}")}
-		unsafe{file.write_ptr(app.copied, u32(app.copied.len)*sizeof(PlaceInstruction)) or {log_quit("${@LINE} ${err}")} }
+		unsafe{file.write_ptr(app.copied, app.copied.len*int(sizeof(PlaceInstruction)))}  // TODO : get the output nb and log it 
 		file.close()
 	}
 }
 
 fn (mut app App) save_map(map_name string) {
 	// TODO: description of the file format
-	mut file := os.open_file("saved_maps/${nb_name}", "w") or {log("${@LINE} ${err}")}
-	mut offset := 0
+	mut file := os.open_file("saved_maps/${map_name}", "w") or {log("${@LINE} ${err}")}
+	mut offset := u64(0)
 	save_version := u32(0) // must be careful when V changes of int size, especially for array lenghts
-	file.write_struct_at(save_version, offset)
+	file.write_raw_at(save_version, offset) or {log("${@LINE} ${err}")}
 	offset += sizeof(save_version)
-	file.write_raw_at(app.map.len, offset)
-	offset += sizeof(app.map.len)
-	for chunk in app.map {
-		file.write_raw_at(chunk.x, offset)
+	file.write_raw_at(i64(app.map.len), offset) or {log("${@LINE} ${err}")}
+	offset += sizeof(i64)
+	for mut chunk in app.map {
+		file.write_raw_at(chunk.x, offset) or {log("${@LINE} ${err}")}
 		offset += sizeof(chunk.x)
-		file.write_raw_at(chunk.y, offset)
+		file.write_raw_at(chunk.y, offset) or {log("${@LINE} ${err}")}
 		offset += sizeof(chunk.y)
-		unsafe{file.write_ptr_at(chunk.id_map, chunk_size*chunk_size*sizeof(u64), offset)}
+		unsafe{file.write_ptr_at(&chunk.id_map, chunk_size*chunk_size*int(sizeof(u64)), offset)}
 		offset += chunk_size*chunk_size*sizeof(u64)
 	}
-	file.write_raw_at(app.actual_state, offset)
-	offset += sizeof(app.actual_state)
-	file.write_raw_at(app.nots.len, offset)
-	offset += sizeof(app.nots.len)
-	unsafe{file.write_ptr_at(app.nots, app.nots.len*sizeof(Nots), offset)}
-	offset += app.nots.len*sizeof(Nots)
-	unsafe{file.write_ptr_at(app.n_states[0], app.nots.len*sizeof(bool), offset)}
-	offset += app.diodes.len*sizeof(bool)
-	unsafe{file.write_ptr_at(app.n_states[1], app.nots.len*sizeof(bool), offset)}
-	offset += app.diodes.len*sizeof(bool)
+	file.write_raw_at(app.actual_state, offset) or {log("${@LINE} ${err}")}
+	offset += sizeof(app.actual_state) // int
+	file.write_raw_at(i64(app.nots.len), offset) or {log("${@LINE} ${err}")}
+	offset += sizeof(i64)
+	unsafe{file.write_ptr_at(app.nots, app.nots.len*int(sizeof(Nots)), offset)}
+	offset += u64(app.nots.len)*sizeof(Nots)
+	unsafe{file.write_ptr_at(app.n_states[0], app.nots.len*int(sizeof(bool)), offset)}
+	offset += u64(app.diodes.len)*sizeof(bool)
+	unsafe{file.write_ptr_at(app.n_states[1], app.nots.len*int(sizeof(bool)), offset)}
+	offset += u64(app.diodes.len)*sizeof(bool)
 	
-	file.write_raw_at(app.diodes.len, offset)
-	offset += sizeof(app.diodes.len)
-	unsafe{file.write_ptr_at(app.diodes, app.diodes.len*sizeof(Diode), offset)}
-	offset += app.diodes.len*sizeof(Diode)
-	unsafe{file.write_ptr_at(app.d_states[0], app.diodes.len*sizeof(bool), offset)}
-	offset += app.diodes.len*sizeof(bool)
-	unsafe{file.write_ptr_at(app.d_states[1], app.diodes.len*sizeof(bool), offset)}
-	offset += app.diodes.len*sizeof(bool)
+	file.write_raw_at(i64(app.diodes.len), offset) or {log("${@LINE} ${err}")}
+	offset += sizeof(i64)
+	unsafe{file.write_ptr_at(app.diodes, app.diodes.len*int(sizeof(Diode)), offset)}
+	offset += u64(app.diodes.len)*sizeof(Diode)
+	unsafe{file.write_ptr_at(app.d_states[0], app.diodes.len*int(sizeof(bool)), offset)}
+	offset += u64(app.diodes.len)*sizeof(bool)
+	unsafe{file.write_ptr_at(app.d_states[1], app.diodes.len*int(sizeof(bool)), offset)}
+	offset += u64(app.diodes.len)*sizeof(bool)
 	
-	// wires
-	
+	file.write_raw_at(i64(app.wires.len), offset) or {log("${@LINE} ${err}")}
+	offset += sizeof(i64)
+	for wire in app.wires {
+		file.write_raw_at(wire.rid, offset) or {log("${@LINE} ${err}")}
+		offset += sizeof(u64)
+
+		file.write_raw_at(i64(wire.inps.len), offset) or {log("${@LINE} ${err}")}
+		offset += sizeof(i64)
+		unsafe{file.write_ptr_at(wire.inps, wire.inps.len*int(sizeof(u64)), offset)}
+
+		file.write_raw_at(i64(wire.outs.len), offset) or {log("${@LINE} ${err}")}
+		offset += sizeof(i64)
+		unsafe{file.write_ptr_at(wire.outs, wire.outs.len*int(sizeof(u64)), offset)}
+		
+		file.write_raw_at(i64(wire.cable_coords.len), offset) or {log("${@LINE} ${err}")}
+		offset += sizeof(i64)
+		for cable in wire.cable_coords {
+			file.write_raw_at(cable[0], offset) or {log("${@LINE} ${err}")}
+			offset += sizeof(u32)
+			file.write_raw_at(cable[1], offset) or {log("${@LINE} ${err}")}
+			offset += sizeof(u32)
+		}
+	}	
+	unsafe{file.write_ptr_at(app.w_states[0], app.diodes.len*int(sizeof(bool)), offset)}
+	offset += u64(app.wires.len)*sizeof(bool)
+	unsafe{file.write_ptr_at(app.w_states[1], app.diodes.len*int(sizeof(bool)), offset)}
+	offset += u64(app.wires.len)*sizeof(bool)
+
+		
 	/* 
 	save:
 		map           []Chunk // done
@@ -106,7 +133,7 @@ fn (mut app App) save_map(map_name string) {
 		n_states      [2][]bool // done
 		diodes        []Diode // done
 		d_states      [2][]bool // done
-		wires         []Wire
+		wires         []Wire // done
 		struct Wire {
 		mut:
 			rid          u64      // real id
@@ -114,7 +141,7 @@ fn (mut app App) save_map(map_name string) {
 			outs         []u64    // id of the output elements whose inputs are the wire
 			cable_coords [][2]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
 		}
-		w_states      [2][]bool
+		w_states      [2][]bool // done
 	*/ 
 }
 
