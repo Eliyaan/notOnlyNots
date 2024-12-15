@@ -28,7 +28,6 @@ fn log_quit(message string) {
 	panic('Very TODO')
 }
 
-@[noreturn]
 fn log(message string) {
 	panic('TODO')
 }
@@ -54,8 +53,92 @@ fn (mut app App) save_copied() {
 	}
 }
 
+fn (mut app App) load_map(map_name string) {
+	// u32(version)
+	//
+	// i64(app.map.len)
+	// for each chunk:
+	// 	chunk.x chunk.y
+	// 	chunk's content
+	//
+	// actual_state (which array)
+	//
+	// i64(app.nots.len)
+	// all the nots (their data)
+	// nots' state array
+	//
+	// i64(app.diodes.len)
+	// all the diodes (their data)
+	// diode's state array
+	//
+	// i64(app.wires.len)
+	// for each wire:
+	// 	rid
+	//	i64(wire.inps.len)
+	//	all the inputs
+	//	i64(wire.outs.len)
+	//	all the outputs
+	//	i64(wire.cable_coords.len)
+	// 	for all the cables:
+	// 	cable.x  cable.y
+	// wire's state array
+
+	
+	/* 
+	save:
+		map           []Chunk
+		struct Chunk {
+			x      u32
+			y      u32
+			id_map [chunk_size][chunk_size]u64 // [x][y] x++=east y++=south
+		}
+		actual_state  int
+		nots          []Nots
+		n_states      [2][]bool
+		diodes        []Diode
+		d_states      [2][]bool
+		wires         []Wire 
+		struct Wire {
+		mut:
+			rid          u64      // real id
+			inps         []u64    // id of the input elements outputing to the wire
+			outs         []u64    // id of the output elements whose inputs are the wire
+			cable_coords [][2]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
+		}
+		w_states      [2][]bool
+	*/ 
+}
+
 fn (mut app App) save_map(map_name string) {
-	// TODO: description of the file format
+	// u32(version)
+	//
+	// i64(app.map.len)
+	// for each chunk:
+	// 	chunk.x chunk.y
+	// 	chunk's content
+	//
+	// actual_state (which array)
+	//
+	// i64(app.nots.len)
+	// all the nots (their data)
+	// nots' state array
+	//
+	// i64(app.diodes.len)
+	// all the diodes (their data)
+	// diode's state array
+	//
+	// i64(app.wires.len)
+	// for each wire:
+	// 	rid
+	//	i64(wire.inps.len)
+	//	all the inputs
+	//	i64(wire.outs.len)
+	//	all the outputs
+	//	i64(wire.cable_coords.len)
+	// 	for all the cables:
+	// 	cable.x  cable.y
+	// wire's state array
+
 	mut file := os.open_file("saved_maps/${map_name}", "w") or {log("${@LINE} ${err}")}
 	mut offset := u64(0)
 	save_version := u32(0) // must be careful when V changes of int size, especially for array lenghts
@@ -77,18 +160,14 @@ fn (mut app App) save_map(map_name string) {
 	offset += sizeof(i64)
 	unsafe{file.write_ptr_at(app.nots, app.nots.len*int(sizeof(Nots)), offset)}
 	offset += u64(app.nots.len)*sizeof(Nots)
-	unsafe{file.write_ptr_at(app.n_states[0], app.nots.len*int(sizeof(bool)), offset)}
-	offset += u64(app.diodes.len)*sizeof(bool)
-	unsafe{file.write_ptr_at(app.n_states[1], app.nots.len*int(sizeof(bool)), offset)}
+	unsafe{file.write_ptr_at(app.n_states[app.actual_state], app.nots.len*int(sizeof(bool)), offset)}
 	offset += u64(app.diodes.len)*sizeof(bool)
 	
 	file.write_raw_at(i64(app.diodes.len), offset) or {log("${@LINE} ${err}")}
 	offset += sizeof(i64)
 	unsafe{file.write_ptr_at(app.diodes, app.diodes.len*int(sizeof(Diode)), offset)}
 	offset += u64(app.diodes.len)*sizeof(Diode)
-	unsafe{file.write_ptr_at(app.d_states[0], app.diodes.len*int(sizeof(bool)), offset)}
-	offset += u64(app.diodes.len)*sizeof(bool)
-	unsafe{file.write_ptr_at(app.d_states[1], app.diodes.len*int(sizeof(bool)), offset)}
+	unsafe{file.write_ptr_at(app.d_states[app.actual_state], app.diodes.len*int(sizeof(bool)), offset)}
 	offset += u64(app.diodes.len)*sizeof(bool)
 	
 	file.write_raw_at(i64(app.wires.len), offset) or {log("${@LINE} ${err}")}
@@ -114,35 +193,8 @@ fn (mut app App) save_map(map_name string) {
 			offset += sizeof(u32)
 		}
 	}	
-	unsafe{file.write_ptr_at(app.w_states[0], app.diodes.len*int(sizeof(bool)), offset)}
+	unsafe{file.write_ptr_at(app.w_states[app.actual_state], app.diodes.len*int(sizeof(bool)), offset)}
 	offset += u64(app.wires.len)*sizeof(bool)
-	unsafe{file.write_ptr_at(app.w_states[1], app.diodes.len*int(sizeof(bool)), offset)}
-	offset += u64(app.wires.len)*sizeof(bool)
-
-		
-	/* 
-	save:
-		map           []Chunk // done
-		struct Chunk {
-			x      u32
-			y      u32
-			id_map [chunk_size][chunk_size]u64 // [x][y] x++=east y++=south
-		}
-		actual_state  int // done
-		nots          []Nots // done
-		n_states      [2][]bool // done
-		diodes        []Diode // done
-		d_states      [2][]bool // done
-		wires         []Wire // done
-		struct Wire {
-		mut:
-			rid          u64      // real id
-			inps         []u64    // id of the input elements outputing to the wire
-			outs         []u64    // id of the output elements whose inputs are the wire
-			cable_coords [][2]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
-		}
-		w_states      [2][]bool // done
-	*/ 
 }
 
 fn (mut app App) load_gate_to_copied(gate_name string) {
