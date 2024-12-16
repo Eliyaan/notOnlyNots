@@ -53,7 +53,7 @@ fn (mut app App) save_copied() {
 	}
 }
 
-fn (mut app App) load_map(map_name string) {
+fn (mut app App) load_map(map_name string)! {
 	// u32(version)
 	//
 	// i64(app.map.len)
@@ -83,6 +83,62 @@ fn (mut app App) load_map(map_name string) {
 	// 	cable.x  cable.y
 	// wire's state array
 
+	if os.exists("saved_gates") {
+		mut f := os.open(map_name)!
+		assert f.read_raw[u32]()! == 0
+		map_len := f.read_raw[i64]()!
+		app.map = []
+		mut new_c := Chunk{}
+		for _ in 0..map_len {
+			f.read_struct(mut new_c)!
+			app.map << new_c
+		}
+
+		app.actual_state = f.read_raw[int]()!
+		
+		nots_len := f.read_raw[i64]()!
+		new_n := Nots{}
+		app.nots = []
+		for _ in 0..nots_len {
+			f.read_struct(mut new_n)!
+			app.nots << new_n
+		}
+		app.n_states[app.actual_state]= f.read_bytes(int(nots_len))
+		app.n_states[(app.actual_state + 1)/2] = []u8{len: nots_len}
+		
+		diodes_len := f.read_raw[i64]()!
+		new_d := Diode{}
+		app.diodes = []
+		for _ in 0..diodes_len {
+			f.read_struct(mut new_d)!
+			app.diodes << new_d
+		}
+		app.d_states[app.actual_state]= f.read_bytes(int(diodes_len))
+		app.d_states[(app.actual_state + 1)/2] = []u8{len: diodes_len}
+
+		wires_len := f.read_raw[i64]()!
+		app.wires = []
+		for w in 0..wires_len {
+			mut new_w := Wire {
+				rid: f.read_raw[u64]()!
+			}
+			inps_len := f.read_raw[i64]()!
+			for _ in 0..inps_len {
+				new_w.inps << f.read_raw[u64]()!
+			}
+			outs_len := f.read_raw[i64]()!
+			for _ in 0..outs_len {
+				new_w.outs << f.read_raw[u64]()!
+			}
+			cable_len := f.read_raw[i64]()!
+			for _ in cable_len {
+				new_w.cable_coords << [f.read_raw[u32]()!, f.read_raw[u32]()!]
+			}
+			app.wires << new_w
+		}
+		app.w_states[app.actual_state]= f.read_bytes(wires_len)
+		app.w_states[(app.actual_state + 1)/2] = []u8{len: wires_len}
+	}
 	
 	/* 
 	save:
@@ -109,7 +165,7 @@ fn (mut app App) load_map(map_name string) {
 	*/ 
 }
 
-fn (mut app App) save_map(map_name string) {
+fn (mut app App) save_map(map_name string)! {
 	// u32(version)
 	//
 	// i64(app.map.len)
@@ -139,57 +195,57 @@ fn (mut app App) save_map(map_name string) {
 	// 	cable.x  cable.y
 	// wire's state array
 
-	mut file := os.open_file("saved_maps/${map_name}", "w") or {log("${@LINE} ${err}")}
+	mut file := os.open_file("saved_maps/${map_name}", "w")!
 	mut offset := u64(0)
 	save_version := u32(0) // must be careful when V changes of int size, especially for array lenghts
-	file.write_raw_at(save_version, offset) or {log("${@LINE} ${err}")}
+	file.write_raw_at(save_version, offset)!
 	offset += sizeof(save_version)
-	file.write_raw_at(i64(app.map.len), offset) or {log("${@LINE} ${err}")}
+	file.write_raw_at(i64(app.map.len), offset)!
 	offset += sizeof(i64)
 	for mut chunk in app.map {
-		file.write_raw_at(chunk.x, offset) or {log("${@LINE} ${err}")}
+		file.write_raw_at(chunk.x, offset)!
 		offset += sizeof(chunk.x)
-		file.write_raw_at(chunk.y, offset) or {log("${@LINE} ${err}")}
+		file.write_raw_at(chunk.y, offset)!
 		offset += sizeof(chunk.y)
 		unsafe{file.write_ptr_at(&chunk.id_map, chunk_size*chunk_size*int(sizeof(u64)), offset)}
 		offset += chunk_size*chunk_size*sizeof(u64)
 	}
-	file.write_raw_at(app.actual_state, offset) or {log("${@LINE} ${err}")}
+	file.write_raw_at(app.actual_state, offset)!
 	offset += sizeof(app.actual_state) // int
-	file.write_raw_at(i64(app.nots.len), offset) or {log("${@LINE} ${err}")}
+	file.write_raw_at(i64(app.nots.len), offset)!
 	offset += sizeof(i64)
 	unsafe{file.write_ptr_at(app.nots, app.nots.len*int(sizeof(Nots)), offset)}
 	offset += u64(app.nots.len)*sizeof(Nots)
 	unsafe{file.write_ptr_at(app.n_states[app.actual_state], app.nots.len*int(sizeof(bool)), offset)}
 	offset += u64(app.diodes.len)*sizeof(bool)
 	
-	file.write_raw_at(i64(app.diodes.len), offset) or {log("${@LINE} ${err}")}
+	file.write_raw_at(i64(app.diodes.len), offset)!
 	offset += sizeof(i64)
 	unsafe{file.write_ptr_at(app.diodes, app.diodes.len*int(sizeof(Diode)), offset)}
 	offset += u64(app.diodes.len)*sizeof(Diode)
 	unsafe{file.write_ptr_at(app.d_states[app.actual_state], app.diodes.len*int(sizeof(bool)), offset)}
 	offset += u64(app.diodes.len)*sizeof(bool)
 	
-	file.write_raw_at(i64(app.wires.len), offset) or {log("${@LINE} ${err}")}
+	file.write_raw_at(i64(app.wires.len), offset)!
 	offset += sizeof(i64)
 	for wire in app.wires {
-		file.write_raw_at(wire.rid, offset) or {log("${@LINE} ${err}")}
+		file.write_raw_at(wire.rid, offset)!
 		offset += sizeof(u64)
 
-		file.write_raw_at(i64(wire.inps.len), offset) or {log("${@LINE} ${err}")}
+		file.write_raw_at(i64(wire.inps.len), offset)!
 		offset += sizeof(i64)
 		unsafe{file.write_ptr_at(wire.inps, wire.inps.len*int(sizeof(u64)), offset)}
 
-		file.write_raw_at(i64(wire.outs.len), offset) or {log("${@LINE} ${err}")}
+		file.write_raw_at(i64(wire.outs.len), offset)!
 		offset += sizeof(i64)
 		unsafe{file.write_ptr_at(wire.outs, wire.outs.len*int(sizeof(u64)), offset)}
 		
-		file.write_raw_at(i64(wire.cable_coords.len), offset) or {log("${@LINE} ${err}")}
+		file.write_raw_at(i64(wire.cable_coords.len), offset)!
 		offset += sizeof(i64)
 		for cable in wire.cable_coords {
-			file.write_raw_at(cable[0], offset) or {log("${@LINE} ${err}")}
+			file.write_raw_at(cable[0], offset)!
 			offset += sizeof(u32)
-			file.write_raw_at(cable[1], offset) or {log("${@LINE} ${err}")}
+			file.write_raw_at(cable[1], offset)!
 			offset += sizeof(u32)
 		}
 	}	
