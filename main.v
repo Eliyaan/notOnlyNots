@@ -1,4 +1,5 @@
 import os
+
 const empty_id = u64(0)
 const on_bits = u64(0x2000_0000_0000_0000) // 0010_0000_000...
 const elem_not_bits = u64(0x0000_0000_0000_0000) // 0000_0000_000...
@@ -41,19 +42,19 @@ mut:
 	rel_y u32
 }
 
-fn (mut app App) save_copied() {
-	if os.exists("saved_gates") {
+fn (mut app App) save_copied() ! {
+	if os.exists('saved_gates') {
 		mut nb_name := 0
-		for os.exists("saved_gates/${nb_name}") {
+		for os.exists('saved_gates/${nb_name}') {
 			nb_name += 1
 		}
-		mut file := os.open_file("saved_gates/${nb_name}", "w") or {log("${@LINE} ${err}")}
-		unsafe{file.write_ptr(app.copied, app.copied.len*int(sizeof(PlaceInstruction)))}  // TODO : get the output nb and log it 
+		mut file := os.open_file('saved_gates/${nb_name}', 'w')!
+		unsafe { file.write_ptr(app.copied, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it
 		file.close()
 	}
 }
 
-fn (mut app App) load_map(map_name string)! {
+fn (mut app App) load_map(map_name string) ! {
 	// u32(version)
 	//
 	// i64(app.map.len)
@@ -83,64 +84,64 @@ fn (mut app App) load_map(map_name string)! {
 	// 	cable.x  cable.y
 	// wire's state array
 
-	if os.exists("saved_gates") {
+	if os.exists('saved_gates') {
 		mut f := os.open(map_name)!
 		assert f.read_raw[u32]()! == 0
 		map_len := f.read_raw[i64]()!
 		app.map = []
 		mut new_c := Chunk{}
-		for _ in 0..map_len {
+		for _ in 0 .. map_len {
 			f.read_struct(mut new_c)!
 			app.map << new_c
 		}
 
 		app.actual_state = f.read_raw[int]()!
-		
+
 		nots_len := f.read_raw[i64]()!
-		new_n := Nots{}
+		mut new_n := Nots{}
 		app.nots = []
-		for _ in 0..nots_len {
+		for _ in 0 .. nots_len {
 			f.read_struct(mut new_n)!
 			app.nots << new_n
 		}
-		app.n_states[app.actual_state]= f.read_bytes(int(nots_len))
-		app.n_states[(app.actual_state + 1)/2] = []u8{len: nots_len}
-		
+		f.read_into_ptr(app.n_states[app.actual_state].data, int(nots_len))!
+		app.n_states[(app.actual_state + 1) / 2] = []bool{len: int(nots_len)}
+
 		diodes_len := f.read_raw[i64]()!
-		new_d := Diode{}
+		mut new_d := Diode{}
 		app.diodes = []
-		for _ in 0..diodes_len {
+		for _ in 0 .. diodes_len {
 			f.read_struct(mut new_d)!
 			app.diodes << new_d
 		}
-		app.d_states[app.actual_state]= f.read_bytes(int(diodes_len))
-		app.d_states[(app.actual_state + 1)/2] = []u8{len: diodes_len}
+		f.read_into_ptr(app.d_states[app.actual_state].data, int(diodes_len))!
+		app.d_states[(app.actual_state + 1) / 2] = []bool{len: int(diodes_len)}
 
 		wires_len := f.read_raw[i64]()!
 		app.wires = []
-		for w in 0..wires_len {
-			mut new_w := Wire {
+		for _ in 0 .. wires_len {
+			mut new_w := Wire{
 				rid: f.read_raw[u64]()!
 			}
 			inps_len := f.read_raw[i64]()!
-			for _ in 0..inps_len {
+			for _ in 0 .. inps_len {
 				new_w.inps << f.read_raw[u64]()!
 			}
 			outs_len := f.read_raw[i64]()!
-			for _ in 0..outs_len {
+			for _ in 0 .. outs_len {
 				new_w.outs << f.read_raw[u64]()!
 			}
 			cable_len := f.read_raw[i64]()!
-			for _ in cable_len {
-				new_w.cable_coords << [f.read_raw[u32]()!, f.read_raw[u32]()!]
+			for _ in 0 .. cable_len {
+				new_w.cable_coords << [f.read_raw[u32]()!, f.read_raw[u32]()!]!
 			}
 			app.wires << new_w
 		}
-		app.w_states[app.actual_state]= f.read_bytes(wires_len)
-		app.w_states[(app.actual_state + 1)/2] = []u8{len: wires_len}
+		f.read_into_ptr(app.w_states[app.actual_state].data, int(wires_len))!
+		app.w_states[(app.actual_state + 1) / 2] = []bool{len: int(wires_len)}
 	}
-	
-	/* 
+
+	/*
 	save:
 		map           []Chunk
 		struct Chunk {
@@ -153,7 +154,7 @@ fn (mut app App) load_map(map_name string)! {
 		n_states      [2][]bool
 		diodes        []Diode
 		d_states      [2][]bool
-		wires         []Wire 
+		wires         []Wire
 		struct Wire {
 		mut:
 			rid          u64      // real id
@@ -162,10 +163,10 @@ fn (mut app App) load_map(map_name string)! {
 			cable_coords [][2]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
 		}
 		w_states      [2][]bool
-	*/ 
+	*/
 }
 
-fn (mut app App) save_map(map_name string)! {
+fn (mut app App) save_map(map_name string) ! {
 	// u32(version)
 	//
 	// i64(app.map.len)
@@ -195,7 +196,7 @@ fn (mut app App) save_map(map_name string)! {
 	// 	cable.x  cable.y
 	// wire's state array
 
-	mut file := os.open_file("saved_maps/${map_name}", "w")!
+	mut file := os.open_file('saved_maps/${map_name}', 'w')!
 	mut offset := u64(0)
 	save_version := u32(0) // must be careful when V changes of int size, especially for array lenghts
 	file.write_raw_at(save_version, offset)!
@@ -207,25 +208,28 @@ fn (mut app App) save_map(map_name string)! {
 		offset += sizeof(chunk.x)
 		file.write_raw_at(chunk.y, offset)!
 		offset += sizeof(chunk.y)
-		unsafe{file.write_ptr_at(&chunk.id_map, chunk_size*chunk_size*int(sizeof(u64)), offset)}
-		offset += chunk_size*chunk_size*sizeof(u64)
+		unsafe { file.write_ptr_at(&chunk.id_map, chunk_size * chunk_size * int(sizeof(u64)),
+			offset) }
+		offset += chunk_size * chunk_size * sizeof(u64)
 	}
 	file.write_raw_at(app.actual_state, offset)!
 	offset += sizeof(app.actual_state) // int
 	file.write_raw_at(i64(app.nots.len), offset)!
 	offset += sizeof(i64)
-	unsafe{file.write_ptr_at(app.nots, app.nots.len*int(sizeof(Nots)), offset)}
-	offset += u64(app.nots.len)*sizeof(Nots)
-	unsafe{file.write_ptr_at(app.n_states[app.actual_state], app.nots.len*int(sizeof(bool)), offset)}
-	offset += u64(app.diodes.len)*sizeof(bool)
-	
+	unsafe { file.write_ptr_at(app.nots, app.nots.len * int(sizeof(Nots)), offset) }
+	offset += u64(app.nots.len) * sizeof(Nots)
+	unsafe { file.write_ptr_at(app.n_states[app.actual_state], app.nots.len * int(sizeof(bool)),
+		offset) }
+	offset += u64(app.diodes.len) * sizeof(bool)
+
 	file.write_raw_at(i64(app.diodes.len), offset)!
 	offset += sizeof(i64)
-	unsafe{file.write_ptr_at(app.diodes, app.diodes.len*int(sizeof(Diode)), offset)}
-	offset += u64(app.diodes.len)*sizeof(Diode)
-	unsafe{file.write_ptr_at(app.d_states[app.actual_state], app.diodes.len*int(sizeof(bool)), offset)}
-	offset += u64(app.diodes.len)*sizeof(bool)
-	
+	unsafe { file.write_ptr_at(app.diodes, app.diodes.len * int(sizeof(Diode)), offset) }
+	offset += u64(app.diodes.len) * sizeof(Diode)
+	unsafe { file.write_ptr_at(app.d_states[app.actual_state], app.diodes.len * int(sizeof(bool)),
+		offset) }
+	offset += u64(app.diodes.len) * sizeof(bool)
+
 	file.write_raw_at(i64(app.wires.len), offset)!
 	offset += sizeof(i64)
 	for wire in app.wires {
@@ -234,12 +238,12 @@ fn (mut app App) save_map(map_name string)! {
 
 		file.write_raw_at(i64(wire.inps.len), offset)!
 		offset += sizeof(i64)
-		unsafe{file.write_ptr_at(wire.inps, wire.inps.len*int(sizeof(u64)), offset)}
+		unsafe { file.write_ptr_at(wire.inps, wire.inps.len * int(sizeof(u64)), offset) }
 
 		file.write_raw_at(i64(wire.outs.len), offset)!
 		offset += sizeof(i64)
-		unsafe{file.write_ptr_at(wire.outs, wire.outs.len*int(sizeof(u64)), offset)}
-		
+		unsafe { file.write_ptr_at(wire.outs, wire.outs.len * int(sizeof(u64)), offset) }
+
 		file.write_raw_at(i64(wire.cable_coords.len), offset)!
 		offset += sizeof(i64)
 		for cable in wire.cable_coords {
@@ -248,19 +252,20 @@ fn (mut app App) save_map(map_name string)! {
 			file.write_raw_at(cable[1], offset)!
 			offset += sizeof(u32)
 		}
-	}	
-	unsafe{file.write_ptr_at(app.w_states[app.actual_state], app.diodes.len*int(sizeof(bool)), offset)}
-	offset += u64(app.wires.len)*sizeof(bool)
+	}
+	unsafe { file.write_ptr_at(app.w_states[app.actual_state], app.diodes.len * int(sizeof(bool)),
+		offset) }
+	offset += u64(app.wires.len) * sizeof(bool)
 }
 
-fn (mut app App) load_gate_to_copied(gate_name string) {
-	mut f := os.open('saved_gates/${gate_name}') or {log("${@LINE} ${err}")}
+fn (mut app App) load_gate_to_copied(gate_name string) ! {
+	mut f := os.open('saved_gates/${gate_name}')!
 	mut read_n := u32(0)
 	size := os.inode('saved_gates/${gate_name}').size
 	app.copied = []
 	mut place := PlaceInstruction{}
 	for read_n * sizeof(PlaceInstruction) < size {
-		f.read_struct_at(mut place, read_n * sizeof(PlaceInstruction)) or {log("${@LINE} ${err}")}
+		f.read_struct_at(mut place, read_n * sizeof(PlaceInstruction))!
 		app.copied << place
 		read_n += 1
 	}
@@ -288,7 +293,8 @@ fn (mut app App) paste(x_start u32, y_start u32) {
 	for place in app.copied {
 		app.selected_item = place.elem
 		app.selected_ori = u64(place.orientation) << 56
-		app.placement(place.rel_x + x_start, place.rel_y + y_start, place.rel_x + x_start, place.rel_y + y_start)
+		app.placement(place.rel_x + x_start, place.rel_y + y_start, place.rel_x + x_start,
+			place.rel_y + y_start)
 	}
 	app.selected_ori = old_ori
 	app.selected_item = old_item
