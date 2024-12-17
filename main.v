@@ -1,4 +1,5 @@
 import os
+import rand
 
 const empty_id = u64(0)
 const on_bits = u64(0x2000_0000_0000_0000) // 0010_0000_000...
@@ -298,6 +299,48 @@ fn (mut app App) paste(x_start u32, y_start u32) {
 	}
 	app.selected_ori = old_ori
 	app.selected_item = old_item
+}
+
+fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
+	// place random elems in a rectangle
+	
+	x_start, x_end := if _x_start > _x_end {
+		_x_end, _x_start
+	} else {
+		_x_start, _x_end
+	}
+	y_start, y_end := if _y_start > _y_end {
+		_y_end, _y_start
+	} else {
+		_y_start, _y_end
+	}
+	for x in x_start .. x_end {
+		for y in y_start .. y_end {
+			match rand.int_in_range(0, 6) or {0} {
+				1 {
+					app.selected_item = .not
+					app.placement(x, y, x, y)
+				}
+				2 {
+					app.selected_item = .diode
+					app.placement(x, y, x, y)
+				}
+				3 {
+					app.selected_item = .on
+					app.placement(x, y, x, y)
+				}
+				4 {
+					app.selected_item = .wire
+					app.placement(x, y, x, y)
+				}
+				5 {
+					app.selected_item = .crossing
+					app.placement(x, y, x, y)
+				}
+				else {}
+			}
+		}
+	}
 }
 
 fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
