@@ -301,6 +301,115 @@ fn (mut app App) paste(x_start u32, y_start u32) {
 	app.selected_item = old_item
 }
 
+fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u32) u32, u32, string {
+	// check all the elems in the rectangle to see if their state / data is valid
+	// input/output id (ajdacent tiles)
+	// current state (depending on the input)
+	// for the wires : check if adj_wires in the same wire
+	
+	x_start, x_end := if _x_start > _x_end {
+		_x_end, _x_start
+	} else {
+		_x_start, _x_end
+	}
+	y_start, y_end := if _y_start > _y_end {
+		_y_end, _y_start
+	} else {
+		_y_start, _y_end
+	}
+	for x in x_start .. x_end {
+		for y in y_start .. y_end {
+			mut chunkmap := app.get_chunkmap_at_coords(x, y)
+			x_map := x % chunk_size
+			y_map := y % chunk_size
+			id := chunkmap[x_map][y_map]
+			if id == 0x0 { // map empty
+				continue
+			}
+			if id == elem_crossing_bits { // same bits as wires so need to be separated
+				continue // do not have any state to check
+			}
+			ori := id & ori_mask
+			step := match ori 
+				north {
+					[0, 1]!
+				}
+				south {
+					[0, -1]!
+				}
+				west {
+					[1, 0]!
+				}
+				east {
+					[-1, 0]!
+				}
+				else {
+					log_quit('${@LINE} not a valid orientation')
+				}
+			}
+			
+			match id & elem_type_mask {
+				elem_not_bits, elem_diode_bits {	
+					
+					if app.next_gate_id(x, y, -step[0], -step[1], ori) != app.get_input(id) {
+						return x, y, "problem: input is not the preceding gate"
+					}
+					if app.next_gate_id(x, y, step[0], step[1], ori) != app.get_output(id) {
+						return x, y, "problem: input is not the following gate"
+					}
+				}
+				elem_on_bits {
+					// do not have any state to check
+				}
+				elem_wire_bits {
+					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
+					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
+					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
+					if s_adj_id != empty_id {
+						if s_adj_id & elem_type_mask == elem_wire_bits {
+							if id != s_adj_id {
+								return x, y, "problem: south wire(${s_adj_id}) has a different id from the wire(${id})"
+							}
+						} else {
+							_, wire_idx := app.get_elem_state_idx_by_id(id, 0)
+							if s_is_input {
+								if s_adj_in !in app.wires[wire_idx].inps {
+									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s input"
+								}
+							} else {
+								if s_adj_in !in app.wires[wire_idx].outs {
+									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s output"
+								}
+							}
+						}
+					}	
+					if s_adj_id != empty_id { // TODO: north east west // Question : how to check state, with old state array ?
+						if s_adj_id & elem_type_mask == elem_wire_bits {
+							if id != s_adj_id {
+								return x, y, "problem: south wire(${s_adj_id}) has a different id from the wire(${id})"
+							}
+						} else {
+							_, wire_idx := app.get_elem_state_idx_by_id(id, 0)
+							if s_is_input {
+								if s_adj_in !in app.wires[wire_idx].inps {
+									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s input"
+								}
+							} else {
+								if s_adj_in !in app.wires[wire_idx].outs {
+									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s output"
+								}
+							}
+						}
+					}	
+				}
+				else {
+					log_quit('${@LINE} should not get into this else')
+				}
+			}
+		}
+	}
+}
 fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// place random elems in a rectangle
 	
@@ -316,6 +425,12 @@ fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	}
 	for x in x_start .. x_end {
 		for y in y_start .. y_end {
+			app.selected_ori = match rand.int_in_range(0, 4) or {0} {
+				1 { north }
+				2 { south }
+				3 { east }
+				else { west }
+			}
 			match rand.int_in_range(0, 6) or {0} {
 				1 {
 					app.selected_item = .not
@@ -967,8 +1082,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
 					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1,
-						0)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
 					if s_adj_id != empty_id && n_adj_id != empty_id {
 						if s_adj_id & elem_type_mask == elem_wire_bits
 							&& n_adj_id & elem_type_mask == elem_wire_bits {
@@ -1074,6 +1188,38 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 		app.w_states[0].delete(i)
 		app.w_states[1].delete(i)
 	}
+}
+
+// get the input of the elem (empty_id for wires & ons)
+fn (mut app App) get_input(elem_id u64) u64 {
+	if elem_id != empty_id && elem_id != elem_crossing_bits {
+		if elem_id & elem_type_mask == 0b00 { // not
+			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
+			return app.nots[idx].inp
+		} else if elem_id & elem_type_mask == 0b01 { // diode
+			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
+			return app.diodes[idx].inp
+		} else if elem_id & elem_type_mask == 0b10 { // on -> does not have inputs
+		} else if elem_id & elem_type_mask == 0b11 { // wire
+		}
+	}
+	return empty_id
+}
+
+// get the output of the elem (empty_id for wires & ons)
+fn (mut app App) get_output(elem_id u64) u64 {
+	if elem_id != empty_id && elem_id != elem_crossing_bits {
+		if elem_id & elem_type_mask == 0b00 { // not
+			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
+			return app.nots[idx].out
+		} else if elem_id & elem_type_mask == 0b01 { // diode
+			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
+			return app.diodes[idx].out
+		} else if elem_id & elem_type_mask == 0b10 { // on -> does not have inputs
+		} else if elem_id & elem_type_mask == 0b11 { // wire
+		}
+	}
+	return empty_id
 }
 
 // add input_id to the input(s) of elem_id (if it is a valid id)
@@ -1219,10 +1365,11 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 	return next_id, input, x_dir, y_dir
 }
 
-// Returns the id of the next gate that is not orthogonal with these coordinates on the x/y_dir specified
+// Returns the id of the next gate that is connected to the gate (on x, y) walking on the x_dir/y_dir specified
 // Returns empty_id if not a valid input/output
 // x_dir -> direction of the step
-fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int) u64 {
+// gate_ori : the orientation of the gate used as starting point
+fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) u64 {
 	conv_x := u32(int(x) + x_dir)
 	conv_y := u32(int(y) + y_dir)
 	mut next_chunkmap := app.get_chunkmap_at_coords(conv_x, conv_y)
@@ -1263,16 +1410,16 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int) u64 {
 				log_quit('${@LINE} not a valid step for an orientation')
 			}
 		}
-		if step_ori == app.selected_ori || next_id & ori_mask != app.selected_ori { // is an output of the gate or is not aligned (because the next is a ON)
+		if step_ori == gate_ori || next_id & ori_mask != gate_ori { // is an output of the gate or is not aligned (because the next is a ON)
 			next_id = empty_id
 		}
 	} else if next_id & elem_type_mask == elem_wire_bits {
 	} else if next_id & elem_type_mask == elem_not_bits {
-		if next_id & ori_mask != app.selected_ori {
+		if next_id & ori_mask != gate_ori {
 			next_id = empty_id
 		}
 	} else if next_id & elem_type_mask == elem_diode_bits {
-		if next_id & ori_mask != app.selected_ori {
+		if next_id & ori_mask != gate_ori {
 			next_id = empty_id
 		}
 	}
