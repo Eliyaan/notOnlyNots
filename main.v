@@ -288,6 +288,32 @@ fn (mut app App) rotate_copied() {
 	}
 }
 
+fn (mut app App) gate_unit_tests(x u32, y u32) {
+	size := u32(100) // we dont know the size of the gates that will be placed, 100 should be okay, same as below
+	cycles := 100 // we dont know in how much cycles the bug will happen, needs to match the amount in the fuzz testing because the unit tests will come from there
+	app.removal(x, y, x + size, y + size)
+	gates: for gate_path in os.ls("test_gates/") or {log("Listing the test gates: ${err}"); return} {
+		app.load_gate_to_copied(gate_path) or { // not sure if it is the good path
+			log("FAIL: cant load the gate: ${gate_path}, ${err}")
+			continue
+		}
+		app.paste(x, y)
+		for _ in 0..cycles {
+			app.update_cycle()
+			x_err, y_err, str_err := app.test_validity(x, y, x+size, y+size)
+			if str_err != "" {
+				log("FAIL: (validity) ${str_err}")
+				println("TODO:")
+				println(x_err)
+				println(y_err)
+				// TODO: show the coords on screen (tp to the right place & color the square)
+				continue gates
+			}
+		}
+		app.removal(x, y, x + size, y + size)
+	}
+}
+
 fn (mut app App) paste(x_start u32, y_start u32) {
 	old_item := app.selected_item
 	old_ori := app.selected_ori
