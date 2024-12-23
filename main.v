@@ -301,7 +301,7 @@ fn (mut app App) paste(x_start u32, y_start u32) {
 	app.selected_item = old_item
 }
 
-fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u32) u32, u32, string {
+fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u32) (u32, u32, string) {
 	// check all the elems in the rectangle to see if their state / data is valid
 	// input/output id (ajdacent tiles)
 	// current state (depending on the input)
@@ -348,56 +348,126 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 				}
 			}
 			
-			match id & elem_type_mask {
-				elem_not_bits, elem_diode_bits {	
-					
-					if app.next_gate_id(x, y, -step[0], -step[1], ori) != app.get_input(id) {
+			match id & elem_type_mask { // TODO: check state w/ state array vs old state array & check state array vs map state
+				elem_not_bits, elem_diode_bits {						
+					inp_id := app.next_gate_id(x, y, -step[0], -step[1], ori)
+					if inp_id & rid_mask != app.get_input(id) & rid_mask {
 						return x, y, "problem: input is not the preceding gate"
 					}
-					if app.next_gate_id(x, y, step[0], step[1], ori) != app.get_output(id) {
-						return x, y, "problem: input is not the following gate"
+					out_id := app.next_gate_id(x, y, step[0], step[1], ori)
+					if out_id & rid_mask != app.get_output(id) & rid_mask {
+						return x, y, "problem: output is not the following gate"
+					}
+					inp_old_state, _ := app.get_elem_state_idx_by_id(inp_id, (app.actual_state + 1)%2)
+					if id & elem_type_mask == elem_not_bits {
+						state, _ := app.get_elem_state_idx_by_id(id, app.actual_state)
+						if state == inp_old_state {
+							return x, y, "problem: NOT did not inverse the input state"
+						}
+						if (id & on_bits != 0) == inp_old_state {
+							return x, y, 'problem: NOT(map state) did not inverse the input state'
+						}
+					} else { // diode
+						state, _ := app.get_elem_state_idx_by_id(id, app.actual_state)
+						if state != inp_old_state {
+							return x, y, "problem: Diode did not match the input state"
+						}
+						if (id & on_bits != 0) != inp_old_state {
+							return x, y, 'problem: Diode(map state) did not match the input state'
+						}
 					}
 				}
-				elem_on_bits {
-					// do not have any state to check
+				elem_on_bits { // do not have any state to check 
 				}
 				elem_wire_bits {
 					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
 					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
 					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
+					wire_state, wire_idx := app.get_elem_state_idx_by_id(id, app.actual_state)
+					if (id & on_bits != 0) != wire_state {
+						return x, y, "problem: cable(map state)'s state is not the same as the wire"
+					}
 					if s_adj_id != empty_id {
 						if s_adj_id & elem_type_mask == elem_wire_bits {
-							if id != s_adj_id {
-								return x, y, "problem: south wire(${s_adj_id}) has a different id from the wire(${id})"
+							if id & rid_mask != s_adj_id & rid_mask {
+								return x, y, "problem: south wire(${s_adj_id & rid_mask}) has a different id from the wire(${id & rid_mask})"
 							}
 						} else {
-							_, wire_idx := app.get_elem_state_idx_by_id(id, 0)
 							if s_is_input {
-								if s_adj_in !in app.wires[wire_idx].inps {
+								if s_adj_id !in app.wires[wire_idx].inps.map(it & rid_mask) {
 									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s input"
 								}
+								s_old_state, _ := app.get_elem_state_idx_by_id(s_adj_id, (app.actual_state+1)%2)
+								if s_old_state && !wire_state {
+									return x, y, 'problem: wire did not match south On state'
+								}
 							} else {
-								if s_adj_in !in app.wires[wire_idx].outs {
+								if s_adj_id !in app.wires[wire_idx].outs.map(it & rid_mask) {
 									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s output"
 								}
 							}
 						}
 					}	
-					if s_adj_id != empty_id { // TODO: north east west // Question : how to check state, with old state array ?
-						if s_adj_id & elem_type_mask == elem_wire_bits {
-							if id != s_adj_id {
-								return x, y, "problem: south wire(${s_adj_id}) has a different id from the wire(${id})"
+					if n_adj_id != empty_id {
+						if n_adj_id & elem_type_mask == elem_wire_bits {
+							if id & rid_mask != n_adj_id & rid_mask {
+								return x, y, "problem: north wire(${n_adj_id & rid_mask}) has a different id from the wire(${id & rid_mask})"
 							}
 						} else {
-							_, wire_idx := app.get_elem_state_idx_by_id(id, 0)
-							if s_is_input {
-								if s_adj_in !in app.wires[wire_idx].inps {
-									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s input"
+							if n_is_input {
+								if n_adj_id & rid_mask !in app.wires[wire_idx].inps.map(it & rid_mask) {
+									return x, y, "problem: north(${n_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s input"
+								}
+								n_old_state, _ := app.get_elem_state_idx_by_id(n_adj_id, (app.actual_state+1)%2)
+								if n_old_state && !wire_state {
+									return x, y, 'problem: wire did not match north On state'
 								}
 							} else {
-								if s_adj_in !in app.wires[wire_idx].outs {
-									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s output"
+								if n_adj_id & rid_mask !in app.wires[wire_idx].outs.map(it & rid_mask) {
+									return x, y, "problem: north(${n_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s output"
+								}
+							}
+						}
+					}	
+					if e_adj_id != empty_id {
+						if e_adj_id & elem_type_mask == elem_wire_bits {
+							if id & rid_mask != e_adj_id & rid_mask {
+								return x, y, "problem: east wire(${e_adj_id & rid_mask}) has a different id from the wire(${id & rid_mask})"
+							}
+						} else {
+							if e_is_input {
+								if e_adj_id & rid_mask !in app.wires[wire_idx].inps.map(it & rid_mask) {
+									return x, y, "problem: east(${e_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s input"
+								}
+								e_old_state, _ := app.get_elem_state_idx_by_id(e_adj_id, (app.actual_state+1)%2)
+								if e_old_state && !wire_state {
+									return x, y, 'problem: wire did not match east On state'
+								}
+							} else {
+								if e_adj_id & rid_mask !in app.wires[wire_idx].outs.map(it & rid_mask) {
+									return x, y, "problem: east(${e_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s output"
+								}
+							}
+						}
+					}	
+					if w_adj_id != empty_id {
+						if w_adj_id & elem_type_mask == elem_wire_bits {
+							if id & rid_mask != w_adj_id & rid_mask {
+								return x, y, "problem: west wire(${w_adj_id & rid_mask}) has a different id from the wire(${id & rid_mask})"
+							}
+						} else {
+							if w_is_input {
+								if w_adj_id & rid_mask !in app.wires[wire_idx].inps.map(it & rid_mask) {
+									return x, y, "problem: west(${w_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s input"
+								}
+								w_old_state, _ := app.get_elem_state_idx_by_id(w_adj_id, (app.actual_state+1)%2)
+								if w_old_state && !wire_state {
+									return x, y, 'problem: wire did not match west On state'
+								}
+							} else {
+								if w_adj_id & rid_mask !in app.wires[wire_idx].outs.map(it & rid_mask) {
+									return x, y, "problem: west(${w_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s output"
 								}
 							}
 						}
@@ -409,6 +479,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			}
 		}
 	}
+	return 0, 0, ""
 }
 fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// place random elems in a rectangle
@@ -516,7 +587,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// set the tile id to empty_id
 	// 2.
 	// remove the struct from the array
-	// remove the state from the arrays (there are 2 state arrays to modify /!\)
+	// remove the state from the arrays (there are 2 state arrays to modify ! )
 	// 3.
 	// update the output/inputs fields of the adjacent elements
 
@@ -653,8 +724,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					app.n_states[1].delete(idx)
 
 					// 3. done
-					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.add_input(out_id, empty_id)
 					app.add_output(inp_id, empty_id)
 				}
@@ -669,8 +740,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					app.d_states[1].delete(idx)
 
 					// 3. done
-					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.add_input(out_id, empty_id)
 					app.add_output(inp_id, empty_id)
 				}
@@ -682,7 +753,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// no arrays for the ons
 
 					// 3. done; only an input for other elements
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.add_input(out_id, empty_id)
 				}
 				elem_wire_bits {
@@ -932,8 +1003,8 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
-					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.nots << Nots{id, inp_id, out_id, x, y}
 					app.n_states[0] << false // default state & important to do the two lists
 					app.n_states[1] << false // default state
@@ -962,8 +1033,8 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					chunkmap[x_map][y_map] = id
 
 					// 2. done
-					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.diodes << Diode{id, inp_id, out_id, x, y}
 					app.d_states[0] << false // default state & important to do the two lists
 					app.d_states[1] << false // default state
@@ -995,7 +1066,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// no arrays for the ons
 
 					// 3. done; only an input for other elements
-					out_id := app.next_gate_id(x, y, x_ori, y_ori)
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.add_input(out_id, id)
 
 					// 4. done, no need
@@ -1387,8 +1458,7 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 			next_chunkmap = app.get_chunkmap_at_coords(x_conv, y_conv)
 			next_id = next_chunkmap[x_conv % chunk_size][y_conv % chunk_size]
 		}
-		return app.next_gate_id(u32(int(x) + x_off - x_dir), u32(int(y) + y_off - y_dir),
-			x_dir, y_dir) // coords of the crossing just before the detected good elem
+		return app.next_gate_id(u32(int(x) + x_off - x_dir), u32(int(y) + y_off - y_dir), x_dir, y_dir, gate_ori) // coords of the crossing just before the detected good elem
 	} else if next_id == 0x0 {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
@@ -1504,7 +1574,7 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 // previous: 0 for actual state, 1 for the previous state
 // returns id of the concerned element & the index in the list
 // crossing & ons dont have different states nor idx
-fn (mut app App) get_elem_state_idx_by_id(id u64, previous u8) (bool, int) {
+fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 	concerned_state := (app.actual_state + previous) % 2
 	rid := id & rid_mask
 	// the state in the id may be an old state so it needs to get the state from the state lists
