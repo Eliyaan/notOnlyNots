@@ -1,5 +1,6 @@
 import os
 import rand
+import time
 
 const empty_id = u64(0)
 const on_bits = u64(0x2000_0000_0000_0000) // 0010_0000_000...
@@ -41,6 +42,76 @@ mut:
 	// relative coos to the selection/gate
 	rel_x u32
 	rel_y u32
+}
+
+enum Todos {
+	save_map
+	removal
+	paste
+	load_gate
+	save_gate
+	place
+	rotate
+	copy
+}
+
+struct TodoInfo {
+	task Todos
+	x u32
+	y u32
+	x_end u32
+	y_end u32
+	name string
+}
+
+fn (mut app App) computation_loop() {
+	mut cycle_end := i64(0)
+	mut avg_update_time := 0.0
+	mut now := i64(0)
+	for app.comp_running {
+		cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(avg_update_time) // nanosecs
+		for todo in app.todo {
+			now = time.now().unix_nano()
+			if now < cycle_end {
+				match todo.task {
+					.save_map {
+						app.save_map(todo.name) or {log("save copied: ${err}")}
+					}
+					.removal {
+						app.removal(todo.x, todo.y, todo.x_end, todo.y_end)
+					}
+					.paste {
+						app.paste(todo.x, todo.y) 
+					}
+					.load_gate {
+						app.load_gate_to_copied(todo.name) or {log("save copied: ${err}")}
+					}
+					.save_gate {
+						app.save_copied() or {log("save copied: ${err}")}
+					}
+					.place {
+						app.placement(todo.x, todo.y, todo.x_end, todo.y_end)
+					}
+					.rotate {
+						app.rotate_copied()
+					}
+					.copy {
+						app.copy(todo.x, todo.y, todo.x_end, todo.y_end)
+					}
+				}
+			} else {
+				break
+			}
+		}
+		now = time.now().unix_nano()
+		if app.todo.len == 0 && cycle_end - now >= 10000 { // 10micro sec
+			time.sleep((cycle_end - now)*time.nanosecond)
+		}
+
+		now = time.now().unix_nano()
+		app.update_cycle()
+		avg_update_time = f32(time.now().unix_nano() - now)*0.1 + 0.9*avg_update_time
+	}
 }
 
 fn (mut app App) save_copied() ! {
@@ -1712,6 +1783,9 @@ mut:
 struct App {
 mut:
 	map           []Chunk
+	comp_running  bool
+	nb_updates    int
+	todo	      []TodoInfo
 	selected_item Elem
 	selected_ori  u64 = north
 	copied        []PlaceInstruction
