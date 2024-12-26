@@ -1,6 +1,7 @@
 import os
 import rand
 import time
+import gg
 
 const empty_id = u64(0)
 const on_bits = u64(0x2000_0000_0000_0000) // 0010_0000_000...
@@ -17,6 +18,111 @@ const east = u64(0x1800_0000_0000_0000) // 0001_100..
 const rid_mask = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
 const elem_type_mask = u64(0xC000_0000_0000_0000) // 1100_0000...
 const ori_mask = u64(0x1800_0000_0000_0000) // 0001_1000...
+
+struct App {
+mut:
+	ctx &gg.Context = unsafe{nil}
+	cam_x u32
+	cam_y u32
+	mouse_down bool
+	click_x f32
+	click_y f32
+	drag_x f32
+	drag_y f32
+// logic
+	map           []Chunk
+	comp_running  bool
+	nb_updates    int
+	todo	      []TodoInfo
+	selected_item Elem
+	selected_ori  u64 = north
+	copied        []PlaceInstruction
+	actual_state  int // indicate which list is the old state list and which is the actual one (0 for the first, 1 for the second)
+	nots          []Nots
+	n_next_rid    u64 = 1
+	n_states      [2][]bool // the old state and the actual state list
+	diodes        []Diode
+	d_next_rid    u64 = 1
+	d_states      [2][]bool
+	wires         []Wire
+	w_next_rid    u64 = 1
+	w_states      [2][]bool
+}
+
+// graphics
+
+fn main() {
+	mut app := &App{}
+	app.ctx = gg.new_context(
+		create_window: true
+		window_title: 'Nots'
+		user_data: app
+		frame_fn: on_frame
+		event_fn: on_event
+		sample_count: 2
+	)
+
+	//lancement du programme/de la fenêtre
+	app.ctx.run()
+}
+
+fn on_frame(mut app App) {
+	//Draw
+	app.ctx.begin()
+	app.ctx.end()
+}
+
+fn on_event(e &gg.Event, mut app App){
+	mouse_x := if e.mouse_x < 1.0 {
+		1.0
+	} else {
+		e.mouse_x
+	}
+	mouse_y := if e.mouse_y < 1.0 {
+		1.0
+	} else {
+		e.mouse_y
+	}
+	if e.char_code != 0 {
+		println(e.char_code)
+	}
+	match e.typ {
+		.mouse_up {
+			if app.comp_running {
+				if app.mouse_down {
+					app.mouse_down = false
+					app.cam_x = app.cam_x + u32(app.drag_x - app.click_x)
+					app.cam_y = app.cam_y + u32(app.drag_y - app.click_y)
+				}
+			}
+		}
+		.mouse_down{
+			if app.comp_running {
+				if !app.mouse_down {
+					app.mouse_down = true
+					app.click_x = mouse_x
+					app.click_y = mouse_y
+				}
+				match e.mouse_button {
+					.left {}
+					.right, .middle {
+						app.drag_x = mouse_x
+						app.drag_y = mouse_y
+					}
+					else {}
+				}
+			}
+		}
+		.key_down {
+			match e.key_code {
+				.escape {app.ctx.quit()}
+				else {}
+			}
+		}
+		else {}
+	}
+}
+// logic
 
 enum Elem as u8 {
 	not      // 00
@@ -1780,23 +1886,3 @@ mut:
 	cable_coords [][2]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
 }
 
-struct App {
-mut:
-	map           []Chunk
-	comp_running  bool
-	nb_updates    int
-	todo	      []TodoInfo
-	selected_item Elem
-	selected_ori  u64 = north
-	copied        []PlaceInstruction
-	actual_state  int // indicate which list is the old state list and which is the actual one (0 for the first, 1 for the second)
-	nots          []Nots
-	n_next_rid    u64 = 1
-	n_states      [2][]bool // the old state and the actual state list
-	diodes        []Diode
-	d_next_rid    u64 = 1
-	d_states      [2][]bool
-	wires         []Wire
-	w_next_rid    u64 = 1
-	w_states      [2][]bool
-}
