@@ -25,24 +25,37 @@ const diode_poly_unscaled = [
 	[f32(0.0), 0.2, 1.0, 0.4, 1.0, 0.6, 0.0, 0.8] // west
 	[f32(1.0), 0.2, 1.0, 0.8, 0.0, 0.6, 0.0, 0.4] // east
 ]
+const not_rect_unscaled = [ // x, y, width, height
+	[f32(0.33), 0.0, 0.33, 0.2] // north
+	[f32(0.33), 0.8, 0.33, 0.2] // south
+	[f32(0.0), 0.33, 0.2, 0.33] // west
+	[f32(0.8), 0.33, 0.2, 0.33] // east
+]
+const not_poly_unscaled = [
+	[f32(0.2), 1.0, 0.5, 0.3, 0.8, 1.0] // north
+	[f32(0.2), 0.0, 0.8, 0.0, 0.5, 0.7] // south
+	[f32(0.0), 0.2, 0.7, 0.5, 0.0, 0.8] // west
+	[f32(1.0), 0.2, 1.0, 0.8, 0.3, 0.5] // east
+]
 
 struct Palette {
 	junc gg.Color = gg.Color{0, 0, 0, 255}
 	junc_v	gg.Color = gg.Color{213, 92, 247, 255} // vertical line
 	junc_h gg.Color = gg.Color{190, 92, 247, 255} // horiz line
-	wire_on gg.Color = gg.Color{131, 247, 92,255}
-	wire_off gg.Color = gg.Color{247, 92, 92,255}
-	on gg.Color = gg.Color{89, 181, 71,255}
-	not gg.Color = gg.Color{247, 92, 170,255}
-	diode gg.Color = gg.Color{92, 190, 247,255}
+	wire_on gg.Color = gg.Color{131, 247, 92, 255}
+	wire_off gg.Color = gg.Color{247, 92, 92, 255}
+	on gg.Color = gg.Color{89, 181, 71, 255}
+	not gg.Color = gg.Color{247, 92, 170, 255}
+	diode gg.Color = gg.Color{92, 190, 247, 255}
+	background gg.Color = gg.Color{255, 235, 179, 255}
 }
 
 struct App {
 mut:
 	ctx &gg.Context = unsafe{nil}
 	tile_size int = 50
-	cam_x f64
-	cam_y f64
+	cam_x f64 = 2_000_000_000.0
+	cam_y f64 = 2_000_000_000.0
 	mouse_down bool
 	click_x f32
 	click_y f32
@@ -80,10 +93,21 @@ fn main() {
 		frame_fn: on_frame
 		event_fn: on_event
 		sample_count: 2
+		bg_color: app.palette.background
 	)
 
 	//lancement du programme/de la fenêtre
 	app.ctx.run()
+}
+
+fn (app App) scale_sprite(a [][]f32) [][]f32 {
+	mut new_a := [][]f32{len: a.len, init: []f32{len:a[0].len}}
+	for i, dir_a in a {
+		for j, coo in dir_a {
+			new_a[i][j] = coo * app.tile_size
+		}
+	}
+	return new_a
 }
 
 fn on_frame(mut app App) {
@@ -91,9 +115,12 @@ fn on_frame(mut app App) {
 	size := app.ctx.window_size()
 	app.ctx.begin()
 	if app.comp_running {
-		not_poly := not_poly_unscaled.map(|x| x * app.tile_size)
-		not_poly_offset := []f32{len:8, cap:8}
-		for chunk in app.chunks {
+		not_poly := app.scale_sprite(not_poly_unscaled)
+		not_rect := app.scale_sprite(not_rect_unscaled)
+		mut not_poly_offset := []f32{len:6, cap:6} 
+		diode_poly := app.scale_sprite(diode_poly_unscaled)
+		mut diode_poly_offset := []f32{len:8, cap:8}
+		for chunk in app.map {
 			chunk_cam_x := chunk.x - (app.cam_x + (app.drag_x - app.click_x)/app.tile_size)
 			chunk_cam_y := chunk.y - (app.cam_y + (app.drag_y - app.click_y)/app.tile_size)
 			if chunk_cam_x > -chunk_size  && chunk_cam_x < size.width {
@@ -105,8 +132,8 @@ fn on_frame(mut app App) {
 									if id == empty_id {
 										continue
 									}
-									pos_x := (chunk_cam_x+x)*app.tile_size
-									pos_y := (chunk_cam_y+y)*app.tile_size
+									pos_x := f32((chunk_cam_x+x)*app.tile_size)
+									pos_y := f32((chunk_cam_y+y)*app.tile_size)
 									if id == elem_crossing_bits { // same bits as wires so need to be separated
 										app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.junc)
 										app.ctx.draw_rect_filled(pos_x, pos_y + app.tile_size/3, app.tile_size, app.tile_size/3, app.palette.junc_h)
@@ -122,28 +149,37 @@ fn on_frame(mut app App) {
 											south { 1 }
 											west { 2 }
 											east { 3 }
+											else { 	log_quit('${@LINE} should not get into this else') }
 										}
 										match id & elem_type_mask {
 											elem_not_bits {
 												app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.not)
-												not_poly_offset[0] = not_poly[0]+pos_x
-												not_poly_offset[1] = not_poly[1]+pos_y
-												not_poly_offset[2] = not_poly[2]+pos_x
-												not_poly_offset[3] = not_poly[3]+pos_y
-												not_poly_offset[4] = not_poly[4]+pos_x
-												not_poly_offset[5] = not_poly[5]+pos_y
-												not_poly_offset[6] = not_poly[6]+pos_x
-												not_poly_offset[7] = not_poly[7]+pos_y
+												not_poly_offset[0] = not_poly[ori][0]+pos_x
+												not_poly_offset[1] = not_poly[ori][1]+pos_y
+												not_poly_offset[2] = not_poly[ori][2]+pos_x
+												not_poly_offset[3] = not_poly[ori][3]+pos_y
+												not_poly_offset[4] = not_poly[ori][4]+pos_x
+												not_poly_offset[5] = not_poly[ori][5]+pos_y
 												app.ctx.draw_convex_poly(not_poly_offset, state_color) 
+												app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x, not_rect[ori][1] + pos_y, not_rect[ori][2], not_rect[ori][3], not_state_color)
 											}
-											elem_diode_bits {			
-												app.ctx.draw_square_filled((chunk_cam_x + x)*app.tile_size, (chunk_cam_y + y)*app.tile_size, app.tile_size, app.palette.diode)
+											elem_diode_bits {
+												app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.diode)
+												diode_poly_offset[0] = diode_poly[ori][0]+pos_x
+												diode_poly_offset[1] = diode_poly[ori][1]+pos_y
+												diode_poly_offset[2] = diode_poly[ori][2]+pos_x
+												diode_poly_offset[3] = diode_poly[ori][3]+pos_y
+												diode_poly_offset[4] = diode_poly[ori][4]+pos_x
+												diode_poly_offset[5] = diode_poly[ori][5]+pos_y
+												diode_poly_offset[6] = diode_poly[ori][6]+pos_x
+												diode_poly_offset[7] = diode_poly[ori][7]+pos_y
+												app.ctx.draw_convex_poly(diode_poly_offset, state_color) 
 											}
 											elem_on_bits {
-												app.ctx.draw_square_filled((chunk_cam_x + x)*app.tile_size, (chunk_cam_y + y)*app.tile_size, app.tile_size, app.palette.on)
+												app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.on)
 											}
 											elem_wire_bits {
-												app.ctx.draw_square_filled((chunk_cam_x + x)*app.tile_size, (chunk_cam_y + y)*app.tile_size, app.tile_size, state_color)
+												app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, state_color)
 											}
 											else {
 												log_quit('${@LINE} should not get into this else')
