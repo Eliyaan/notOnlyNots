@@ -1,3 +1,4 @@
+import math {abs}
 import os
 import rand
 import time
@@ -48,19 +49,27 @@ struct Palette {
 	not gg.Color = gg.Color{247, 92, 170, 255}
 	diode gg.Color = gg.Color{92, 190, 247, 255}
 	background gg.Color = gg.Color{255, 235, 179, 255}
+	place_preview gg.Color = gg.Color{128, 128, 128, 128}
 }
 
 struct App {
 mut:
 	ctx &gg.Context = unsafe{nil}
 	tile_size int = 50
+// camera moving
 	cam_x f64 = 2_000_000_000.0
 	cam_y f64 = 2_000_000_000.0
-	mouse_down bool
+	move_down bool
 	click_x f32
 	click_y f32
 	drag_x f32
 	drag_y f32
+// placement
+	place_down bool
+	place_start_x u32
+	place_start_y u32
+	place_end_x u32
+	place_end_y u32
 // logic
 	map           []Chunk
 	comp_running  bool
@@ -69,7 +78,7 @@ mut:
 	selected_item Elem
 	selected_ori  u64 = north
 	copied        []PlaceInstruction
-	actual_state  int // indicate which list is the old state list and which is the actual one (0 for the first, 1 for the second)
+	actual_state  int // indicate which list is the old state list and which is the actual one, 0 for the first, 1 for the second
 	nots          []Nots
 	n_next_rid    u64 = 1
 	n_states      [2][]bool // the old state and the actual state list
@@ -110,11 +119,37 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 	return new_a
 }
 
+fn (mut app App) draw_placing_preview() {
+	x_start, x_end := if app.place_start_x > app.place_end_x {
+		app.place_end_x, app.place_start_x
+	} else {
+		app.place_start_x, app.place_end_x
+	}
+	y_start, y_end := if app.place_start_y > app.place_end_y {
+		app.place_end_y, app.place_start_y
+	} else {
+		app.place_start_y, app.place_end_y
+	}
+	for x in x_start .. x_end {
+		for y in y_start .. y_end {
+			pos_x := f32(f64(x*u32(app.tile_size))-app.cam_x)
+			pos_y := f32(f64(y*u32(app.tile_size))-app.cam_y)
+			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.place_preview)
+		}
+	}
+}
+
 fn on_frame(mut app App) {
 	//Draw
 	size := app.ctx.window_size()
 	app.ctx.begin()
 	if app.comp_running {
+		// placing preview
+		if app.place_start_x == u32(-1) { // did not hide the check to be able to see when it is happening
+			app.draw_placing_preview() // TODO
+		}
+		
+		// map rendering
 		not_poly := app.scale_sprite(not_poly_unscaled)
 		not_rect := app.scale_sprite(not_rect_unscaled)
 		mut not_poly_offset := []f32{len:6, cap:6} 
@@ -218,27 +253,72 @@ fn on_event(e &gg.Event, mut app App){
 	match e.typ {
 		.mouse_up {
 			if app.comp_running {
-				if app.mouse_down {
-					app.mouse_down = false
+				if app.move_down {
+					app.move_down = false
 					app.cam_x = app.cam_x + ((mouse_x - app.click_x)/app.tile_size)
 					app.cam_y = app.cam_y + ((mouse_y - app.click_y)/app.tile_size)
+				}
+				if app.place_down {
+					app.place_down = false
+					app.place_start_x = u32(-1)
+					app.place_start_y = u32(-1)
+					app.place_end_x = u32(-1)
+					app.place_end_y = u32(-1)
+					place_end_x := u32(app.cam_x + mouse_x/app.tile_size)
+					place_end_y := u32(app.cam_y + mouse_y/app.tile_size)
+					if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
+						if app.place_start_x > place_end_x {
+							app.selected_ori = west
+						} else {
+							app.selected_ori = east
+						}
+						if e.mouse_button == .left {
+							app.placement(app.place_start_x, app.place_start_y, place_end_x, app.place_start_y)
+						} else if e.mouse_button == .right {
+							app.removal(app.place_start_x, app.place_start_y, place_end_x, app.place_start_y)
+						}
+					} else {
+						if app.place_start_y > place_end_y {
+							app.selected_ori = north
+						} else {
+							app.selected_ori = south
+						}
+						if e.mouse_button == .left {
+							app.placement(app.place_start_x, app.place_start_y, app.place_start_x, place_end_y)
+						} else if e.mouse_button == .right {
+							app.removal(app.place_start_x, app.place_start_y, app.place_start_x, place_end_y)
+						}
+					}
 				}
 			}
 		}
 		.mouse_down{
 			if app.comp_running {
-				if !app.mouse_down {
-					app.mouse_down = true
+				if !app.move_down {
+					app.move_down = true
 					app.click_x = mouse_x
 					app.click_y = mouse_y
 				}
-				match e.mouse_button {
-					.left {}
-					.right, .middle {
+				if e.mouse_button == .left || e.mouse_button == .right {
+					if !app.place_down {
+						app.place_down = true
+						app.place_start_x = u32(app.cam_x + mouse_x/app.tile_size)
+						app.place_start_y = u32(app.cam_y + mouse_y/app.tile_size)
+					} else {
+						place_end_x := u32(app.cam_x + mouse_x/app.tile_size)
+						place_end_y := u32(app.cam_y + mouse_y/app.tile_size)
+						if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
+							app.place_end_x = place_end_x
+							app.place_end_y = app.place_start_y
+						} else {
+							app.place_end_y = place_end_y
+							app.place_end_x = app.place_start_x
+						}
+					}
+				}
+				if e.mouse_button == .middle || e.modifiers == 1 { // shift
 						app.drag_x = mouse_x
 						app.drag_y = mouse_y
-					}
-					else {}
 				}
 			}
 		}
@@ -251,6 +331,7 @@ fn on_event(e &gg.Event, mut app App){
 		else {}
 	}
 }
+
 // logic
 
 enum Elem as u8 {
