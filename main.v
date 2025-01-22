@@ -743,7 +743,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 				continue // do not have any state to check
 			}
 			ori := id & ori_mask
-			step := match ori 
+			step := match ori  {
 				north {
 					[0, 1]!
 				}
