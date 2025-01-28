@@ -40,23 +40,26 @@ const not_poly_unscaled = [
 ]
 
 struct Palette {
-	junc          gg.Color = gg.Color{0, 0, 0, 255}
-	junc_v        gg.Color = gg.Color{213, 92, 247, 255} // vertical line
-	junc_h        gg.Color = gg.Color{190, 92, 247, 255} // horiz line
-	wire_on       gg.Color = gg.Color{131, 247, 92, 255}
-	wire_off      gg.Color = gg.Color{247, 92, 92, 255}
-	on            gg.Color = gg.Color{89, 181, 71, 255}
-	not           gg.Color = gg.Color{247, 92, 170, 255}
-	diode         gg.Color = gg.Color{92, 190, 247, 255}
-	background    gg.Color = gg.Color{255, 235, 179, 255}
-	place_preview gg.Color = gg.Color{128, 128, 128, 128}
+	junc            gg.Color = gg.Color{0, 0, 0, 255}
+	junc_v          gg.Color = gg.Color{213, 92, 247, 255} // vertical line
+	junc_h          gg.Color = gg.Color{190, 92, 247, 255} // horiz line
+	wire_on         gg.Color = gg.Color{131, 247, 92, 255}
+	wire_off        gg.Color = gg.Color{247, 92, 92, 255}
+	on              gg.Color = gg.Color{89, 181, 71, 255}
+	not             gg.Color = gg.Color{247, 92, 170, 255}
+	diode           gg.Color = gg.Color{92, 190, 247, 255}
+	background      gg.Color = gg.Color{255, 235, 179, 255}
+	place_preview   gg.Color = gg.Color{128, 128, 128, 128}
+	selection_start gg.Color = gg.Color{26, 107, 237, 128}
+	selection_end   gg.Color = gg.Color{72, 97, 138, 128}
+	selection_box   gg.Color = gg.Color{66, 136, 245, 128}
 }
 
 struct App {
 mut:
 	ctx       &gg.Context = unsafe { nil }
 	tile_size int         = 50
-	// camera moving
+	// camera moving -> default mode
 	cam_x     f64 = 2_000_000_000.0
 	cam_y     f64 = 2_000_000_000.0
 	move_down bool
@@ -65,11 +68,18 @@ mut:
 	drag_x    f32 // Holds the actual position of the click (to be able to render the moved map even if the camera movement is not yet finished (by releasing the mouse))
 	drag_y    f32
 	// placement
-	place_down    bool
-	place_start_x u32
-	place_start_y u32
-	place_end_x   u32 // Only used for preview
-	place_end_y   u32
+	placement_mode bool
+	place_down     bool
+	place_start_x  u32 = u32(-1)
+	place_start_y  u32
+	place_end_x    u32 // Only used for preview
+	place_end_y    u32
+	// selection (left click: starting pos of selection, right click: ending position of selection)
+	selection_mode bool
+	select_start_x u32 = u32(-1)
+	select_start_y u32
+	select_end_x   u32
+	select_end_y   u32
 	// logic
 	map           []Chunk
 	comp_running  bool
@@ -139,14 +149,49 @@ fn (mut app App) draw_placing_preview() {
 	}
 }
 
+fn (mut app App) draw_selection_box() {
+	if app.select_start_x != u32(-1) {
+		pos_x := f32(f64(app.select_start_x * u32(app.tile_size)) - app.cam_x)
+		pos_y := f32(f64(app.select_start_y * u32(app.tile_size)) - app.cam_y)
+		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_start)
+	}
+	if app.select_end_x != u32(-1) {
+		pos_x := f32(f64(app.select_end_x * u32(app.tile_size)) - app.cam_x)
+		pos_y := f32(f64(app.select_end_y * u32(app.tile_size)) - app.cam_y)
+		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_end)
+	}
+	if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
+		x_start, x_end := if app.select_start_x > app.select_end_x {
+			app.select_end_x, app.select_start_x
+		} else {
+			app.select_start_x, app.select_end_x
+		}
+		y_start, y_end := if app.select_start_y > app.select_end_y {
+			app.select_end_y, app.select_start_y
+		} else {
+			app.select_start_y, app.select_end_y
+		}
+		for x in x_start .. x_end {
+			for y in y_start .. y_end {
+				pos_x := f32(f64(x * u32(app.tile_size)) - app.cam_x)
+				pos_y := f32(f64(y * u32(app.tile_size)) - app.cam_y)
+				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_box)
+			}
+		}
+	}
+}
+
 fn on_frame(mut app App) {
 	// Draw
 	size := app.ctx.window_size()
 	app.ctx.begin()
 	if app.comp_running {
 		// placing preview
-		if app.place_start_x != u32(-1) { // did not hide the check to be able to see when it is happening
+		if app.placement_mode && app.place_start_x != u32(-1) { // did not hide the check to be able to see when it is happening
 			app.draw_placing_preview()
+		}
+		if app.selection_mode { // TODO: reset the app.select_start_x (same for placement...) when going out of modes
+			app.draw_selection_box()
 		}
 
 		// map rendering
@@ -264,59 +309,61 @@ fn on_event(e &gg.Event, mut app App) {
 	match e.typ {
 		.mouse_up {
 			if app.comp_running {
-				if app.move_down {
-					app.move_down = false
-					app.cam_x = app.cam_x + ((mouse_x - app.click_x) / app.tile_size)
-					app.cam_y = app.cam_y + ((mouse_y - app.click_y) / app.tile_size)
-				}
-				if app.place_down {
-					app.place_down = false
-					place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
-					place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
-					if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
-						if app.place_start_x > place_end_x {
-							app.selected_ori = west
+				if app.placement_mode {
+					if app.place_down {
+						app.place_down = false
+						place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
+						place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
+						if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
+							if app.place_start_x > place_end_x {
+								app.selected_ori = west
+							} else {
+								app.selected_ori = east
+							}
+							if e.mouse_button == .left {
+								// start_y at the end because it's a X placement
+								app.todo << TodoInfo{.place, app.place_start_x, app.place_start_y, place_end_x, app.place_start_y, ''}
+							} else if e.mouse_button == .right {
+								app.todo << TodoInfo{.removal, app.place_start_x, app.place_start_y, place_end_x, app.place_start_y, ''}
+							}
 						} else {
-							app.selected_ori = east
+							if app.place_start_y > place_end_y {
+								app.selected_ori = north
+							} else {
+								app.selected_ori = south
+							}
+							if e.mouse_button == .left {
+								// start_x at the end because it's a Y placement
+								app.todo << TodoInfo{.place, app.place_start_x, app.place_start_y, app.place_start_x, place_end_y, ''}
+							} else if e.mouse_button == .right {
+								app.todo << TodoInfo{.removal, app.place_start_x, app.place_start_y, app.place_start_x, place_end_y, ''}
+							}
 						}
-						if e.mouse_button == .left {
-							// start_y at the end because it's a X placement
-							app.todo << TodoInfo{.place, app.place_start_x, app.place_start_y, place_end_x, app.place_start_y, ''}
-						} else if e.mouse_button == .right {
-							app.todo << TodoInfo{.removal, app.place_start_x, app.place_start_y, place_end_x, app.place_start_y, ''}
-						}
-					} else {
-						if app.place_start_y > place_end_y {
-							app.selected_ori = north
-						} else {
-							app.selected_ori = south
-						}
-						if e.mouse_button == .left {
-							// start_x at the end because it's a Y placement
-							app.todo << TodoInfo{.place, app.place_start_x, app.place_start_y, app.place_start_x, place_end_y, ''}
-						} else if e.mouse_button == .right {
-							app.todo << TodoInfo{.removal, app.place_start_x, app.place_start_y, app.place_start_x, place_end_y, ''}
-						}
+						app.place_start_x = u32(-1)
+						app.place_start_y = u32(-1)
+						app.place_end_x = u32(-1)
+						app.place_end_y = u32(-1)
 					}
-					app.place_start_x = u32(-1)
-					app.place_start_y = u32(-1)
-					app.place_end_x = u32(-1)
-					app.place_end_y = u32(-1)
+				} else if app.selection_mode {
+					if e.mouse_button == .left {
+						app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.select_start_y = u32(app.cam_y + mouse_y / app.tile_size)
+					} else if e.mouse_button == .right {
+						app.select_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+					}
+				} else {
+					if app.move_down {
+						app.move_down = false
+						app.cam_x = app.cam_x + ((mouse_x - app.click_x) / app.tile_size)
+						app.cam_y = app.cam_y + ((mouse_y - app.click_y) / app.tile_size)
+					}
 				}
 			}
 		}
 		.mouse_down {
 			if app.comp_running {
-				if e.mouse_button == .middle || e.modifiers == 1 { // shift
-					if !app.move_down {
-						app.move_down = true
-						app.click_x = mouse_x
-						app.click_y = mouse_y
-					}
-					app.drag_x = mouse_x
-					app.drag_y = mouse_y
-				}
-				if (e.mouse_button == .left || e.mouse_button == .right) && e.modifiers != 1 {
+				if app.placement_mode {
 					if !app.place_down {
 						app.place_down = true
 						app.place_start_x = u32(app.cam_x + mouse_x / app.tile_size)
@@ -332,6 +379,22 @@ fn on_event(e &gg.Event, mut app App) {
 							app.place_end_x = app.place_start_x
 						}
 					}
+				} else if app.selection_mode {
+					if e.mouse_button == .left {
+						app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.select_start_y = u32(app.cam_y + mouse_y / app.tile_size)
+					} else if e.mouse_button == .right {
+						app.select_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+					}
+				} else {
+					if !app.move_down {
+						app.move_down = true
+						app.click_x = mouse_x
+						app.click_y = mouse_y
+					}
+					app.drag_x = mouse_x
+					app.drag_y = mouse_y
 				}
 			}
 		}
@@ -450,7 +513,7 @@ fn (mut app App) save_copied() ! {
 			nb_name += 1
 		}
 		mut file := os.open_file('saved_gates/${nb_name}', 'w')!
-		unsafe { file.write_ptr(app.copied, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it
+		unsafe { file.write_ptr(app.copied, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it -> successful or not?
 		file.close()
 	}
 }
