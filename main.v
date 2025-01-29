@@ -80,6 +80,20 @@ mut:
 	select_start_y u32
 	select_end_x   u32
 	select_end_y   u32
+	// UI on the left border, need to make it scaling automatically w/ screensize
+	ui_widht             f32 = 50.0
+	button_size          f32 = 40.0
+	button_left_padding  f32 = 5.0
+	button_top_padding   f32 = 5.0
+	cancel_button_pos    u32 = u32(0) // escapes mode, first position, then multiply by padding and button size to get the coords of the button
+	selection_button_pos u32 = 1      // only no_mode
+	copy_button_pos      u32 = 1      // only selection mode instead of selection mode button
+	item_nots_pos        u32 = 2      // no_mode and placement mode
+	item_diode_pos       u32 = 3      // no/placement mode
+	item_crossing_pos    u32 = 4      // no/placement mode
+	item_on_pos          u32 = 5      // no/placement mode
+	item_wire_pos        u32 = 6      // no/placement mode
+
 	// logic
 	map           []Chunk
 	comp_running  bool
@@ -310,7 +324,7 @@ fn on_event(e &gg.Event, mut app App) {
 		.mouse_up {
 			if app.comp_running {
 				if app.placement_mode {
-					if app.place_down {
+					if app.place_down { // TODO: make the UI disapear/fade out when doing a placement
 						app.place_down = false
 						place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
 						place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
@@ -343,6 +357,7 @@ fn on_event(e &gg.Event, mut app App) {
 						app.place_start_y = u32(-1)
 						app.place_end_x = u32(-1)
 						app.place_end_y = u32(-1)
+					} else if mouse_x < app.ui_widht {
 					}
 				} else if app.selection_mode {
 					if e.mouse_button == .left {
@@ -364,37 +379,46 @@ fn on_event(e &gg.Event, mut app App) {
 		.mouse_down {
 			if app.comp_running {
 				if app.placement_mode {
-					if !app.place_down {
-						app.place_down = true
-						app.place_start_x = u32(app.cam_x + mouse_x / app.tile_size)
-						app.place_start_y = u32(app.cam_y + mouse_y / app.tile_size)
+					if mouse_x <= app.ui_widht {
 					} else {
-						place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
-						place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
-						if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
-							app.place_end_x = place_end_x
-							app.place_end_y = app.place_start_y
+						if !app.place_down {
+							app.place_down = true
+							app.place_start_x = u32(app.cam_x + mouse_x / app.tile_size)
+							app.place_start_y = u32(app.cam_y + mouse_y / app.tile_size)
 						} else {
-							app.place_end_y = place_end_y
-							app.place_end_x = app.place_start_x
+							place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
+							place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
+							if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
+								app.place_end_x = place_end_x
+								app.place_end_y = app.place_start_y
+							} else {
+								app.place_end_y = place_end_y
+								app.place_end_x = app.place_start_x
+							}
 						}
 					}
 				} else if app.selection_mode {
-					if e.mouse_button == .left {
-						app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
-						app.select_start_y = u32(app.cam_y + mouse_y / app.tile_size)
-					} else if e.mouse_button == .right {
-						app.select_end_x = u32(app.cam_x + mouse_x / app.tile_size)
-						app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+					if mouse_x <= app.ui_widht {
+					} else {
+						if e.mouse_button == .left {
+							app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
+							app.select_start_y = u32(app.cam_y + mouse_y / app.tile_size)
+						} else if e.mouse_button == .right {
+							app.select_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+							app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+						}
 					}
 				} else {
-					if !app.move_down {
-						app.move_down = true
-						app.click_x = mouse_x
-						app.click_y = mouse_y
+					if mouse_x <= app.ui_widht {
+					} else {
+						if !app.move_down {
+							app.move_down = true
+							app.click_x = mouse_x
+							app.click_y = mouse_y
+						}
+						app.drag_x = mouse_x
+						app.drag_y = mouse_y
 					}
-					app.drag_x = mouse_x
-					app.drag_y = mouse_y
 				}
 			}
 		}
