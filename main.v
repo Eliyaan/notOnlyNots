@@ -81,7 +81,7 @@ mut:
 	select_end_x   u32
 	select_end_y   u32
 	// UI on the left border, need to make it scaling automatically w/ screensize
-	ui_widht             f32 = 50.0
+	ui_width             f32 = 50.0
 	button_size          f32 = 40.0
 	button_left_padding  f32 = 5.0
 	button_top_padding   f32 = 5.0
@@ -204,7 +204,7 @@ fn on_frame(mut app App) {
 		if app.placement_mode && app.place_start_x != u32(-1) { // did not hide the check to be able to see when it is happening
 			app.draw_placing_preview()
 		}
-		if app.selection_mode { // TODO: reset the app.select_start_x (same for placement...) when going out of modes
+		if app.selection_mode {
 			app.draw_selection_box()
 		}
 
@@ -246,7 +246,7 @@ fn on_frame(mut app App) {
 											south { 1 }
 											west { 2 }
 											east { 3 }
-											else { log_quit('${@LINE} should not get into this else') }
+											else { app.log_quit('${@LINE} should not get into this else') }
 										}
 										match id & elem_type_mask {
 											elem_not_bits {
@@ -287,7 +287,7 @@ fn on_frame(mut app App) {
 													app.tile_size, state_color)
 											}
 											else {
-												log_quit('${@LINE} should not get into this else')
+												app.log_quit('${@LINE} should not get into this else')
 											}
 										}
 									}
@@ -304,6 +304,10 @@ fn on_frame(mut app App) {
 		}
 	}
 	app.ctx.end()
+}
+
+fn (app App) check_ui_button_click_y(pos u32, mouse_y f32) bool {
+	return mouse_y >= pos * (app.button_top_padding + app.button_size) + app.button_top_padding && mouse_y < (pos + 1) * (app.button_top_padding + app.button_size)
 }
 
 fn on_event(e &gg.Event, mut app App) {
@@ -357,21 +361,73 @@ fn on_event(e &gg.Event, mut app App) {
 						app.place_start_y = u32(-1)
 						app.place_end_x = u32(-1)
 						app.place_end_y = u32(-1)
-					} else if mouse_x < app.ui_widht {
+					} else if mouse_x < app.ui_width {
+						if mouse_x >= app.button_left_padding && mouse_x < app.button_size + app.button_left_padding { // button area
+							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
+								app.placement_mode = false
+								app.place_start_x = u32(-1)
+							} else if app.check_ui_button_click_y(app.item_nots_pos, mouse_y) {
+								app.selected_item = .not
+							} else if app.check_ui_button_click_y(app.item_diode_pos, mouse_y) {
+								app.selected_item = .diode
+							} else if app.check_ui_button_click_y(app.item_crossing_pos, mouse_y) {
+								app.selected_item = .crossing
+							} else if app.check_ui_button_click_y(app.item_on_pos, mouse_y) {
+								app.selected_item = .on
+							} else if app.check_ui_button_click_y(app.item_wire_pos, mouse_y) {
+								app.selected_item = .wire
+							}
+						}	
 					}
 				} else if app.selection_mode {
-					if e.mouse_button == .left {
-						app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
-						app.select_start_y = u32(app.cam_y + mouse_y / app.tile_size)
-					} else if e.mouse_button == .right {
-						app.select_end_x = u32(app.cam_x + mouse_x / app.tile_size)
-						app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+					if mouse_x < app.ui_width {
+						if mouse_x >= app.button_left_padding && mouse_x < app.button_size + app.button_left_padding { // button area
+							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
+								app.selection_mode = false
+								app.select_start_x = u32(-1)
+								app.select_end_x = u32(-1)
+							} else if app.check_ui_button_click_y(app.copy_button_pos, mouse_y) {
+								if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
+									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+									app.log("Copied selection")
+								}
+							}
+						}	
+					} else {
+						if e.mouse_button == .left {
+							app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
+							app.select_start_y = u32(app.cam_y + mouse_y / app.tile_size)
+						} else if e.mouse_button == .right {
+							app.select_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+							app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+						}
 					}
 				} else {
 					if app.move_down {
 						app.move_down = false
 						app.cam_x = app.cam_x + ((mouse_x - app.click_x) / app.tile_size)
 						app.cam_y = app.cam_y + ((mouse_y - app.click_y) / app.tile_size)
+					} else if mouse_x < app.ui_width {
+						if mouse_x >= app.button_left_padding && mouse_x < app.button_size + app.button_left_padding { // button area
+							if app.check_ui_button_click_y(app.selection_button_pos, mouse_y) {
+								app.selection_mode = true
+							} else if app.check_ui_button_click_y(app.item_nots_pos, mouse_y) {
+								app.selected_item = .not
+								app.placement_mode = true
+							} else if app.check_ui_button_click_y(app.item_diode_pos, mouse_y) {
+								app.selected_item = .diode
+								app.placement_mode = true
+							} else if app.check_ui_button_click_y(app.item_crossing_pos, mouse_y) {
+								app.selected_item = .crossing
+								app.placement_mode = true
+							} else if app.check_ui_button_click_y(app.item_on_pos, mouse_y) {
+								app.selected_item = .on
+								app.placement_mode = true
+							} else if app.check_ui_button_click_y(app.item_wire_pos, mouse_y) {
+								app.selected_item = .wire
+								app.placement_mode = true
+							}
+						}
 					}
 				}
 			}
@@ -379,7 +435,7 @@ fn on_event(e &gg.Event, mut app App) {
 		.mouse_down {
 			if app.comp_running {
 				if app.placement_mode {
-					if mouse_x <= app.ui_widht {
+					if mouse_x <= app.ui_width {
 					} else {
 						if !app.place_down {
 							app.place_down = true
@@ -398,7 +454,7 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else if app.selection_mode {
-					if mouse_x <= app.ui_widht {
+					if mouse_x <= app.ui_width {
 					} else {
 						if e.mouse_button == .left {
 							app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
@@ -409,7 +465,7 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else {
-					if mouse_x <= app.ui_widht {
+					if mouse_x <= app.ui_width {
 					} else {
 						if !app.move_down {
 							app.move_down = true
@@ -443,11 +499,11 @@ enum Elem as u8 {
 }
 
 @[noreturn]
-fn log_quit(message string) {
+fn (mut app App) log_quit(message string) {
 	panic('Very TODO')
 }
 
-fn log(message string) {
+fn (mut app App) log(message string) {
 	panic('TODO')
 }
 
@@ -491,7 +547,7 @@ fn (mut app App) computation_loop() {
 			if now < cycle_end {
 				match todo.task {
 					.save_map {
-						app.save_map(todo.name) or { log('save copied: ${err}') }
+						app.save_map(todo.name) or { app.log('save copied: ${err}') }
 					}
 					.removal {
 						app.removal(todo.x, todo.y, todo.x_end, todo.y_end)
@@ -500,10 +556,10 @@ fn (mut app App) computation_loop() {
 						app.paste(todo.x, todo.y)
 					}
 					.load_gate {
-						app.load_gate_to_copied(todo.name) or { log('save copied: ${err}') }
+						app.load_gate_to_copied(todo.name) or { app.log('save copied: ${err}') }
 					}
 					.save_gate {
-						app.save_copied() or { log('save copied: ${err}') }
+						app.save_copied() or { app.log('save copied: ${err}') }
 					}
 					.place {
 						app.placement(todo.x, todo.y, todo.x_end, todo.y_end)
@@ -788,11 +844,11 @@ fn (mut app App) gate_unit_tests(x u32, y u32) {
 	cycles := 100 // we dont know in how much cycles the bug will happen, needs to match the amount in the fuzz testing because the unit tests will come from there
 	app.removal(x, y, x + size, y + size)
 	gates: for gate_path in os.ls('test_gates/') or {
-		log('Listing the test gates: ${err}')
+		app.log('Listing the test gates: ${err}')
 		return
 	} {
 		app.load_gate_to_copied(gate_path) or { // not sure if it is the good path
-			log('FAIL: cant load the gate: ${gate_path}, ${err}')
+			app.log('FAIL: cant load the gate: ${gate_path}, ${err}')
 			continue
 		}
 		app.paste(x, y)
@@ -800,7 +856,7 @@ fn (mut app App) gate_unit_tests(x u32, y u32) {
 			app.update_cycle()
 			x_err, y_err, str_err := app.test_validity(x, y, x + size, y + size)
 			if str_err != '' {
-				log('FAIL: (validity) ${str_err}')
+				app.log('FAIL: (validity) ${str_err}')
 				println('TODO:')
 				println(x_err)
 				println(y_err)
@@ -868,7 +924,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					[-1, 0]!
 				}
 				else {
-					log_quit('${@LINE} not a valid orientation')
+					app.log_quit('${@LINE} not a valid orientation')
 				}
 			}
 
@@ -1003,7 +1059,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					}
 				}
 				else {
-					log_quit('${@LINE} should not get into this else')
+					app.log_quit('${@LINE} should not get into this else')
 				}
 			}
 		}
@@ -1105,7 +1161,7 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					app.copied << PlaceInstruction{.wire, u8(0), x - x_start, y - y_start}
 				}
 				else {
-					log_quit('${@LINE} should not get into this else')
+					app.log_quit('${@LINE} should not get into this else')
 				}
 			}
 		}
@@ -1147,7 +1203,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				south { 0, 1 }
 				east { 1, 0 }
 				west { -1, 0 }
-				else { log_quit('${@LINE} unknown orientation') }
+				else { app.log_quit('${@LINE} unknown orientation') }
 			}
 			if id == elem_crossing_bits { // same bits as wires so need to be separated
 				// 1. done
@@ -1341,7 +1397,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 				}
 				else {
-					log_quit('${@LINE} should not get into this else')
+					app.log_quit('${@LINE} should not get into this else')
 				}
 			}
 		}
@@ -1397,7 +1453,7 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 							}
 						}
 						if wid_adj == -1 {
-							log_quit('${@LINE} should have found the appropriate wire')
+							app.log_quit('${@LINE} should have found the appropriate wire')
 						}
 					} else {
 						if wid_adj != cable_id { // if is in a list but not the same as cable
@@ -1515,7 +1571,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		south { 0, 1 }
 		east { 1, 0 }
 		west { -1, 0 }
-		else { log_quit('${@LINE} unknown orientation') }
+		else { app.log_quit('${@LINE} unknown orientation') }
 	}
 	match app.selected_item {
 		.not {
@@ -1901,7 +1957,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				east
 			}
 			else {
-				log_quit('${@LINE} not a valid step for an orientation')
+				app.log_quit('${@LINE} not a valid step for an orientation')
 			}
 		}
 		if opp_step_ori != next_id & ori_mask { // is not an input of the gate
@@ -1926,7 +1982,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				west, east
 			}
 			else {
-				log_quit('${@LINE} not a valid step for an orientation')
+				app.log_quit('${@LINE} not a valid step for an orientation')
 			}
 		}
 
@@ -1952,7 +2008,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				west, east
 			}
 			else {
-				log_quit('${@LINE} not a valid step for an orientation')
+				app.log_quit('${@LINE} not a valid step for an orientation')
 			}
 		}
 
@@ -2009,7 +2065,7 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 				west
 			}
 			else {
-				log_quit('${@LINE} not a valid step for an orientation')
+				app.log_quit('${@LINE} not a valid step for an orientation')
 			}
 		}
 		if step_ori == gate_ori || next_id & ori_mask != gate_ori { // is an output of the gate or is not aligned (because the next is a ON)
@@ -2100,7 +2156,7 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 			}
 		}
 	}
-	log_quit('${@LINE} Chunk at ${x} ${y} not found')
+	app.log_quit('${@LINE} Chunk at ${x} ${y} not found')
 }
 
 // previous: 0 for actual state, 1 for the previous state
@@ -2158,7 +2214,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 			}
 		}
 	}
-	log_quit('${@LINE} id not found in get_elem_state_idx_by_id: ${id}')
+	app.log_quit('${@LINE} id not found in get_elem_state_idx_by_id: ${id}')
 }
 
 // TODO: Explain ids
