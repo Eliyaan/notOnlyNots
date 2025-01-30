@@ -89,16 +89,21 @@ mut:
 	selection_button_pos u32 = 1      // only no_mode
 	copy_button_pos      u32 = 1      // only selection mode instead of selection mode button
 	item_nots_pos        u32 = 2      // no_mode and placement mode
+	save_gate_pos        u32 = 2	  // selection mode (copies and saves the copied gate)
 	item_diode_pos       u32 = 3      // no/placement mode
-	selection_delete_pos u32 = 3	  // selection mode
 	item_crossing_pos    u32 = 4      // no/placement mode
 	item_on_pos          u32 = 5      // no/placement mode
 	item_wire_pos        u32 = 6      // no/placement mode
+	speed_pos u32 = 7 // no mode
+	slow_pos u32 = 8 // no mode
+	pause_pos u32 = 9 // no mode
+	selection_delete_pos u32 = 10	  // selection mode
 
 	// logic
 	map           []Chunk
-	comp_running  bool
-	nb_updates    int
+	comp_running  bool // is a map loaded and running
+	pause bool // is the map updating
+	nb_updates    int = 5 // number of updates per second
 	todo          []TodoInfo
 	selected_item Elem
 	selected_ori  u64 = north
@@ -394,6 +399,12 @@ fn on_event(e &gg.Event, mut app App) {
 								}
 							} else if app.check_ui_button_click_y(app.selection_delete_pos, mouse_y) {
 								app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+							} else if app.check_ui_button_click_y(app.save_gate_pos, mouse_y) {
+								if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
+									// copies because save_gate saves the copied gate
+									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+									app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, ''}
+								}
 							}
 						}	
 					} else {
@@ -429,6 +440,14 @@ fn on_event(e &gg.Event, mut app App) {
 							} else if app.check_ui_button_click_y(app.item_wire_pos, mouse_y) {
 								app.selected_item = .wire
 								app.placement_mode = true
+							} else if app.check_ui_button_click_y(app.speed_pos, mouse_y) {
+								app.nb_updates += 1
+							} else if app.check_ui_button_click_y(app.slow_pos, mouse_y) {
+								if app.nb_updates > 1 {
+									app.nb_updates -= 1
+								}
+							} else if app.check_ui_button_click_y(app.pause_pos, mouse_y) {
+								app.pause = !app.pause
 							}
 						}
 					}
@@ -544,48 +563,52 @@ fn (mut app App) computation_loop() {
 	mut avg_update_time := 0.0
 	mut now := i64(0)
 	for app.comp_running {
-		cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(avg_update_time) // nanosecs
-		for todo in app.todo {
-			now = time.now().unix_nano()
-			if now < cycle_end {
-				match todo.task {
-					.save_map {
-						app.save_map(todo.name) or { app.log('save copied: ${err}') }
+		if app.pause {
+			time.sleep(30*time.millisecond)
+		} else {
+			cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(avg_update_time) // nanosecs
+			for todo in app.todo {
+				now = time.now().unix_nano()
+				if now < cycle_end {
+					match todo.task {
+						.save_map {
+							app.save_map(todo.name) or { app.log('save copied: ${err}') }
+						}
+						.removal {
+							app.removal(todo.x, todo.y, todo.x_end, todo.y_end)
+						}
+						.paste {
+							app.paste(todo.x, todo.y)
+						}
+						.load_gate {
+							app.load_gate_to_copied(todo.name) or { app.log('save copied: ${err}') }
+						}
+						.save_gate {
+							app.save_copied() or { app.log('save copied: ${err}') }
+						}
+						.place {
+							app.placement(todo.x, todo.y, todo.x_end, todo.y_end)
+						}
+						.rotate {
+							app.rotate_copied()
+						}
+						.copy {
+							app.copy(todo.x, todo.y, todo.x_end, todo.y_end)
+						}
 					}
-					.removal {
-						app.removal(todo.x, todo.y, todo.x_end, todo.y_end)
-					}
-					.paste {
-						app.paste(todo.x, todo.y)
-					}
-					.load_gate {
-						app.load_gate_to_copied(todo.name) or { app.log('save copied: ${err}') }
-					}
-					.save_gate {
-						app.save_copied() or { app.log('save copied: ${err}') }
-					}
-					.place {
-						app.placement(todo.x, todo.y, todo.x_end, todo.y_end)
-					}
-					.rotate {
-						app.rotate_copied()
-					}
-					.copy {
-						app.copy(todo.x, todo.y, todo.x_end, todo.y_end)
-					}
+				} else {
+					break
 				}
-			} else {
-				break
 			}
-		}
-		now = time.now().unix_nano()
-		if app.todo.len == 0 && cycle_end - now >= 10000 { // 10micro sec
-			time.sleep((cycle_end - now) * time.nanosecond)
-		}
+			now = time.now().unix_nano()
+			if app.todo.len == 0 && cycle_end - now >= 10000 { // 10micro sec
+				time.sleep((cycle_end - now) * time.nanosecond)
+			}
 
-		now = time.now().unix_nano()
-		app.update_cycle()
-		avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * avg_update_time
+			now = time.now().unix_nano()
+			app.update_cycle()
+			avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * avg_update_time
+		}
 	}
 }
 
