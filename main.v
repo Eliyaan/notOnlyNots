@@ -90,6 +90,7 @@ mut:
 	copy_button_pos      u32 = 1      // only selection mode instead of selection mode button
 	item_nots_pos        u32 = 2      // no_mode and placement mode
 	item_diode_pos       u32 = 3      // no/placement mode
+	selection_delete_pos u32 = 3	  // selection mode
 	item_crossing_pos    u32 = 4      // no/placement mode
 	item_on_pos          u32 = 5      // no/placement mode
 	item_wire_pos        u32 = 6      // no/placement mode
@@ -391,6 +392,8 @@ fn on_event(e &gg.Event, mut app App) {
 									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
 									app.log("Copied selection")
 								}
+							} else if app.check_ui_button_click_y(app.selection_delete_pos, mouse_y) {
+								app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
 							}
 						}	
 					} else {
