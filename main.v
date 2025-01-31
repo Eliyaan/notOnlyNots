@@ -101,10 +101,12 @@ mut:
 	slow_pos             u32 = 8      // no mode
 	pause_pos            u32 = 9      // no mode
 	paste_pos	     u32 = 10	  // no mode
+	save_map_pos	     u32 = 11	  // no mode
 	selection_delete_pos u32 = 10 // selection mode
 
 	// logic
 	map           []Chunk
+	map_name      string // to fill when loading a map
 	comp_running  bool // is a map loaded and running
 	pause         bool // is the map updating
 	nb_updates    int = 5 // number of updates per second
@@ -487,6 +489,8 @@ fn on_event(e &gg.Event, mut app App) {
 								app.pause = !app.pause
 							} else if app.check_ui_button_click_y(app.paste_pos, mouse_y) {
 								app.paste_mode = true
+							} else if app.check_ui_button_click_y(app.save_map_pos, mouse_y) {
+								app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
 							}
 						}
 					}
