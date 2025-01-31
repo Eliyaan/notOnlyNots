@@ -67,19 +67,21 @@ mut:
 	click_y   f32
 	drag_x    f32 // Holds the actual position of the click (to be able to render the moved map even if the camera movement is not yet finished (by releasing the mouse))
 	drag_y    f32
-	// placement
+	// placement mode
 	placement_mode bool
 	place_down     bool
 	place_start_x  u32 = u32(-1)
 	place_start_y  u32
 	place_end_x    u32 // Only used for preview
 	place_end_y    u32
-	// selection (left click: starting pos of selection, right click: ending position of selection)
+	// selection mode (left click: starting pos of selection, right click: ending position of selection)
 	selection_mode bool
 	select_start_x u32 = u32(-1)
 	select_start_y u32
 	select_end_x   u32
 	select_end_y   u32
+	// paste mode
+	paste_mode bool
 	// UI on the left border, need to make it scaling automatically w/ screensize
 	ui_width             f32 = 50.0
 	button_size          f32 = 40.0
@@ -87,22 +89,24 @@ mut:
 	button_top_padding   f32 = 5.0
 	cancel_button_pos    u32 = u32(0) // escapes mode, first position, then multiply by padding and button size to get the coords of the button
 	selection_button_pos u32 = 1      // only no_mode
+	rotate_copy_pos      u32 = 1 	  // only paste mode
 	copy_button_pos      u32 = 1      // only selection mode instead of selection mode button
 	item_nots_pos        u32 = 2      // no_mode and placement mode
-	save_gate_pos        u32 = 2	  // selection mode (copies and saves the copied gate)
+	save_gate_pos        u32 = 2      // selection mode (copies and saves the copied gate)
 	item_diode_pos       u32 = 3      // no/placement mode
 	item_crossing_pos    u32 = 4      // no/placement mode
 	item_on_pos          u32 = 5      // no/placement mode
 	item_wire_pos        u32 = 6      // no/placement mode
-	speed_pos u32 = 7 // no mode
-	slow_pos u32 = 8 // no mode
-	pause_pos u32 = 9 // no mode
-	selection_delete_pos u32 = 10	  // selection mode
+	speed_pos            u32 = 7      // no mode
+	slow_pos             u32 = 8      // no mode
+	pause_pos            u32 = 9      // no mode
+	paste_pos	     u32 = 10	  // no mode
+	selection_delete_pos u32 = 10 // selection mode
 
 	// logic
 	map           []Chunk
 	comp_running  bool // is a map loaded and running
-	pause bool // is the map updating
+	pause         bool // is the map updating
 	nb_updates    int = 5 // number of updates per second
 	todo          []TodoInfo
 	selected_item Elem
@@ -313,7 +317,8 @@ fn on_frame(mut app App) {
 }
 
 fn (app App) check_ui_button_click_y(pos u32, mouse_y f32) bool {
-	return mouse_y >= pos * (app.button_top_padding + app.button_size) + app.button_top_padding && mouse_y < (pos + 1) * (app.button_top_padding + app.button_size)
+	return mouse_y >= pos * (app.button_top_padding + app.button_size) + app.button_top_padding
+		&& mouse_y < (pos + 1) * (app.button_top_padding + app.button_size)
 }
 
 fn on_event(e &gg.Event, mut app App) {
@@ -368,36 +373,63 @@ fn on_event(e &gg.Event, mut app App) {
 						app.place_end_x = u32(-1)
 						app.place_end_y = u32(-1)
 					} else if mouse_x < app.ui_width {
-						if mouse_x >= app.button_left_padding && mouse_x < app.button_size + app.button_left_padding { // button area
+						if mouse_x >= app.button_left_padding
+							&& mouse_x < app.button_size + app.button_left_padding { // button area
 							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
 								app.placement_mode = false
 								app.place_start_x = u32(-1)
 							} else if app.check_ui_button_click_y(app.item_nots_pos, mouse_y) {
 								app.selected_item = .not
-							} else if app.check_ui_button_click_y(app.item_diode_pos, mouse_y) {
+							} else if app.check_ui_button_click_y(app.item_diode_pos,
+								mouse_y)
+							{
 								app.selected_item = .diode
-							} else if app.check_ui_button_click_y(app.item_crossing_pos, mouse_y) {
+							} else if app.check_ui_button_click_y(app.item_crossing_pos,
+								mouse_y)
+							{
 								app.selected_item = .crossing
 							} else if app.check_ui_button_click_y(app.item_on_pos, mouse_y) {
 								app.selected_item = .on
 							} else if app.check_ui_button_click_y(app.item_wire_pos, mouse_y) {
 								app.selected_item = .wire
 							}
-						}	
+						}
+					}
+				} else if app.paste_mode {
+					if mouse_x < app.ui_width {
+						if mouse_x < app.ui_width {
+							if mouse_x >= app.button_left_padding
+								&& mouse_x < app.button_size + app.button_left_padding { // button area
+								if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
+									app.paste_mode = false
+								} else if app.check_ui_button_click_y(app.rotate_copy_pos, mouse_y) {
+									app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}	
+								}
+							}
+						}
+					} else {
+						if e.mouse_button == .left {
+							app.todo << TodoInfo{.paste, u32(app.cam_x + mouse_x / app.tile_size), u32(app.cam_y + mouse_y / app.tile_size), 0, 0, ''}	
+						}
 					}
 				} else if app.selection_mode {
 					if mouse_x < app.ui_width {
-						if mouse_x >= app.button_left_padding && mouse_x < app.button_size + app.button_left_padding { // button area
+						if mouse_x >= app.button_left_padding
+							&& mouse_x < app.button_size + app.button_left_padding { // button area
 							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
 								app.selection_mode = false
 								app.select_start_x = u32(-1)
 								app.select_end_x = u32(-1)
-							} else if app.check_ui_button_click_y(app.copy_button_pos, mouse_y) {
+							} else if app.check_ui_button_click_y(app.copy_button_pos,
+								mouse_y)
+							{
 								if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
 									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
-									app.log("Copied selection")
+									app.log('Copied selection')
 								}
-							} else if app.check_ui_button_click_y(app.selection_delete_pos, mouse_y) {
+							} else if app.check_ui_button_click_y(app.selection_delete_pos,
+								mouse_y)
+							{
 								app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
 							} else if app.check_ui_button_click_y(app.save_gate_pos, mouse_y) {
 								if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
@@ -406,7 +438,7 @@ fn on_event(e &gg.Event, mut app App) {
 									app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, ''}
 								}
 							}
-						}	
+						}
 					} else {
 						if e.mouse_button == .left {
 							app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
@@ -422,16 +454,21 @@ fn on_event(e &gg.Event, mut app App) {
 						app.cam_x = app.cam_x + ((mouse_x - app.click_x) / app.tile_size)
 						app.cam_y = app.cam_y + ((mouse_y - app.click_y) / app.tile_size)
 					} else if mouse_x < app.ui_width {
-						if mouse_x >= app.button_left_padding && mouse_x < app.button_size + app.button_left_padding { // button area
+						if mouse_x >= app.button_left_padding
+							&& mouse_x < app.button_size + app.button_left_padding { // button area
 							if app.check_ui_button_click_y(app.selection_button_pos, mouse_y) {
 								app.selection_mode = true
 							} else if app.check_ui_button_click_y(app.item_nots_pos, mouse_y) {
 								app.selected_item = .not
 								app.placement_mode = true
-							} else if app.check_ui_button_click_y(app.item_diode_pos, mouse_y) {
+							} else if app.check_ui_button_click_y(app.item_diode_pos,
+								mouse_y)
+							{
 								app.selected_item = .diode
 								app.placement_mode = true
-							} else if app.check_ui_button_click_y(app.item_crossing_pos, mouse_y) {
+							} else if app.check_ui_button_click_y(app.item_crossing_pos,
+								mouse_y)
+							{
 								app.selected_item = .crossing
 								app.placement_mode = true
 							} else if app.check_ui_button_click_y(app.item_on_pos, mouse_y) {
@@ -448,6 +485,8 @@ fn on_event(e &gg.Event, mut app App) {
 								}
 							} else if app.check_ui_button_click_y(app.pause_pos, mouse_y) {
 								app.pause = !app.pause
+							} else if app.check_ui_button_click_y(app.paste_pos, mouse_y) {
+								app.paste_mode = true
 							}
 						}
 					}
@@ -564,7 +603,7 @@ fn (mut app App) computation_loop() {
 	mut now := i64(0)
 	for app.comp_running {
 		if app.pause {
-			time.sleep(30*time.millisecond)
+			time.sleep(30 * time.millisecond)
 		} else {
 			cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(avg_update_time) // nanosecs
 			for todo in app.todo {
