@@ -61,24 +61,25 @@ struct Palette {
 
 struct App {
 mut:
-	ctx       &gg.Context = unsafe { nil }
-	tile_size int         = 50
+	ctx        &gg.Context = unsafe { nil }
+	tile_size  int         = 50
+	text_input string // holds what the user typed
 	// main menu
-	main_menu bool
+	main_menu     bool
 	button_solo_x f32 = 0.0 // TODO: make it scale with screensize and place it properly
 	button_solo_y f32 = 0.0
 	button_solo_w f32 = 300.0
 	button_solo_h f32 = 300.0
 	// solo menu TODO: display map info of the hovered map (size bits, nb of hours played, gates placed... fun stuff)
-	solo_menu bool
-	map_names_list []string // without folder name
-	maps_x_offset f32 = 5.0
-	maps_y_offset f32 = 50.0
-	maps_top_spacing f32 = 10.0
-	maps_h f32 = 50.0
-	maps_w f32 = 500.0
-	button_new_map_x f32 = 5.0
-	button_new_map_y f32 = 5.0
+	solo_menu           bool
+	map_names_list      []string // without folder name
+	maps_x_offset       f32 = 5.0
+	maps_y_offset       f32 = 50.0
+	maps_top_spacing    f32 = 10.0
+	maps_h              f32 = 50.0
+	maps_w              f32 = 500.0
+	button_new_map_x    f32 = 5.0
+	button_new_map_y    f32 = 5.0
 	button_new_map_size f32 = 40.0
 	// camera moving -> default mode
 	cam_x     f64 = default_camera_pos_x
@@ -110,7 +111,7 @@ mut:
 	button_top_padding   f32 = 5.0
 	cancel_button_pos    u32 = u32(0) // escapes mode, first position, then multiply by padding and button size to get the coords of the button
 	selection_button_pos u32 = 1      // only no_mode
-	rotate_copy_pos      u32 = 1 	  // only paste mode
+	rotate_copy_pos      u32 = 1      // only paste mode
 	copy_button_pos      u32 = 1      // only selection mode instead of selection mode button
 	item_nots_pos        u32 = 2      // no_mode and placement mode
 	save_gate_pos        u32 = 2      // selection mode (copies and saves the copied gate)
@@ -121,15 +122,15 @@ mut:
 	speed_pos            u32 = 7      // no mode
 	slow_pos             u32 = 8      // no mode
 	pause_pos            u32 = 9      // no mode
-	paste_pos	     u32 = 10	  // no mode
-	save_map_pos	     u32 = 11	  // no mode
-	selection_delete_pos u32 = 10 // selection mode
+	paste_pos            u32 = 10     // no mode
+	save_map_pos         u32 = 11     // no mode
+	selection_delete_pos u32 = 10     // selection mode
 
 	// logic
 	map           []Chunk
 	map_name      string // to fill when loading a map
-	comp_running  bool // is a map loaded and running
-	pause         bool // is the map updating
+	comp_running  bool   // is a map loaded and running
+	pause         bool   // is the map updating
 	nb_updates    int = 5 // number of updates per second
 	todo          []TodoInfo
 	selected_item Elem
@@ -343,6 +344,7 @@ fn (app App) check_ui_button_click_y(pos u32, mouse_y f32) bool {
 	return mouse_y >= pos * (app.button_top_padding + app.button_size) + app.button_top_padding
 		&& mouse_y < (pos + 1) * (app.button_top_padding + app.button_size)
 }
+
 fn (app App) check_maps_button_click_y(pos int, mouse_y f32) bool {
 	return mouse_y >= pos * (app.maps_top_spacing + app.maps_h) + app.maps_y_offset
 		&& mouse_y < (pos + 1) * (app.maps_top_spacing + app.maps_h)
@@ -359,29 +361,38 @@ fn on_event(e &gg.Event, mut app App) {
 	} else {
 		e.mouse_y
 	}
-	if e.char_code != 0 {
-		println(e.char_code)
-	}
 	match e.typ {
 		.mouse_up {
 			if app.main_menu {
-				if mouse_x >= app.button_solo_x && mouse_x < app.button_solo_x + app.button_solo_w 
-					&& mouse_y >= app.button_solo_y && mouse_y < app.button_solo_y + app.button_solo_h {
+				if mouse_x >= app.button_solo_x && mouse_x < app.button_solo_x + app.button_solo_w
+					&& mouse_y >= app.button_solo_y
+					&& mouse_y < app.button_solo_y + app.button_solo_h {
 					app.main_menu = false
 					app.solo_menu = true
+					app.text_input = ''
 					if !os.exists(maps_path) {
-						os.mkdir(maps_path) or {app.log("Cannot create ${maps_path}, ${err}"); return}
+						os.mkdir(maps_path) or {
+							app.log('Cannot create ${maps_path}, ${err}')
+							return
+						}
 					}
-					app.map_names_list = os.ls(maps_path) or {app.log("Cannot list files in ${maps_path}, ${err}"); return}
+					app.map_names_list = os.ls(maps_path) or {
+						app.log('Cannot list files in ${maps_path}, ${err}')
+						return
+					}
 				}
 			} else if app.solo_menu {
 				if mouse_x >= app.maps_x_offset && mouse_x < app.maps_x_offset + app.maps_w {
-					for i, name in app.map_names_list {
+					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 						if e.mouse_button == .left {
 							if app.check_maps_button_click_y(i, mouse_x) {
 								app.solo_menu = false
+								app.text_input = ''
 								app.map_name = name
-								app.load_map(name) or {app.log('Cannot load map ${name}, ${err}'); return}
+								app.load_map(name) or {
+									app.log('Cannot load map ${name}, ${err}')
+									return
+								}
 								app.pause = false
 								app.nb_updates = 2
 								app.todo = []
@@ -397,11 +408,14 @@ fn on_event(e &gg.Event, mut app App) {
 							}
 						}
 					}
-					if mouse_x >= button_new_map_x && mouse_x < button_new_map_x + button_new_map_size
-						&& mouse_y >= button_new_map_y && mouse_y < button_new_map_y + button_new_map_size {
+					if app.text_input != '' && mouse_x >= app.button_new_map_x
+						&& mouse_x < app.button_new_map_x + app.button_new_map_size
+						&& mouse_y >= app.button_new_map_y
+						&& mouse_y < app.button_new_map_y + app.button_new_map_size {
 						app.solo_menu = false
-						app.map = []Chunk
-						app.map_name = // TODO: input field use the same one for sorting the maps
+						app.map = []Chunk{}
+						app.map_name = app.text_input
+						app.text_input = ''
 						app.pause = false
 						app.nb_updates = 2
 						app.todo = []
@@ -411,15 +425,18 @@ fn on_event(e &gg.Event, mut app App) {
 						app.actual_state = 0
 						app.nots = []
 						app.n_next_rid = 1
-						app.n_states = []
+						app.n_states[0] = []
+						app.n_states[1] = []
 						app.diodes = []
 						app.d_next_rid = 1
-						app.d_states = []
+						app.d_states[0] = []
+						app.d_states[1] = []
 						app.wires = []
 						app.w_next_rid = 1
-						app.w_states = []
+						app.w_states[0] = []
+						app.w_states[1] = []
 						app.comp_running = true
-						spawn app.computation_loop()	
+						spawn app.computation_loop()
 						app.cam_x = default_camera_pos_x
 						app.cam_y = default_camera_pos_y
 					}
@@ -487,16 +504,21 @@ fn on_event(e &gg.Event, mut app App) {
 						if mouse_x < app.ui_width {
 							if mouse_x >= app.button_left_padding
 								&& mouse_x < app.button_size + app.button_left_padding { // button area
-								if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
+								if app.check_ui_button_click_y(app.cancel_button_pos,
+									mouse_y)
+								{
 									app.paste_mode = false
-								} else if app.check_ui_button_click_y(app.rotate_copy_pos, mouse_y) {
-									app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}	
+								} else if app.check_ui_button_click_y(app.rotate_copy_pos,
+									mouse_y)
+								{
+									app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
 								}
 							}
 						}
 					} else {
 						if e.mouse_button == .left {
-							app.todo << TodoInfo{.paste, u32(app.cam_x + mouse_x / app.tile_size), u32(app.cam_y + mouse_y / app.tile_size), 0, 0, ''}	
+							app.todo << TodoInfo{.paste, u32(app.cam_x + mouse_x / app.tile_size), u32(
+								app.cam_y + mouse_y / app.tile_size), 0, 0, ''}
 						}
 					}
 				} else if app.selection_mode {
@@ -629,9 +651,18 @@ fn on_event(e &gg.Event, mut app App) {
 			}
 		}
 		.key_down {
-			match e.key_code {
-				.escape { app.ctx.quit() }
-				else {}
+			if app.solo_menu {
+				if e.key_code == .delete {
+					app.text_input = app.text_input#[..-2]
+				}
+				if e.char_code != 0 {
+					app.text_input += u8(e.char_code).ascii_str()
+				}
+			} else {
+				match e.key_code {
+					.escape { app.ctx.quit() }
+					else {}
+				}
 			}
 		}
 		else {}
@@ -781,7 +812,7 @@ fn (mut app App) load_map(map_name string) ! {
 	// 	for all the cables:
 	// 	cable.x  cable.y
 	// wire's state array
-	
+
 	if os.exists(maps_path) {
 		mut f := os.open(maps_path + map_name)!
 		assert f.read_raw[u32]()! == 0
