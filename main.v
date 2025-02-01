@@ -73,10 +73,13 @@ mut:
 	solo_menu bool
 	map_names_list []string // without folder name
 	maps_x_offset f32 = 5.0
-	maps_y_offset f32 = 5.0
+	maps_y_offset f32 = 50.0
 	maps_top_spacing f32 = 10.0
 	maps_h f32 = 50.0
 	maps_w f32 = 500.0
+	button_new_map_x f32 = 5.0
+	button_new_map_y f32 = 5.0
+	button_new_map_size f32 = 40.0
 	// camera moving -> default mode
 	cam_x     f64 = default_camera_pos_x
 	cam_y     f64 = default_camera_pos_y
@@ -377,15 +380,49 @@ fn on_event(e &gg.Event, mut app App) {
 						if e.mouse_button == .left {
 							if app.check_maps_button_click_y(i, mouse_x) {
 								app.solo_menu = false
+								app.map_name = name
 								app.load_map(name) or {app.log('Cannot load map ${name}, ${err}'); return}
+								app.pause = false
+								app.nb_updates = 2
+								app.todo = []
+								app.selected_item = .not
+								app.selected_ori = north
+								app.copied = []
+								app.actual_state = 0
 								app.comp_running = true
 								spawn app.computation_loop()
 								app.cam_x = default_camera_pos_x
 								app.cam_y = default_camera_pos_y
-								break
+								return
 							}
 						}
-					}				
+					}
+					if mouse_x >= button_new_map_x && mouse_x < button_new_map_x + button_new_map_size
+						&& mouse_y >= button_new_map_y && mouse_y < button_new_map_y + button_new_map_size {
+						app.solo_menu = false
+						app.map = []Chunk
+						app.map_name = // TODO: input field use the same one for sorting the maps
+						app.pause = false
+						app.nb_updates = 2
+						app.todo = []
+						app.selected_item = .not
+						app.selected_ori = north
+						app.copied = []
+						app.actual_state = 0
+						app.nots = []
+						app.n_next_rid = 1
+						app.n_states = []
+						app.diodes = []
+						app.d_next_rid = 1
+						app.d_states = []
+						app.wires = []
+						app.w_next_rid = 1
+						app.w_states = []
+						app.comp_running = true
+						spawn app.computation_loop()	
+						app.cam_x = default_camera_pos_x
+						app.cam_y = default_camera_pos_y
+					}
 				}
 			} else if app.comp_running {
 				if app.placement_mode {
