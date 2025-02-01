@@ -4,6 +4,10 @@ import rand
 import time
 import gg
 
+const default_camera_pos_x = f64(2_000_000_000.0)
+const default_camera_pos_y = f64(2_000_000_000.0)
+const gates_path = 'saved_gates/'
+const maps_path = 'saved_maps/'
 const empty_id = u64(0)
 const on_bits = u64(0x2000_0000_0000_0000) // 0010_0000_000...
 const elem_not_bits = u64(0x0000_0000_0000_0000) // 0000_0000_000...
@@ -59,9 +63,23 @@ struct App {
 mut:
 	ctx       &gg.Context = unsafe { nil }
 	tile_size int         = 50
+	// main menu
+	main_menu bool
+	button_solo_x f32 = 0.0 // TODO: make it scale with screensize and place it properly
+	button_solo_y f32 = 0.0
+	button_solo_w f32 = 300.0
+	button_solo_h f32 = 300.0
+	// solo menu TODO: display map info of the hovered map (size bits, nb of hours played, gates placed... fun stuff)
+	solo_menu bool
+	map_names_list []string // without folder name
+	maps_x_offset f32 = 5.0
+	maps_y_offset f32 = 5.0
+	maps_top_spacing f32 = 10.0
+	maps_h f32 = 50.0
+	maps_w f32 = 500.0
 	// camera moving -> default mode
-	cam_x     f64 = 2_000_000_000.0
-	cam_y     f64 = 2_000_000_000.0
+	cam_x     f64 = default_camera_pos_x
+	cam_y     f64 = default_camera_pos_y
 	move_down bool
 	click_x   f32 // Holds the position of the click (start point of the camera movement)
 	click_y   f32
@@ -82,7 +100,7 @@ mut:
 	select_end_y   u32
 	// paste mode
 	paste_mode bool
-	// UI on the left border, need to make it scaling automatically w/ screensize
+	// UI on the left border, TODO: need to make it scaling automatically w/ screensize
 	ui_width             f32 = 50.0
 	button_size          f32 = 40.0
 	button_left_padding  f32 = 5.0
@@ -322,6 +340,10 @@ fn (app App) check_ui_button_click_y(pos u32, mouse_y f32) bool {
 	return mouse_y >= pos * (app.button_top_padding + app.button_size) + app.button_top_padding
 		&& mouse_y < (pos + 1) * (app.button_top_padding + app.button_size)
 }
+fn (app App) check_maps_button_click_y(pos int, mouse_y f32) bool {
+	return mouse_y >= pos * (app.maps_top_spacing + app.maps_h) + app.maps_y_offset
+		&& mouse_y < (pos + 1) * (app.maps_top_spacing + app.maps_h)
+}
 
 fn on_event(e &gg.Event, mut app App) {
 	mouse_x := if e.mouse_x < 1.0 {
@@ -339,7 +361,33 @@ fn on_event(e &gg.Event, mut app App) {
 	}
 	match e.typ {
 		.mouse_up {
-			if app.comp_running {
+			if app.main_menu {
+				if mouse_x >= app.button_solo_x && mouse_x < app.button_solo_x + app.button_solo_w 
+					&& mouse_y >= app.button_solo_y && mouse_y < app.button_solo_y + app.button_solo_h {
+					app.main_menu = false
+					app.solo_menu = true
+					if !os.exists(maps_path) {
+						os.mkdir(maps_path) or {app.log("Cannot create ${maps_path}, ${err}"); return}
+					}
+					app.map_names_list = os.ls(maps_path) or {app.log("Cannot list files in ${maps_path}, ${err}"); return}
+				}
+			} else if app.solo_menu {
+				if mouse_x >= app.maps_x_offset && mouse_x < app.maps_x_offset + app.maps_w {
+					for i, name in app.map_names_list {
+						if e.mouse_button == .left {
+							if app.check_maps_button_click_y(i, mouse_x) {
+								app.solo_menu = false
+								app.load_map(name) or {app.log('Cannot load map ${name}, ${err}'); return}
+								app.comp_running = true
+								spawn app.computation_loop()
+								app.cam_x = default_camera_pos_x
+								app.cam_y = default_camera_pos_y
+								break
+							}
+						}
+					}				
+				}
+			} else if app.comp_running {
 				if app.placement_mode {
 					if app.place_down { // TODO: make the UI disapear/fade out when doing a placement
 						app.place_down = false
@@ -656,12 +704,12 @@ fn (mut app App) computation_loop() {
 }
 
 fn (mut app App) save_copied() ! {
-	if os.exists('saved_gates') {
-		mut nb_name := 0
-		for os.exists('saved_gates/${nb_name}') {
+	if os.exists(gates_path) {
+		mut nb_name := 0 // TODO: name system for saved gates !!
+		for os.exists('${gates_path}${nb_name}') {
 			nb_name += 1
 		}
-		mut file := os.open_file('saved_gates/${nb_name}', 'w')!
+		mut file := os.open_file('${gates_path}${nb_name}', 'w')!
 		unsafe { file.write_ptr(app.copied, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it -> successful or not?
 		file.close()
 	}
@@ -696,9 +744,9 @@ fn (mut app App) load_map(map_name string) ! {
 	// 	for all the cables:
 	// 	cable.x  cable.y
 	// wire's state array
-
-	if os.exists('saved_gates') {
-		mut f := os.open(map_name)!
+	
+	if os.exists(maps_path) {
+		mut f := os.open(maps_path + map_name)!
 		assert f.read_raw[u32]()! == 0
 		map_len := f.read_raw[i64]()!
 		app.map = []
@@ -880,9 +928,9 @@ fn (mut app App) save_map(map_name string) ! {
 }
 
 fn (mut app App) load_gate_to_copied(gate_name string) ! {
-	mut f := os.open('saved_gates/${gate_name}')!
+	mut f := os.open(gates_path + gate_name)!
 	mut read_n := u32(0)
-	size := os.inode('saved_gates/${gate_name}').size
+	size := os.inode(gates_path + gate_name).size
 	app.copied = []
 	mut place := PlaceInstruction{}
 	for read_n * sizeof(PlaceInstruction) < size {
@@ -916,8 +964,8 @@ fn (mut app App) gate_unit_tests(x u32, y u32) {
 		app.log('Listing the test gates: ${err}')
 		return
 	} {
-		app.load_gate_to_copied(gate_path) or { // not sure if it is the good path
-			app.log('FAIL: cant load the gate: ${gate_path}, ${err}')
+		app.load_gate_to_copied('test_gates/' + gate_path) or {
+			app.log('FAIL: cant load the gate: test_gates/${gate_path}, ${err}')
 			continue
 		}
 		app.paste(x, y)
