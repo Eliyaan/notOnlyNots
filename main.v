@@ -104,26 +104,38 @@ mut:
 	select_end_y   u32
 	// paste mode
 	paste_mode bool
+	// load gate mode
+	load_gate_mode bool
+	gate_name_list []string // without folder name
+	gate_x_offset       f32 = 5.0
+	gate_y_offset       f32 = 50.0
+	gate_top_spacing    f32 = 10.0
+	gate_h              f32 = 50.0
+	gate_w              f32 = 500.0
+	// save gate mode
+	save_gate_mode bool
 	// UI on the left border, TODO: need to make it scaling automatically w/ screensize
 	ui_width             f32 = 50.0
 	button_size          f32 = 40.0
 	button_left_padding  f32 = 5.0
 	button_top_padding   f32 = 5.0
 	cancel_button_pos    u32 = u32(0) // escapes mode, first position, then multiply by padding and button size to get the coords of the button
+	confirm_save_gate_pos u32 = 1	  // save gate mode
 	selection_button_pos u32 = 1      // only no_mode
 	rotate_copy_pos      u32 = 1      // only paste mode
 	copy_button_pos      u32 = 1      // only selection mode instead of selection mode button
-	item_nots_pos        u32 = 2      // no_mode and placement mode
+	load_gate_pos	     u32 = 2	  // no mode & paste mode
 	save_gate_pos        u32 = 2      // selection mode (copies and saves the copied gate)
-	item_diode_pos       u32 = 3      // no/placement mode
-	item_crossing_pos    u32 = 4      // no/placement mode
-	item_on_pos          u32 = 5      // no/placement mode
-	item_wire_pos        u32 = 6      // no/placement mode
-	speed_pos            u32 = 7      // no mode
-	slow_pos             u32 = 8      // no mode
-	pause_pos            u32 = 9      // no mode
-	paste_pos            u32 = 10     // no mode
-	save_map_pos         u32 = 11     // no mode
+	item_nots_pos        u32 = 3      // no_mode and placement mode
+	item_diode_pos       u32 = 4      // no/placement mode
+	item_crossing_pos    u32 = 5      // no/placement mode
+	item_on_pos          u32 = 6      // no/placement mode
+	item_wire_pos        u32 = 7      // no/placement mode
+	speed_pos            u32 = 8      // no mode
+	slow_pos             u32 = 9      // no mode
+	pause_pos            u32 = 10      // no mode
+	paste_pos            u32 = 11     // no mode
+	save_map_pos         u32 = 12     // no mode
 	selection_delete_pos u32 = 10     // selection mode
 
 	// logic
@@ -350,6 +362,11 @@ fn (app App) check_maps_button_click_y(pos int, mouse_y f32) bool {
 		&& mouse_y < (pos + 1) * (app.maps_top_spacing + app.maps_h)
 }
 
+fn (app App) check_gates_button_click_y(pos int, mouse_y f32) bool {
+	return mouse_y >= pos * (app.gate_top_spacing + app.gate_h) + app.gate_y_offset
+		&& mouse_y < (pos + 1) * (app.gate_top_spacing + app.gate_h)
+}
+
 fn on_event(e &gg.Event, mut app App) {
 	mouse_x := if e.mouse_x < 1.0 {
 		1.0
@@ -376,6 +393,12 @@ fn on_event(e &gg.Event, mut app App) {
 							return
 						}
 					}
+					if !os.exists(gates_path) { // this one too in case
+						os.mkdir(maps_path) or {
+							app.log('Cannot create ${maps_path}, ${err}')
+							return
+						}
+					}
 					app.map_names_list = os.ls(maps_path) or {
 						app.log('Cannot list files in ${maps_path}, ${err}')
 						return
@@ -383,6 +406,10 @@ fn on_event(e &gg.Event, mut app App) {
 				}
 			} else if app.solo_menu {
 				if mouse_x >= app.maps_x_offset && mouse_x < app.maps_x_offset + app.maps_w {
+					app.map_names_list = os.ls(maps_path) or {
+						app.log('Cannot list files in ${maps_path}, ${err}')
+						return
+					}
 					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 						if e.mouse_button == .left {
 							if app.check_maps_button_click_y(i, mouse_x) {
@@ -442,7 +469,31 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 				}
 			} else if app.comp_running {
-				if app.placement_mode {
+				if app.load_gate_mode {
+					if mouse_x < app.ui_width {
+						if mouse_x >= app.button_left_padding
+							&& mouse_x < app.button_size + app.button_left_padding { // button area
+							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
+								app.load_gate_mode = false
+							}
+						}
+					} else {
+						app.gate_name_list = os.ls(gates_path) or { // TODO: do that in the frame update too
+							app.log('Cannot list files in ${gates_path}, ${err}')
+							return
+						}
+						for i, name in app.gate_name_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
+							if e.mouse_button == .left {
+								if app.check_gates_button_click_y(i, mouse_x) {
+									app.load_gate_mode = false
+									app.paste_mode = true
+									app.text_input = ''
+									app.todo << TodoInfo{.load_gate, 0, 0, 0, 0, name}
+								}
+							}
+						}
+					}
+				} else if app.placement_mode {
 					if app.place_down { // TODO: make the UI disapear/fade out when doing a placement
 						app.place_down = false
 						place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
@@ -512,6 +563,9 @@ fn on_event(e &gg.Event, mut app App) {
 									mouse_y)
 								{
 									app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+								} else if app.check_ui_button_click_y(app.load_gate_pos, mouse_y) {
+									app.load_gate_mode = true
+									app.paste_mode = false
 								}
 							}
 						}
@@ -519,6 +573,28 @@ fn on_event(e &gg.Event, mut app App) {
 						if e.mouse_button == .left {
 							app.todo << TodoInfo{.paste, u32(app.cam_x + mouse_x / app.tile_size), u32(
 								app.cam_y + mouse_y / app.tile_size), 0, 0, ''}
+						}
+					}
+				} else if app.save_gate_mode {
+					if mouse_x < app.ui_width {
+						if mouse_x >= app.button_left_padding
+							&& mouse_x < app.button_size + app.button_left_padding { // button area
+							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
+								app.save_gate_mode = false
+								app.select_start_x = u32(-1)
+								app.select_end_x = u32(-1)
+								app.text_input = ''
+							} else if app.check_ui_button_click_y(app.confirm_save_gate_pos, mouse_y) {
+								if app.text_input != '' && app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
+									// copies because save_gate saves the copied gate
+									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+									app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, app.text_input}
+									app.text_input = ''
+									app.select_start_x = u32(-1)
+									app.select_end_x = u32(-1)
+									app.save_gate_mode = false
+								}
+							}
 						}
 					}
 				} else if app.selection_mode {
@@ -529,9 +605,7 @@ fn on_event(e &gg.Event, mut app App) {
 								app.selection_mode = false
 								app.select_start_x = u32(-1)
 								app.select_end_x = u32(-1)
-							} else if app.check_ui_button_click_y(app.copy_button_pos,
-								mouse_y)
-							{
+							} else if app.check_ui_button_click_y(app.copy_button_pos, mouse_y) {
 								if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
 									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
 									app.log('Copied selection')
@@ -541,11 +615,9 @@ fn on_event(e &gg.Event, mut app App) {
 							{
 								app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
 							} else if app.check_ui_button_click_y(app.save_gate_pos, mouse_y) {
-								if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
-									// copies because save_gate saves the copied gate
-									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
-									app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, ''}
-								}
+								app.save_gate_mode = true
+								app.text_input = ''
+								app.selection_mode = false
 							}
 						}
 					} else {
@@ -598,6 +670,8 @@ fn on_event(e &gg.Event, mut app App) {
 								app.paste_mode = true
 							} else if app.check_ui_button_click_y(app.save_map_pos, mouse_y) {
 								app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
+							} else if app.check_ui_button_click_y(app.load_gate_pos, mouse_y) {
+								app.load_gate_mode = true
 							}
 						}
 					}
@@ -652,6 +726,20 @@ fn on_event(e &gg.Event, mut app App) {
 		}
 		.key_down {
 			if app.solo_menu {
+				if e.key_code == .delete {
+					app.text_input = app.text_input#[..-2]
+				}
+				if e.char_code != 0 {
+					app.text_input += u8(e.char_code).ascii_str()
+				}
+			} else if app.load_gate_mode {
+				if e.key_code == .delete {
+					app.text_input = app.text_input#[..-2]
+				}
+				if e.char_code != 0 {
+					app.text_input += u8(e.char_code).ascii_str()
+				}
+			} else if app.save_gate_mode {
 				if e.key_code == .delete {
 					app.text_input = app.text_input#[..-2]
 				}
@@ -740,10 +828,10 @@ fn (mut app App) computation_loop() {
 							app.paste(todo.x, todo.y)
 						}
 						.load_gate {
-							app.load_gate_to_copied(todo.name) or { app.log('save copied: ${err}') }
+							app.load_gate_to_copied(todo.name) or { app.log('load gate to copied: ${err}') }
 						}
 						.save_gate {
-							app.save_copied() or { app.log('save copied: ${err}') }
+							app.save_copied(todo.name) or { app.log('save copied: ${err}') }
 						}
 						.place {
 							app.placement(todo.x, todo.y, todo.x_end, todo.y_end)
@@ -771,13 +859,13 @@ fn (mut app App) computation_loop() {
 	}
 }
 
-fn (mut app App) save_copied() ! {
+fn (mut app App) save_copied(name_ string) ! {
+	mut name := name_
 	if os.exists(gates_path) {
-		mut nb_name := 0 // TODO: name system for saved gates !!
-		for os.exists('${gates_path}${nb_name}') {
-			nb_name += 1
+		for os.exists('${gates_path}${name}') {
+			name += "New"
 		}
-		mut file := os.open_file('${gates_path}${nb_name}', 'w')!
+		mut file := os.open_file('${gates_path}${name}', 'w')!
 		unsafe { file.write_ptr(app.copied, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it -> successful or not?
 		file.close()
 	}
@@ -1029,7 +1117,7 @@ fn (mut app App) gate_unit_tests(x u32, y u32) {
 	cycles := 100 // we dont know in how much cycles the bug will happen, needs to match the amount in the fuzz testing because the unit tests will come from there
 	app.removal(x, y, x + size, y + size)
 	gates: for gate_path in os.ls('test_gates/') or {
-		app.log('Listing the test gates: ${err}')
+		app.log('Listing the test gates: ${err}');
 		return
 	} {
 		app.load_gate_to_copied('test_gates/' + gate_path) or {
