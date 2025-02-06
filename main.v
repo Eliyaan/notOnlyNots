@@ -57,6 +57,7 @@ struct Palette {
 	selection_start gg.Color = gg.Color{26, 107, 237, 128}
 	selection_end   gg.Color = gg.Color{72, 97, 138, 128}
 	selection_box   gg.Color = gg.Color{66, 136, 245, 128}
+	input_preview   gg.Color = gg.Color{217, 159, 0, 128}
 }
 
 struct App {
@@ -81,6 +82,8 @@ mut:
 	button_new_map_x    f32 = 5.0
 	button_new_map_y    f32 = 5.0
 	button_new_map_size f32 = 40.0
+	// test mode
+	test_mode bool
 	// camera moving -> default mode
 	cam_x     f64 = default_camera_pos_x
 	cam_y     f64 = default_camera_pos_y
@@ -196,6 +199,21 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 	return new_a
 }
 
+fn (mut app App) draw_input_buttons() {
+	for key in app.key_pos.keys() {
+		for pos in app.key_pos[key] {
+			pos_x := f32(f64(pos[0] * u32(app.tile_size)) - app.cam_x)
+			pos_y := f32(f64(pos[1] * u32(app.tile_size)) - app.cam_y)
+			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.input_preview)
+			// TODO: draw_text
+		}
+	}
+	if app.tmp_pos_x != u32(-1) && app.tmp_pos_y != u32(-1) {
+		pos_x := f32(f64(app.tmp_pos_x * u32(app.tile_size)) - app.cam_x)
+		pos_y := f32(f64(app.tmp_pos_y * u32(app.tile_size)) - app.cam_y)
+		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.input_preview)
+	}
+}
 fn (mut app App) draw_placing_preview() {
 	x_start, x_end := if app.place_start_x > app.place_end_x {
 		app.place_end_x, app.place_start_x
@@ -259,6 +277,8 @@ fn on_frame(mut app App) {
 		}
 		if app.selection_mode {
 			app.draw_selection_box()
+		}
+		if app.keyinput_mode {
 		}
 
 		// map rendering
@@ -493,14 +513,14 @@ fn on_event(e &gg.Event, mut app App) {
 						// left click -> waiting for input, when input, save pos & key in the map
 						if e.mouse_button == .right {
 							for key in app.key_pos.keys() {
-								i := app.key_pos[key].index([map_x, map_y])
+								i := app.key_pos[key].index([u32(map_x), u32(map_y)])
 								if i != -1 {
 									app.key_pos[key].delete(i) // it will delete all the "buttons" on this tile, but the multiple buttons are not intended anyways				
 								}
 							}
 						} else if e.mouse_button == .left {
-							app.tmp_pos_x = map_x // TODO: show these too
-							app.tmp_pos_y = map_y
+							app.tmp_pos_x = u32(map_x) // TODO: show these too
+							app.tmp_pos_y = u32(map_y)
 						} else {
 							app.tmp_pos_x = u32(-1)
 							app.tmp_pos_y = u32(-1)
@@ -526,7 +546,7 @@ fn on_event(e &gg.Event, mut app App) {
 									app.load_gate_mode = false
 									app.paste_mode = true
 									app.text_input = ''
-									app.todo << todoinfo{.load_gate, 0, 0, 0, 0, name}
+									app.todo << TodoInfo{.load_gate, 0, 0, 0, 0, name}
 								}
 							}
 						}
@@ -769,6 +789,18 @@ fn on_event(e &gg.Event, mut app App) {
 				}
 			}
 		}
+		.key_up {
+			if app.keyinput_mode {
+				if e.char_code != 0 {
+					for pos in app.key_pos[u8(e.char_code)] {
+						i := app.forced_states.index(pos)
+						if i != -1 {
+							app.forced_states.delete(i)
+						}
+					}
+				}
+			}
+		}
 		.key_down {
 			if app.solo_menu {
 				if e.key_code == .delete {
@@ -786,12 +818,16 @@ fn on_event(e &gg.Event, mut app App) {
 				}
 			} else if app.keyinput_mode {
 				if e.char_code != 0 {
-					if mut a := app.key_pos[u8(e.char_code)] {
-						a << [app.tmp_pos_x, app.tmp_pos_y]
+					if app.tmp_pos_x == u32(-1) || app.tmp_pos_y == u32(-1) { // defensive: prevent map border
+						app.forced_states << app.key_pos[u8(e.char_code)]
 					} else {
-						app.key_pos[u8(e.char_code)] = [
-							[app.tmp_pos_x, app.tmp_pos_y],
-						]
+						if mut a := app.key_pos[u8(e.char_code)] {
+							a << [app.tmp_pos_x, app.tmp_pos_y]
+						} else {
+							app.key_pos[u8(e.char_code)] = [
+								[app.tmp_pos_x, app.tmp_pos_y],
+							]
+						}
 					}
 					app.tmp_pos_x = u32(-1)
 					app.tmp_pos_y = u32(-1)
@@ -805,7 +841,7 @@ fn on_event(e &gg.Event, mut app App) {
 				}
 			} else {
 				match e.key_code {
-					.escape { app.ctx.quit() }
+					.escape {}
 					else {}
 				}
 			}
@@ -870,6 +906,9 @@ fn (mut app App) computation_loop() {
 		if app.pause {
 			time.sleep(30 * time.millisecond)
 		} else {
+			for pos in app.forced_states {
+				app.set_elem_state_by_pos(pos[0], pos[1], true)
+			}
 			cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(avg_update_time) // nanosecs
 			for todo in app.todo {
 				now = time.now().unix_nano()
@@ -2414,6 +2453,29 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 		}
 	}
 	return next_id
+}
+
+fn (mut app App) set_elem_state_by_pos(x u32, y u32, new_state bool) {
+	mut chunkmap := app.get_chunkmap_at_coords(x, y)
+	xmap := x % chunk_size
+	ymap := y % chunk_size
+	id := chunkmap[xmap][ymap]
+	if id == elem_crossing_bits || id == 0x0 || id & elem_type_mask == elem_on_bits {
+		return
+	}
+	if new_state {
+		chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+	} else {
+		chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
+	}
+	_, i := app.get_elem_state_idx_by_id(chunkmap[xmap][ymap], 0)
+	if id & elem_type_mask == elem_wire_bits {
+		app.w_states[app.actual_state][i] = new_state	
+	} else if id & elem_type_mask == elem_not_bits {
+		app.n_states[app.actual_state][i] = new_state	
+	} else if id & elem_type_mask == elem_diode_bits {
+		app.d_states[app.actual_state][i] = new_state	
+	}
 }
 
 // A tick is a unit of time. For each tick, a complete update cycle/process will be effected.
