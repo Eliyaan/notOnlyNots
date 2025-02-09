@@ -4,6 +4,8 @@ import rand
 import time
 import gg
 
+const default_colorchip_color_on = gg.Color{197, 209, 227, 255}
+const default_colorchip_color_off = gg.Color{47, 49, 54, 255}
 const default_camera_pos_x = f64(2_000_000_000.0)
 const default_camera_pos_y = f64(2_000_000_000.0)
 const gates_path = 'saved_gates/'
@@ -60,11 +62,21 @@ struct Palette {
 	input_preview   gg.Color = gg.Color{217, 159, 0, 128}
 }
 
+struct ColorChip { // TODO: save color chips and keyboard inputs too 
+	x u32
+	y u32
+	w u32
+	h u32
+	colors []gg.Color // colors to show
+	inputs [][2]u32 // the state will be converted to a number (binary) and it will be the index of the shown color
+}
+
 struct App {
 mut:
 	ctx        &gg.Context = unsafe { nil }
 	tile_size  int         = 50
 	text_input string // holds what the user typed
+	colorchips_hidden bool // if colorchips are hidden
 	// main menu
 	main_menu     bool
 	button_solo_x f32 = 0.0 // TODO: make it scale with screensize and place it properly
@@ -82,6 +94,17 @@ mut:
 	button_new_map_x    f32 = 5.0
 	button_new_map_y    f32 = 5.0
 	button_new_map_size f32 = 40.0
+	// edit mode -> edit colorchips
+	edit_mode bool
+	create_colorchip_submode bool // select start and end of the new colorchip
+	create_colorchip_x u32 = u32(-1)
+	create_colorchip_y u32 = u32(-1)
+	create_colorchip_endx u32 = u32(-1)
+	create_colorchip_endy u32 = u32(-1)
+	choose_colorchip_submode bool // select a colorchip to edit
+	add_input_submode bool // to add an input to a colorchip
+	edit_color_submode bool // edit colors of a colorchip
+	selected_colorchip int // index of the selected colorchip
 	// test mode
 	test_mode bool
 	// camera moving -> default mode
@@ -132,9 +155,13 @@ mut:
 	selection_button_pos  u32 = 1      // only no_mode
 	rotate_copy_pos       u32 = 1      // only paste mode
 	copy_button_pos       u32 = 1      // only selection mode instead of selection mode button
+	choose_colorchip_pos  u32 = 1 	   // edit mode
 	load_gate_pos         u32 = 2      // no mode & paste mode
 	save_gate_pos         u32 = 2      // selection mode (copies and saves the copied gate)
+	edit_color_pos	      u32 = 2	   // edit mode
 	item_nots_pos         u32 = 3      // no_mode and placement mode
+	create_color_chip_pos u32 = 3	   // selection mode 
+	add_input_pos	      u32 = 3	   // edit mode
 	item_diode_pos        u32 = 4      // no/placement mode
 	item_crossing_pos     u32 = 5      // no/placement mode
 	item_on_pos           u32 = 6      // no/placement mode
@@ -145,8 +172,9 @@ mut:
 	paste_pos             u32 = 11     // no mode
 	save_map_pos          u32 = 12     // no mode
 	keyinput_pos          u32 = 13     // no mode
+	hide_colorchips_pos   u32 = 14	   // no mode
 	selection_delete_pos  u32 = 10     // selection mode
-
+	
 	// logic
 	map           []Chunk
 	map_name      string // to fill when loading a map
@@ -168,7 +196,8 @@ mut:
 	w_next_rid    u64 = 1
 	w_states      [2][]bool
 	forced_states [][]u32 // forced to ON state by a keyboard input
-	palette       Palette
+	colorchips    []ColorChip // screens
+	palette       Palette // TODO: edit palette and save palette
 }
 
 // graphics
@@ -375,6 +404,12 @@ fn on_frame(mut app App) {
 				}
 			}
 		}
+		if !app.colorchips_hidden {
+			for cc in app.colorchips {
+				// TODO: compute the index of the color w/ the inputs
+				// draw the rect
+			}
+		}
 	}
 	app.ctx.end()
 }
@@ -392,6 +427,20 @@ fn (app App) check_maps_button_click_y(pos int, mouse_y f32) bool {
 fn (app App) check_gates_button_click_y(pos int, mouse_y f32) bool {
 	return mouse_y >= pos * (app.gate_top_spacing + app.gate_h) + app.gate_y_offset
 		&& mouse_y < (pos + 1) * (app.gate_top_spacing + app.gate_h)
+}
+
+fn (mut app App) disable_all_ingame_modes() {
+	app.edit_mode = false
+	app.choose_colorchip_submode = false
+	app.create_colorchip_submode = false
+	app.edit_color_submode = false
+	app.add_input_submode = false
+	app.placement_mode = false
+	app.selection_mode = false
+	app.load_gate_mode = false
+	app.paste_mode = false
+	app.keyinput_mode = false
+	app.save_gate_mode = false
 }
 
 fn on_event(e &gg.Event, mut app App) {
@@ -501,7 +550,7 @@ fn on_event(e &gg.Event, mut app App) {
 						if mouse_x >= app.button_left_padding
 							&& mouse_x < app.button_size + app.button_left_padding { // button area
 							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
-								app.keyinput_mode = false
+								app.disable_all_ingame_modes()
 								app.tmp_pos_x = u32(-1)
 								app.tmp_pos_y = u32(-1)
 							}
@@ -527,12 +576,66 @@ fn on_event(e &gg.Event, mut app App) {
 							// TODO: move, do this with other modes too, it's nice to move w/ middle click when having a mouse
 						}
 					}
+				} else if app.edit_mode {
+					if mouse_x < app.ui_width {
+						if mouse_x >= app.button_left_padding
+							&& mouse_x < app.button_size + app.button_left_padding { // button area
+							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
+								app.disable_all_ingame_modes()
+								app.create_colorchip_x = u32(-1)
+								app.create_colorchip_endx = u32(-1)
+							} else if app.check_ui_button_click_y(app.edit_color_submode, mouse_y) {
+								app.disable_all_ingame_modes()
+	
+							} else if app.check_ui_button_click_y(app.choose_colorchip_submode, mouse_y) {
+								app.disable_all_ingame_modes()
+	
+							} else if app.check_ui_button_click_y(app.add_input_pos, mouse_y) {
+								app.disable_all_ingame_modes()
+	
+							}
+						}
+					} else {
+						if app.edit_color_submode {
+							
+						} else if app.create_colorchip_submode {
+							if app.create_colorchip_x == u32(-1) {
+								app.create_colorchip_x = u32(app.cam_x + (mouse_x / app.tile_size))
+								app.create_colorchip_y = u32(app.cam_y + (mouse_y / app.tile_size))
+							} else if app.create_colorchip_endx == u32(-1) {
+								app.create_colorchip_endx = u32(app.cam_x + (mouse_x / app.tile_size))
+								app.create_colorchip_endy = u32(app.cam_y + (mouse_y / app.tile_size))
+								if app.create_colorchip_x > app.create_colorchip_endx {
+									app.create_colorchip_x, app.create_colorchip_endx = app.create_colorchip_endx, app.create_colorchip_x
+								}
+								if app.create_colorchip_y > app.create_colorchip_endy {
+									app.create_colorchip_y, app.create_colorchip_endy = app.create_colorchip_endy, app.create_colorchip_y
+								}
+								app.colorchips << ColorChip{
+									x: app.create_colorchip_x
+									y: app.create_colorchip_y
+									w: app.create_colorchip_endx - app.create_colorchip_x
+									h: app.create_colorchip_endy - app.create_colorchip_y
+									colors: [default_colorchip_color_on, default_colorchip_color_off]
+								}	
+								app.create_colorchip_x = u32(-1)
+								app.create_colorchip_endx = u32(-1)
+								app.create_colorchip_y = u32(-1)
+								app.create_colorchip_endy = u32(-1)
+							}
+						} else if app.add_input_submode {
+							app.colorchips[app.selected_colorchip].inputs << [u32(app.cam_x + (mouse_x / app.tile_size)), u32(app.cam_y + (mouse_y / app.tile_size)]!
+							app.disable_all_ingame_modes()
+						} else if app.choose_colorchip_submode {
+							
+						}				
+					}
 				} else if app.load_gate_mode {
 					if mouse_x < app.ui_width {
 						if mouse_x >= app.button_left_padding
 							&& mouse_x < app.button_size + app.button_left_padding { // button area
 							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
-								app.load_gate_mode = false
+								app.disable_all_ingame_modes()
 							}
 						}
 					} else {
@@ -543,7 +646,7 @@ fn on_event(e &gg.Event, mut app App) {
 						for i, name in app.gate_name_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 							if e.mouse_button == .left {
 								if app.check_gates_button_click_y(i, mouse_x) {
-									app.load_gate_mode = false
+									app.disable_all_ingame_modes()
 									app.paste_mode = true
 									app.text_input = ''
 									app.todo << TodoInfo{.load_gate, 0, 0, 0, 0, name}
@@ -589,7 +692,7 @@ fn on_event(e &gg.Event, mut app App) {
 						if mouse_x >= app.button_left_padding
 							&& mouse_x < app.button_size + app.button_left_padding { // button area
 							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
-								app.placement_mode = false
+								app.disable_all_ingame_modes()
 								app.place_start_x = u32(-1)
 							} else if app.check_ui_button_click_y(app.item_nots_pos, mouse_y) {
 								app.selected_item = .not
@@ -616,7 +719,7 @@ fn on_event(e &gg.Event, mut app App) {
 								if app.check_ui_button_click_y(app.cancel_button_pos,
 									mouse_y)
 								{
-									app.paste_mode = false
+									app.disable_all_ingame_modes()
 								} else if app.check_ui_button_click_y(app.rotate_copy_pos,
 									mouse_y)
 								{
@@ -624,8 +727,8 @@ fn on_event(e &gg.Event, mut app App) {
 								} else if app.check_ui_button_click_y(app.load_gate_pos,
 									mouse_y)
 								{
+									app.disable_all_ingame_modes()
 									app.load_gate_mode = true
-									app.paste_mode = false
 								}
 							}
 						}
@@ -640,7 +743,7 @@ fn on_event(e &gg.Event, mut app App) {
 						if mouse_x >= app.button_left_padding
 							&& mouse_x < app.button_size + app.button_left_padding { // button area
 							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
-								app.save_gate_mode = false
+								app.disable_all_ingame_modes()
 								app.select_start_x = u32(-1)
 								app.select_end_x = u32(-1)
 								app.text_input = ''
@@ -649,13 +752,13 @@ fn on_event(e &gg.Event, mut app App) {
 							{
 								if app.text_input != '' && app.select_start_x != u32(-1)
 									&& app.select_end_x != u32(-1) {
+									app.disable_all_ingame_modes()
 									// copies because save_gate saves the copied gate
 									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
 									app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, app.text_input}
 									app.text_input = ''
 									app.select_start_x = u32(-1)
 									app.select_end_x = u32(-1)
-									app.save_gate_mode = false
 								}
 							}
 						}
@@ -665,7 +768,7 @@ fn on_event(e &gg.Event, mut app App) {
 						if mouse_x >= app.button_left_padding
 							&& mouse_x < app.button_size + app.button_left_padding { // button area
 							if app.check_ui_button_click_y(app.cancel_button_pos, mouse_y) {
-								app.selection_mode = false
+								app.disable_all_ingame_modes()
 								app.select_start_x = u32(-1)
 								app.select_end_x = u32(-1)
 							} else if app.check_ui_button_click_y(app.copy_button_pos,
@@ -680,9 +783,19 @@ fn on_event(e &gg.Event, mut app App) {
 							{
 								app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
 							} else if app.check_ui_button_click_y(app.save_gate_pos, mouse_y) {
+								app.disable_all_ingame_modes()
 								app.save_gate_mode = true
 								app.text_input = ''
-								app.selection_mode = false
+							} else if app.check_ui_button_click_y(app.create_color_chip_pos, mouse_y) {
+								if app.select_start_x != u32(-1) && app.select_start_y != u32(-1) 
+									&& app.select_end_x != u32(-1) && app.select_end_y != u32(-1) {
+									app.disable_all_ingame_modes()
+									app.create_colorchip_submode = true									
+									app.create_colorchip_x = u32(-1)
+									app.create_colorchip_y = u32(-1)
+									app.create_colorchip_endx = u32(-1)
+									app.create_colorchip_endy = u32(-1)
+								}
 							}
 						}
 					} else {
@@ -703,24 +816,30 @@ fn on_event(e &gg.Event, mut app App) {
 						if mouse_x >= app.button_left_padding
 							&& mouse_x < app.button_size + app.button_left_padding { // button area
 							if app.check_ui_button_click_y(app.selection_button_pos, mouse_y) {
+								app.disable_all_ingame_modes()
 								app.selection_mode = true
 							} else if app.check_ui_button_click_y(app.item_nots_pos, mouse_y) {
+								app.disable_all_ingame_modes()
 								app.selected_item = .not
 								app.placement_mode = true
 							} else if app.check_ui_button_click_y(app.item_diode_pos,
 								mouse_y)
 							{
+								app.disable_all_ingame_modes()
 								app.selected_item = .diode
 								app.placement_mode = true
 							} else if app.check_ui_button_click_y(app.item_crossing_pos,
 								mouse_y)
 							{
+								app.disable_all_ingame_modes()
 								app.selected_item = .crossing
 								app.placement_mode = true
 							} else if app.check_ui_button_click_y(app.item_on_pos, mouse_y) {
+								app.disable_all_ingame_modes()
 								app.selected_item = .on
 								app.placement_mode = true
 							} else if app.check_ui_button_click_y(app.item_wire_pos, mouse_y) {
+								app.disable_all_ingame_modes()
 								app.selected_item = .wire
 								app.placement_mode = true
 							} else if app.check_ui_button_click_y(app.speed_pos, mouse_y) {
@@ -732,11 +851,15 @@ fn on_event(e &gg.Event, mut app App) {
 							} else if app.check_ui_button_click_y(app.pause_pos, mouse_y) {
 								app.pause = !app.pause
 							} else if app.check_ui_button_click_y(app.paste_pos, mouse_y) {
+								app.disable_all_ingame_modes()
 								app.paste_mode = true
 							} else if app.check_ui_button_click_y(app.save_map_pos, mouse_y) {
 								app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
 							} else if app.check_ui_button_click_y(app.load_gate_pos, mouse_y) {
+								app.disable_all_ingame_modes()
 								app.load_gate_mode = true
+							} else if app.check_ui_button_click_y(app.hide_colorchips_pos, mouse_y) {
+								app.colorchips_hidden = !app.colorchips_hidden
 							}
 						}
 					}
