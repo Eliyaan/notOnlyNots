@@ -96,11 +96,21 @@ mut:
 	button_new_map_size f32 = 40.0
 	// edit mode -> edit colorchips
 	edit_mode bool
-	editmenu_offset_x f32 = 60.0 // TODO: scale w/ screen size
-	editmenu_offset_y f32 = 60.0 // TODO: scale
-	editmenu_nb_color_by_row int = 0 
+	editmenu_rgb_y f32 = 10.0
+	editmenu_rgb_h f32 = 40.0
+	editmenu_rgb_w f32 = 40.0
+	editmenu_r_x f32 = 60.0
+	editmenu_g_x f32 = 110.0
+	editmenu_b_x f32 = 160.0
+	editmenu_offset_x f32 = 160.0 // TODO: scale w/ screen size
+	editmenu_offset_y f32 = 160.0 // TODO: scale
+	editmenu_nb_color_by_row int = 10 
 	editmenu_colorsize f32 = 50.0
-	editmenu_selected_color int = 0
+	editmenu_selected_color int = 0 // TODO: show coords of input
+	editmenu_offset_inputs_x f32 = 160.0 // TODO: scale w/ screen size
+	editmenu_offset_inputs_y f32 = 160.0 // TODO: scale
+	editmenu_nb_inputs_by_row int = 10 
+	editmenu_inputsize f32 = 50.0
 	create_colorchip_submode bool // select start and end of the new colorchip
 	create_colorchip_x u32 = u32(-1)
 	create_colorchip_y u32 = u32(-1)
@@ -602,13 +612,59 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					} else {
 						if app.edit_color_submode {
-							for i in 0 .. app.colorchips[app.selected_colorchip] {
+							for i in 0 .. app.colorchips[app.selected_colorchip].inputs {
+								x := app.editmenu_offset_inputs_x + i % app.editmenu_nb_inputs_by_row * app.editmenu_inputsize
+								y := app.editmenu_offset_inputs_y + i / app.editmenu_nb_inputs_by_row * app.editmenu_inputsize
+								if mouse_x >= x && mouse_x < x + app.editmenu_inputsize {
+									if mouse_y >= y && mouse_y < y + app.editmenu_inputsize {
+										app.colorchips[app.selected_colorchip].inputs.delete(i)
+										for app.colorchips[app.selected_colorchip].colors.len > pow(2, app.colorchips[app.selected_colorchip].inputs.len) {
+											app.colorchips[app.selected_colorchip].colors.delete[app.colorchips[app.selected_colorchip].len-1]
+										}
+									}
+								}
+							}
+							for i in 0 .. app.colorchips[app.selected_colorchip].colors {
 								x := app.editmenu_offset_x + i % app.editmenu_nb_color_by_row * app.editmenu_colorsize
 								y := app.editmenu_offset_y + i / app.editmenu_nb_color_by_row * app.editmenu_colorsize
 								if mouse_x >= x && mouse_x < x + app.editmenu_colorsize {
 									if mouse_y >= y && mouse_y < y + app.editmenu_colorsize {
-										app.editmenu_selected_color = i
+										if e.mouse_button == .left {
+											app.editmenu_selected_color = i
+										} else if e.mouse_button == .right {
+											app.colorchips.delete(i)
+											app.editmenu_selected_color -= 1
+											if app.editmenu_selected_color < 0 {
+												app.editmenu_selected_color = 0
+											}
+											for app.colorchips[app.selected_colorchip].colors.len < pow(2, app.colorchips[app.selected_colorchip].inputs) {
+												app.colorchips[app.selected_colorchip].colors << gg.Color{0,0,0,255}
+											}
+										}
 									}
+								}
+							}
+							if mouse_y >= app.editmenu_rgb_y && mouse_y < app.editmenu_rgb_y + app.editmenu_rgb_h {
+								if mouse_x >= app.editmenu_r_x && mouse_x < app.editmenu_r_y + app.editmenu_rgb_w {
+									if e.mouse_button == .left {
+										app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].r += 1
+									} else if e.mouse_button == .right {
+										app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].r -= 1
+									}							
+								}
+								if mouse_x >= app.editmenu_g_x && mouse_x < app.editmenu_g_y + app.editmenu_rgb_w {
+									if e.mouse_button == .left {
+										app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].g += 1
+									} else if e.mouse_button == .right {
+										app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].g -= 1
+									}							
+								}
+								if mouse_x >= app.editmenu_b_x && mouse_x < app.editmenu_b_y + app.editmenu_rgb_w {
+									if e.mouse_button == .left {
+										app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].b += 1
+									} else if e.mouse_button == .right {
+										app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].b -= 1
+									}							
 								}
 							}
 						} else if app.create_colorchip_submode {
