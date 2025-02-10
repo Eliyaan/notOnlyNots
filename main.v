@@ -96,6 +96,11 @@ mut:
 	button_new_map_size f32 = 40.0
 	// edit mode -> edit colorchips
 	edit_mode bool
+	editmenu_offset_x f32 = 60.0 // TODO: scale w/ screen size
+	editmenu_offset_y f32 = 60.0 // TODO: scale
+	editmenu_nb_color_by_row int = 0 
+	editmenu_colorsize f32 = 50.0
+	editmenu_selected_color int = 0
 	create_colorchip_submode bool // select start and end of the new colorchip
 	create_colorchip_x u32 = u32(-1)
 	create_colorchip_y u32 = u32(-1)
@@ -597,7 +602,15 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					} else {
 						if app.edit_color_submode {
-							
+							for i in 0 .. app.colorchips[app.selected_colorchip] {
+								x := app.editmenu_offset_x + i % app.editmenu_nb_color_by_row * app.editmenu_colorsize
+								y := app.editmenu_offset_y + i / app.editmenu_nb_color_by_row * app.editmenu_colorsize
+								if mouse_x >= x && mouse_x < x + app.editmenu_colorsize {
+									if mouse_y >= y && mouse_y < y + app.editmenu_colorsize {
+										app.editmenu_selected_color = i
+									}
+								}
+							}
 						} else if app.create_colorchip_submode {
 							if app.create_colorchip_x == u32(-1) {
 								app.create_colorchip_x = u32(app.cam_x + (mouse_x / app.tile_size))
@@ -625,6 +638,9 @@ fn on_event(e &gg.Event, mut app App) {
 							}
 						} else if app.add_input_submode {
 							app.colorchips[app.selected_colorchip].inputs << [u32(app.cam_x + (mouse_x / app.tile_size)), u32(app.cam_y + (mouse_y / app.tile_size)]!
+							for app.colorchips[app.selected_colorchip].colors.len < pow(2, app.colorchips[app.selected_colorchip].inputs) {
+								app.colorchips[app.selected_colorchip].colors << gg.Color{0,0,0,255}
+							}
 							app.disable_all_ingame_modes()
 						} else if app.choose_colorchip_submode {
 							
