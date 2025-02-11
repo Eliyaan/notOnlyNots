@@ -1111,6 +1111,13 @@ fn on_event(e &gg.Event, mut app App) {
 				if e.char_code != 0 {
 					app.text_input += u8(e.char_code).ascii_str()
 				}
+			} else if app.load_gate_mode {
+				if e.key_code == .delete {
+					app.text_input = app.text_input#[..-2]
+				}
+				if e.char_code != 0 {
+					app.text_input += u8(e.char_code).ascii_str()
+				}
 			} else if app.keyinput_mode {
 				if e.char_code != 0 {
 					if app.tmp_pos_x == u32(-1) || app.tmp_pos_y == u32(-1) { // defensive: prevent map border
