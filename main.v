@@ -67,6 +67,7 @@ struct ColorChip { // TODO: save color chips and keyboard inputs too
 	y u32
 	w u32
 	h u32
+mut:
 	colors []gg.Color // colors to show
 	inputs [][2]u32 // the state will be converted to a number (binary) and it will be the index of the shown color
 }
@@ -111,12 +112,14 @@ mut:
 	editmenu_offset_inputs_y f32 = 160.0 // TODO: scale
 	editmenu_nb_inputs_by_row int = 10 
 	editmenu_inputsize f32 = 50.0
+	delete_colorchip_submode bool
 	create_colorchip_submode bool // select start and end of the new colorchip
 	create_colorchip_x u32 = u32(-1)
 	create_colorchip_y u32 = u32(-1)
 	create_colorchip_endx u32 = u32(-1)
 	create_colorchip_endy u32 = u32(-1)
 	choose_colorchip_submode bool // select a colorchip to edit
+	steal_settings_submode bool
 	add_input_submode bool // to add an input to a colorchip
 	edit_color_submode bool // edit colors of a colorchip
 	selected_colorchip int // index of the selected colorchip
@@ -178,7 +181,9 @@ mut:
 	create_color_chip_pos u32 = 3	   // selection mode 
 	add_input_pos	      u32 = 3	   // edit mode
 	item_diode_pos        u32 = 4      // no/placement mode
+	steal_settings_pos    u32 = 4	   // edit mode
 	item_crossing_pos     u32 = 5      // no/placement mode
+	delete_colorchip_pos  u32 = 5	   // edit mode
 	item_on_pos           u32 = 6      // no/placement mode
 	item_wire_pos         u32 = 7      // no/placement mode
 	speed_pos             u32 = 8      // no mode
@@ -446,10 +451,12 @@ fn (app App) check_gates_button_click_y(pos int, mouse_y f32) bool {
 
 fn (mut app App) disable_all_ingame_modes() {
 	app.edit_mode = false
+	app.steal_settings_submode = false
 	app.choose_colorchip_submode = false
 	app.create_colorchip_submode = false
 	app.edit_color_submode = false
 	app.add_input_submode = false
+	app.delete_colorchip_submode = false
 	app.placement_mode = false
 	app.selection_mode = false
 	app.load_gate_mode = false
@@ -599,19 +606,45 @@ fn on_event(e &gg.Event, mut app App) {
 								app.disable_all_ingame_modes()
 								app.create_colorchip_x = u32(-1)
 								app.create_colorchip_endx = u32(-1)
-							} else if app.check_ui_button_click_y(app.edit_color_submode, mouse_y) {
+							} else if app.check_ui_button_click_y(app.edit_color_pos, mouse_y) {
+								if app.selected_colorchip == -1 {
+									app.log("No ColorChip selected")
+								} else {
+									app.disable_all_ingame_modes()
+									app.colorchips_hidden = false
+									app.edit_color_submode = true
+								}
+							} else if app.check_ui_button_click_y(app.choose_colorchip_pos, mouse_y) {
 								app.disable_all_ingame_modes()
-	
-							} else if app.check_ui_button_click_y(app.choose_colorchip_submode, mouse_y) {
+								app.choose_colorchip_submode = true
+							} else if app.check_ui_button_click_y(app.create_color_chip_pos, mouse_y) {
 								app.disable_all_ingame_modes()
-	
+								app.colorchips_hidden = false
+								app.create_colorchip_submode = true
 							} else if app.check_ui_button_click_y(app.add_input_pos, mouse_y) {
+								if app.selected_colorchip == -1 {
+									app.log("No ColorChip selected")
+								} else {
+									app.disable_all_ingame_modes()
+									app.colorchips_hidden = true
+									app.add_input_submode = true
+								}
+							} else if app.check_ui_button_click_y(app.steal_settings_pos, mouse_y) {
+								if app.selected_colorchip == -1 {
+									app.log("No ColorChip selected")
+								} else {
+									app.disable_all_ingame_modes()
+									app.colorchips_hidden = false
+									app.steal_settings_submode = true
+								}
+							} else if app.check_ui_button_click_y(app.delete_colorchip_pos, mouse_y) {
 								app.disable_all_ingame_modes()
-	
+								app.colorchips_hidden = false
+								app.delete_colorchip_submode = true
 							}
 						}
 					} else {
-						if app.edit_color_submode {
+						if app.edit_color_submode && app.selected_colorchip != -1 {
 							for i in 0 .. app.colorchips[app.selected_colorchip].inputs {
 								x := app.editmenu_offset_inputs_x + i % app.editmenu_nb_inputs_by_row * app.editmenu_inputsize
 								y := app.editmenu_offset_inputs_y + i / app.editmenu_nb_inputs_by_row * app.editmenu_inputsize
@@ -667,6 +700,22 @@ fn on_event(e &gg.Event, mut app App) {
 									}							
 								}
 							}
+						} else if app.delete_colorchip_submode {
+							map_x := u32(app.cam_x + (mouse_x / app.tile_size))
+							map_y := u32(app.cam_y + (mouse_y / app.tile_size))
+							mut del_i := -1
+							for i, cc in app.colorchips {
+								if map_x >= cc.x && map_x < cc.x + cc.w && map_y >= cc.y && map_y < cc.y + cc.h {
+									del_i = i
+									break
+								}
+							}
+							if del_i > -1 {
+								app.colorchips.delete(del_i)
+								if app.selected_colorchip == del_i {
+									app.selected_colorchip = -1
+								}
+							}
 						} else if app.create_colorchip_submode {
 							if app.create_colorchip_x == u32(-1) {
 								app.create_colorchip_x = u32(app.cam_x + (mouse_x / app.tile_size))
@@ -691,16 +740,33 @@ fn on_event(e &gg.Event, mut app App) {
 								app.create_colorchip_endx = u32(-1)
 								app.create_colorchip_y = u32(-1)
 								app.create_colorchip_endy = u32(-1)
+								app.selected_colorchip = app.colorchips.len - 1
 							}
-						} else if app.add_input_submode {
-							app.colorchips[app.selected_colorchip].inputs << [u32(app.cam_x + (mouse_x / app.tile_size)), u32(app.cam_y + (mouse_y / app.tile_size)]!
+						} else if app.add_input_submode && app.selected_colorchip != -1 {
+							app.colorchips[app.selected_colorchip].inputs << [u32(app.cam_x + (mouse_x / app.tile_size)), u32(app.cam_y + (mouse_y / app.tile_size))]!
 							for app.colorchips[app.selected_colorchip].colors.len < pow(2, app.colorchips[app.selected_colorchip].inputs) {
 								app.colorchips[app.selected_colorchip].colors << gg.Color{0,0,0,255}
 							}
 							app.disable_all_ingame_modes()
 						} else if app.choose_colorchip_submode {
-							
-						}				
+							map_x := u32(app.cam_x + (mouse_x / app.tile_size))
+							map_y := u32(app.cam_y + (mouse_y / app.tile_size))
+							for i, cc in app.colorchips {
+								if map_x >= cc.x && map_x < cc.x + cc.w && map_y >= cc.y && map_y < cc.y + cc.h {
+									app.selected_colorchip = i
+									break
+								}
+							}
+						} else if app.steal_settings_submode && app.selected_colorchip != -1 {
+							map_x := u32(app.cam_x + (mouse_x / app.tile_size))
+							map_y := u32(app.cam_y + (mouse_y / app.tile_size))
+							for i, cc in app.colorchips {
+								if map_x >= cc.x && map_x < cc.x + cc.w && map_y >= cc.y && map_y < cc.y + cc.h {
+									app.colorchips[app.selected_colorchip].colors = app.colorchips[app.selected_colorchip].colors.clone()
+									break
+								}
+							}
+						}
 					}
 				} else if app.load_gate_mode {
 					if mouse_x < app.ui_width {
