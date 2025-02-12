@@ -78,6 +78,7 @@ mut:
 	tile_size         int         = 50
 	text_input        string // holds what the user typed
 	colorchips_hidden bool   // if colorchips are hidden
+	scroll_pos        f32
 	// main menu
 	main_menu     bool
 	button_solo_x f32 = 0.0 // TODO: make it scale with screensize and place it properly
@@ -193,6 +194,7 @@ mut:
 	save_map_pos          u32 = 12     // no mode
 	keyinput_pos          u32 = 13     // no mode
 	hide_colorchips_pos   u32 = 14     // no mode
+	quit_map_pos          u32 = 15     // no mode
 	selection_delete_pos  u32 = 10     // selection mode
 
 	// logic
@@ -215,7 +217,7 @@ mut:
 	wires         []Wire
 	w_next_rid    u64 = 1
 	w_states      [2][]bool
-	forced_states [][2]u32     // forced to ON state by a keyboard input
+	forced_states [][2]u32    // forced to ON state by a keyboard input
 	colorchips    []ColorChip // screens
 	palette       Palette     // TODO: edit palette and save palette
 }
@@ -464,6 +466,7 @@ fn (mut app App) disable_all_ingame_modes() {
 	app.paste_mode = false
 	app.keyinput_mode = false
 	app.save_gate_mode = false
+	app.scroll_pos = 0.0
 }
 
 fn on_event(e &gg.Event, mut app App) {
@@ -476,6 +479,10 @@ fn on_event(e &gg.Event, mut app App) {
 		1.0
 	} else {
 		e.mouse_y
+	}
+	app.scroll_pos += e.scroll_y
+	if app.scroll_pos < 0 {
+		app.scroll_pos = 0
 	}
 	match e.typ {
 		.mouse_up {
@@ -1025,6 +1032,11 @@ fn on_event(e &gg.Event, mut app App) {
 								app.paste_mode = true
 							} else if app.check_ui_button_click_y(app.save_map_pos, mouse_y) {
 								app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
+							} else if app.check_ui_button_click_y(app.quit_map_pos, mouse_y) {
+								app.disable_all_ingame_modes()
+								app.main_menu = true
+								app.todo << TodoInfo{.quit, 0, 0, 0, 0, app.map_name}
+								for app.comp_running {} // wait for quitting
 							} else if app.check_ui_button_click_y(app.load_gate_pos, mouse_y) {
 								app.disable_all_ingame_modes()
 								app.load_gate_mode = true
@@ -1094,6 +1106,33 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				}
+			} else if app.selection_mode { // TODO: disable to not grief
+				if e.key_code == .f {
+					fuzz_cycles := 100
+					if app.select_start_x != u32(-1) && app.select_start_y != u32(-1)
+						&& app.select_end_x != u32(-1) && app.select_end_y != u32(-1) {
+						outer: for i in 0 .. 100 { // 100 gates
+							println(i)
+							app.removal(app.select_start_x, app.select_start_y, app.select_end_x,
+								app.select_end_y)
+							app.fuzz(app.select_start_x, app.select_start_y, app.select_end_x,
+								app.select_end_y)
+							for _ in 0 .. fuzz_cycles {
+								app.update_cycle()
+								x_err, y_err, str_err := app.test_validity(app.select_start_x,
+									app.select_start_y, app.select_end_x, app.select_end_y)
+								if str_err != '' {
+									app.log('FAIL: (validity) ${str_err}')
+									println('TODO:')
+									println(x_err)
+									println(y_err)
+									// TODO: show the coords on screen (tp to the right place & color the square)
+									break outer
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 		.key_down {
@@ -1103,6 +1142,26 @@ fn on_event(e &gg.Event, mut app App) {
 				}
 				if e.char_code != 0 {
 					app.text_input += u8(e.char_code).ascii_str()
+				}
+			} else if app.placement_mode {
+				if e.key_code == .r {
+					if e.modifiers & 1 == 1 { // shift 1<<0
+						app.selected_ori = match app.selected_ori {
+							north { west }
+							east { north }
+							south { east }
+							west { south }
+							else { north }
+						}
+					} else {
+						app.selected_ori = match app.selected_ori {
+							north { east }
+							east { south }
+							south { west }
+							west { north }
+							else { north }
+						}
+					}
 				}
 			} else if app.load_gate_mode {
 				if e.key_code == .delete {
@@ -1147,6 +1206,13 @@ fn on_event(e &gg.Event, mut app App) {
 					else {}
 				}
 			}
+			match e.key_code {
+				.z, .w, .up { app.cam_y -= 1 }
+				.s, .down { app.cam_y += 1 }
+				.d, .right { app.cam_x += 1 }
+				.a, .q, .left { app.cam_x -= 1 }
+				else {}
+			}
 		}
 		else {}
 	}
@@ -1164,11 +1230,24 @@ enum Elem as u8 {
 
 @[noreturn]
 fn (mut app App) log_quit(message string) {
-	panic('Very TODO')
+	mut f := os.open_append('logs') or {
+		eprintln(message)
+		panic(err)
+	}
+	f.write_string('FATAL: ${message}\n') or {
+		eprintln(message)
+		panic(err)
+	}
+	exit(1)
 }
 
 fn (mut app App) log(message string) {
-	panic('TODO')
+	mut f := os.open_append('logs') or {
+		println(message)
+		return
+	}
+	f.write_string('${message}\n') or { println(message) }
+	// TODO: show on screen
 }
 
 struct PlaceInstruction {
@@ -1189,6 +1268,7 @@ enum Todos {
 	place
 	rotate
 	copy
+	quit
 }
 
 struct TodoInfo {
@@ -1241,6 +1321,11 @@ fn (mut app App) computation_loop() {
 						}
 						.copy {
 							app.copy(todo.x, todo.y, todo.x_end, todo.y_end)
+						}
+						.quit {
+							app.comp_running = false
+							app.save_copied(todo.name) or { app.log('save copied: ${err}') }
+							return
 						}
 					}
 				} else {
@@ -1367,17 +1452,17 @@ fn (mut app App) load_map(map_name string) ! {
 		}
 		f.read_into_ptr(app.w_states[app.actual_state].data, int(wires_len))!
 		app.w_states[(app.actual_state + 1) / 2] = []bool{len: int(wires_len)}
-		
+
 		forced_states_len := f.read_raw[i64]()!
 		app.forced_states = []
 		for _ in 0 .. forced_states_len {
 			app.forced_states << [f.read_raw[u32]()!, f.read_raw[u32]()!]!
 		}
-		
+
 		colorchips_len := f.read_raw[i64]()!
 		app.colorchips = []
 		for _ in 0 .. colorchips_len {
-			mut new_cc := ColorChip {
+			mut new_cc := ColorChip{
 				x: f.read_raw[u32]()!
 				y: f.read_raw[u32]()!
 				w: f.read_raw[u32]()!
@@ -1385,12 +1470,7 @@ fn (mut app App) load_map(map_name string) ! {
 			}
 			colors_len := f.read_raw[i64]()!
 			for _ in 0 .. colors_len {
-				new_cc.colors << gg.Color{
-					f.read_raw[u8]()!
-					f.read_raw[u8]()!
-					f.read_raw[u8]()!
-					255
-				}
+				new_cc.colors << gg.Color{f.read_raw[u8]()!, f.read_raw[u8]()!, f.read_raw[u8]()!, 255}
 			}
 			inputs_len := f.read_raw[i64]()!
 			for _ in 0 .. inputs_len {
@@ -1510,7 +1590,6 @@ fn (mut app App) save_map(map_name string) ! {
 	}
 	offset += u64(app.wires.len) * sizeof(bool)
 
-	
 	file.write_raw_at(i64(app.forced_states.len), offset)!
 	offset += sizeof(i64)
 	for pos in app.forced_states {
@@ -1519,7 +1598,7 @@ fn (mut app App) save_map(map_name string) ! {
 		file.write_raw_at(pos[1], offset)!
 		offset += sizeof(u32)
 	}
-	
+
 	file.write_raw_at(i64(app.colorchips.len), offset)!
 	offset += sizeof(i64)
 	for cc in app.colorchips {
@@ -1531,7 +1610,7 @@ fn (mut app App) save_map(map_name string) ! {
 		offset += sizeof(u32)
 		file.write_raw_at(cc.h, offset)!
 		offset += sizeof(u32)
-		
+
 		file.write_raw_at(i64(cc.colors.len), offset)!
 		offset += sizeof(i64)
 		for color in cc.colors {
@@ -1542,7 +1621,7 @@ fn (mut app App) save_map(map_name string) ! {
 			file.write_raw_at(color.b, offset)!
 			offset += sizeof(u8)
 		}
-		
+
 		file.write_raw_at(i64(cc.inputs.len), offset)!
 		offset += sizeof(i64)
 		for i in cc.inputs {
@@ -1583,9 +1662,10 @@ fn (mut app App) rotate_copied() {
 	}
 }
 
-fn (mut app App) gate_unit_tests(x u32, y u32) {
-	size := u32(100) // we dont know the size of the gates that will be placed, 100 should be okay, same as below
-	cycles := 100 // we dont know in how much cycles the bug will happen, needs to match the amount in the fuzz testing because the unit tests will come from there
+// Will be used?
+fn (mut app App) gate_unit_tests(x u32, y u32, square_size int) {
+	size := u32(square_size) // we dont know the size of the gates that will be placed, 100 should be okay, same as below
+	cycles := square_size // we dont know in how much cycles the bug will happen, needs to match the amount in the fuzz testing because the unit tests will come from there
 	app.removal(x, y, x + size, y + size)
 	gates: for gate_path in os.ls('test_gates/') or {
 		app.log('Listing the test gates: ${err}')
