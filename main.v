@@ -4,6 +4,7 @@ import rand
 import time
 import gg
 
+const default_button_color = gg.Color{75, 108, 136, 255}
 const default_colorchip_color_on = gg.Color{197, 209, 227, 255}
 const default_colorchip_color_off = gg.Color{47, 49, 54, 255}
 const default_camera_pos_x = f64(2_000_000_000.0)
@@ -250,6 +251,101 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 	return new_a
 }
 
+fn on_frame(mut app App) {
+	// Draw
+	size := app.ctx.window_size()
+	app.ctx.begin()
+	if app.comp_running {
+		// placing preview
+		if app.placement_mode && app.place_start_x != u32(-1) { // did not hide the check to be able to see when it is happening
+			app.draw_placing_preview()
+		}
+		if app.selection_mode {
+			app.draw_selection_box()
+		}
+		if app.keyinput_mode {
+			app.draw_input_buttons()
+		}
+
+		app.draw_map()
+		app.draw_ingame_ui_buttons()
+
+		if !app.colorchips_hidden {
+			for cc in app.colorchips {
+				// TODO: compute the index of the color w/ the inputs
+				// draw the rect
+			}
+		}
+	}
+	app.ctx.end()
+}
+
+fn (mut app App) draw_ingame_ui_buttons() {
+	/* TODO
+	selection_button_pos  u32 = 1      // only no_mode
+	load_gate_pos         u32 = 2      // no mode & paste mode
+	item_nots_pos         u32 = 3      // no_mode and placement mode
+	item_diode_pos        u32 = 4      // no/placement mode
+	item_crossing_pos     u32 = 5      // no/placement mode
+	item_on_pos           u32 = 6      // no/placement mode
+	item_wire_pos         u32 = 7      // no/placement mode
+	speed_pos             u32 = 8      // no mode
+	slow_pos              u32 = 9      // no mode
+	pause_pos             u32 = 10     // no mode
+	paste_pos             u32 = 11     // no mode
+	save_map_pos          u32 = 12     // no mode
+	keyinput_pos          u32 = 13     // no mode
+	hide_colorchips_pos   u32 = 14     // no mode
+	quit_map_pos          u32 = 15     // no mode
+	*/
+	base_x := app.button_left_padding
+	base_y := app.button_top_padding
+	size := app.button_size
+	y_factor := app.button_top_padding + size
+	app.gg.draw_square_filled(base_x, base_y, size, default_button_color) // cancel_button
+	if app.selection_mode {
+		app.gg.draw_square_filled(base_x, app.copy_button_pos * y_factor + base_y, size,
+			default_button_color)
+		app.gg.draw_square_filled(base_x, app.create_color_chip_pos * y_factor + base_y,
+			size, default_button_color)
+		app.gg.draw_square_filled(base_x, app.save_gate_pos * y_factor + base_y, size,
+			default_button_color)
+		app.gg.draw_square_filled(base_x, app.selection_delete_pos * y_factor + base_y,
+			size, default_button_color)
+	} else if app.paste_mode {
+		app.gg.draw_square_filled(base_x, app.rotate_copy_pos * y_factor + base_y, size,
+			default_button_color)
+		app.gg.draw_square_filled(base_x, app.load_gate_pos * y_factor + base_y, size,
+			default_button_color)
+	} else if app.save_gate_mode {
+		app.gg.draw_square_filled(base_x, app.confirm_save_gate_pos * y_factor + base_y,
+			size, default_button_color)
+	} else if app.placement_mode {
+		app.gg.draw_square_filled(base_x, app.item_nots_pos * y_factor + base_y, size,
+			default_button_color)
+		app.gg.draw_square_filled(base_x, app.item_diode_pos * y_factor + base_y, size,
+			default_button_color)
+		app.gg.draw_square_filled(base_x, app.item_crossing_pos * y_factor + base_y, size,
+			default_button_color)
+		app.gg.draw_square_filled(base_x, app.item_on_pos * y_factor + base_y, size, default_button_color)
+		app.gg.draw_square_filled(base_x, app.item_wire_pos * y_factor + base_y, size,
+			default_button_color)
+	} else if app.edit_mode {
+		app.gg.draw_square_filled(base_x, app.choose_colorchip_pos * y_factor + base_y,
+			size, default_button_color)
+		app.gg.draw_square_filled(base_x, app.edit_color_pos * y_factor + base_y, size,
+			default_button_color)
+		app.gg.draw_square_filled(base_x, app.add_input_pos * y_factor + base_y, size,
+			default_button_color)
+		app.gg.draw_square_filled(base_x, app.steal_settings_pos * y_factor + base_y,
+			size, default_button_color)
+		app.gg.draw_square_filled(base_x, app.delete_colorchip_pos * y_factor + base_y,
+			size, default_button_color)
+	} else { // no mode
+	}
+}
+
+// inputs for colorchips
 fn (mut app App) draw_input_buttons() {
 	for key in app.key_pos.keys() {
 		for pos in app.key_pos[key] {
@@ -318,123 +414,101 @@ fn (mut app App) draw_selection_box() {
 	}
 }
 
-fn on_frame(mut app App) {
-	// Draw
-	size := app.ctx.window_size()
-	app.ctx.begin()
-	if app.comp_running {
-		// placing preview
-		if app.placement_mode && app.place_start_x != u32(-1) { // did not hide the check to be able to see when it is happening
-			app.draw_placing_preview()
-		}
-		if app.selection_mode {
-			app.draw_selection_box()
-		}
-		if app.keyinput_mode {
-		}
-
-		// map rendering
-		not_poly := app.scale_sprite(not_poly_unscaled)
-		not_rect := app.scale_sprite(not_rect_unscaled)
-		mut not_poly_offset := []f32{len: 6, cap: 6}
-		diode_poly := app.scale_sprite(diode_poly_unscaled)
-		mut diode_poly_offset := []f32{len: 8, cap: 8}
-		for chunk in app.map {
-			chunk_cam_x := chunk.x - (app.cam_x + (app.drag_x - app.click_x) / app.tile_size)
-			chunk_cam_y := chunk.y - (app.cam_y + (app.drag_y - app.click_y) / app.tile_size)
-			if chunk_cam_x > -chunk_size && chunk_cam_x < size.width {
-				if chunk_cam_y > -chunk_size && chunk_cam_y < size.height {
-					for x, column in chunk.id_map {
-						if chunk_cam_x + x < size.width { // cant break like that for lower bound
-							for y, id in column {
-								if chunk_cam_y + y < size.height {
-									if id == empty_id {
-										continue
-									}
-									pos_x := f32((chunk_cam_x + x) * app.tile_size)
-									pos_y := f32((chunk_cam_y + y) * app.tile_size)
-									if id == elem_crossing_bits { // same bits as wires so need to be separated
-										app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
-											app.palette.junc)
-										app.ctx.draw_rect_filled(pos_x, pos_y + app.tile_size / 3,
-											app.tile_size, app.tile_size / 3, app.palette.junc_h)
-										app.ctx.draw_rect_filled(pos_x + app.tile_size / 3,
-											pos_y, app.tile_size / 3, app.tile_size, app.palette.junc_v)
-									} else {
-										state_color, not_state_color := if id & on_bits == 0 {
-											app.palette.wire_off, app.palette.wire_on
-										} else {
-											app.palette.wire_on, app.palette.wire_off
-										}
-										ori := match id & ori_mask {
-											north { 0 }
-											south { 1 }
-											west { 2 }
-											east { 3 }
-											else { app.log_quit('${@LINE} should not get into this else') }
-										}
-										match id & elem_type_mask {
-											elem_not_bits {
-												app.ctx.draw_square_filled(pos_x, pos_y,
-													app.tile_size, app.palette.not)
-												not_poly_offset[0] = not_poly[ori][0] + pos_x
-												not_poly_offset[1] = not_poly[ori][1] + pos_y
-												not_poly_offset[2] = not_poly[ori][2] + pos_x
-												not_poly_offset[3] = not_poly[ori][3] + pos_y
-												not_poly_offset[4] = not_poly[ori][4] + pos_x
-												not_poly_offset[5] = not_poly[ori][5] + pos_y
-												app.ctx.draw_convex_poly(not_poly_offset,
-													state_color)
-												app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x,
-													not_rect[ori][1] + pos_y, not_rect[ori][2],
-													not_rect[ori][3], not_state_color)
-											}
-											elem_diode_bits {
-												app.ctx.draw_square_filled(pos_x, pos_y,
-													app.tile_size, app.palette.diode)
-												diode_poly_offset[0] = diode_poly[ori][0] + pos_x
-												diode_poly_offset[1] = diode_poly[ori][1] + pos_y
-												diode_poly_offset[2] = diode_poly[ori][2] + pos_x
-												diode_poly_offset[3] = diode_poly[ori][3] + pos_y
-												diode_poly_offset[4] = diode_poly[ori][4] + pos_x
-												diode_poly_offset[5] = diode_poly[ori][5] + pos_y
-												diode_poly_offset[6] = diode_poly[ori][6] + pos_x
-												diode_poly_offset[7] = diode_poly[ori][7] + pos_y
-												app.ctx.draw_convex_poly(diode_poly_offset,
-													state_color)
-											}
-											elem_on_bits {
-												app.ctx.draw_square_filled(pos_x, pos_y,
-													app.tile_size, app.palette.on)
-											}
-											elem_wire_bits {
-												app.ctx.draw_square_filled(pos_x, pos_y,
-													app.tile_size, state_color)
-											}
-											else {
-												app.log_quit('${@LINE} should not get into this else')
-											}
-										}
-									}
-								} else {
-									break
+fn (mut app App) draw_map() {
+	// map rendering
+	not_poly := app.scale_sprite(not_poly_unscaled)
+	not_rect := app.scale_sprite(not_rect_unscaled)
+	mut not_poly_offset := []f32{len: 6, cap: 6}
+	diode_poly := app.scale_sprite(diode_poly_unscaled)
+	mut diode_poly_offset := []f32{len: 8, cap: 8}
+	for chunk in app.map {
+		chunk_cam_x := chunk.x - (app.cam_x + (app.drag_x - app.click_x) / app.tile_size)
+		chunk_cam_y := chunk.y - (app.cam_y + (app.drag_y - app.click_y) / app.tile_size)
+		if chunk_cam_x > -chunk_size && chunk_cam_x < size.width {
+			if chunk_cam_y > -chunk_size && chunk_cam_y < size.height {
+				for x, column in chunk.id_map {
+					if chunk_cam_x + x < size.width { // cant break like that for lower bound
+						for y, id in column {
+							if chunk_cam_y + y < size.height {
+								if id == empty_id {
+									continue
 								}
+								pos_x := f32((chunk_cam_x + x) * app.tile_size)
+								pos_y := f32((chunk_cam_y + y) * app.tile_size)
+								if id == elem_crossing_bits { // same bits as wires so need to be separated
+									app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
+										app.palette.junc)
+									app.ctx.draw_rect_filled(pos_x, pos_y + app.tile_size / 3,
+										app.tile_size, app.tile_size / 3, app.palette.junc_h)
+									app.ctx.draw_rect_filled(pos_x + app.tile_size / 3,
+										pos_y, app.tile_size / 3, app.tile_size, app.palette.junc_v)
+								} else {
+									state_color, not_state_color := if id & on_bits == 0 {
+										app.palette.wire_off, app.palette.wire_on
+									} else {
+										app.palette.wire_on, app.palette.wire_off
+									}
+									ori := match id & ori_mask {
+										north { 0 }
+										south { 1 }
+										west { 2 }
+										east { 3 }
+										else { app.log_quit('${@LINE} should not get into this else') }
+									}
+									match id & elem_type_mask {
+										elem_not_bits {
+											app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
+												app.palette.not)
+											not_poly_offset[0] = not_poly[ori][0] + pos_x
+											not_poly_offset[1] = not_poly[ori][1] + pos_y
+											not_poly_offset[2] = not_poly[ori][2] + pos_x
+											not_poly_offset[3] = not_poly[ori][3] + pos_y
+											not_poly_offset[4] = not_poly[ori][4] + pos_x
+											not_poly_offset[5] = not_poly[ori][5] + pos_y
+											app.ctx.draw_convex_poly(not_poly_offset,
+												state_color)
+											app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x,
+												not_rect[ori][1] + pos_y, not_rect[ori][2],
+												not_rect[ori][3], not_state_color)
+										}
+										elem_diode_bits {
+											app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
+												app.palette.diode)
+											diode_poly_offset[0] = diode_poly[ori][0] + pos_x
+											diode_poly_offset[1] = diode_poly[ori][1] + pos_y
+											diode_poly_offset[2] = diode_poly[ori][2] + pos_x
+											diode_poly_offset[3] = diode_poly[ori][3] + pos_y
+											diode_poly_offset[4] = diode_poly[ori][4] + pos_x
+											diode_poly_offset[5] = diode_poly[ori][5] + pos_y
+											diode_poly_offset[6] = diode_poly[ori][6] + pos_x
+											diode_poly_offset[7] = diode_poly[ori][7] + pos_y
+											app.ctx.draw_convex_poly(diode_poly_offset,
+												state_color)
+										}
+										elem_on_bits {
+											app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
+												app.palette.on)
+										}
+										elem_wire_bits {
+											app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
+												state_color)
+										}
+										else {
+											app.log_quit('${@LINE} should not get into this else')
+										}
+									}
+								}
+							} else {
+								break
 							}
-						} else {
-							break
 						}
+					} else {
+						break
 					}
 				}
 			}
 		}
-		if !app.colorchips_hidden {
-			for cc in app.colorchips {
-				// TODO: compute the index of the color w/ the inputs
-				// draw the rect
-			}
-		}
 	}
-	app.ctx.end()
 }
 
 fn (app App) check_ui_button_click_y(pos u32, mouse_y f32) bool {
