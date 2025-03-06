@@ -89,7 +89,7 @@ mut:
 	// solo menu TODO: display map info of the hovered map (size bits, nb of hours played, gates placed... fun stuff)
 	solo_menu           bool
 	map_names_list      []string // without folder name
-	maps_x_offset       f32 = 5.0
+	maps_x_offset       f32 = 50.0
 	maps_y_offset       f32 = 50.0
 	maps_top_spacing    f32 = 10.0
 	maps_h              f32 = 50.0
@@ -97,6 +97,8 @@ mut:
 	button_new_map_x    f32 = 5.0
 	button_new_map_y    f32 = 5.0
 	button_new_map_size f32 = 40.0
+	text_field_x        f32 = 50.0
+	text_field_y        f32 = 5.0
 	// edit mode -> edit colorchips
 	edit_mode                 bool
 	editmenu_rgb_y            f32 = 10.0
@@ -238,6 +240,7 @@ fn main() {
 	)
 
 	// lancement du programme/de la fenêtre
+	app.main_menu = true
 	app.ctx.run()
 }
 
@@ -253,7 +256,6 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 
 fn on_frame(mut app App) {
 	// Draw
-	size := app.ctx.window_size()
 	app.ctx.begin()
 	if app.comp_running {
 		// placing preview
@@ -276,72 +278,97 @@ fn on_frame(mut app App) {
 				// draw the rect
 			}
 		}
+	} else if app.main_menu {
+		app.ctx.draw_rect_filled(app.button_solo_x, app.button_solo_y, app.button_solo_w,
+			app.button_solo_h, default_button_color)
+	} else if app.solo_menu {
+		for i, m in app.map_names_list {
+			app.ctx.draw_rect_filled(app.maps_x_offset, app.maps_y_offset + app.maps_top_spacing * i,
+				app.maps_w, app.maps_w, default_button_color)
+			app.ctx.draw_text_def(int(app.maps_x_offset), int(app.maps_y_offset +
+				app.maps_top_spacing * i), m)
+		}
+		app.ctx.draw_square_filled(app.button_new_map_x, app.button_new_map_y, app.button_new_map_size,
+			default_button_color)
+		app.ctx.draw_text_def(int(app.text_field_x), int(app.text_field_y), app.text_input)
+	} else {
+		app.log('Not implemented on_frame UI')
 	}
 	app.ctx.end()
 }
 
 fn (mut app App) draw_ingame_ui_buttons() {
-	/* TODO
-	selection_button_pos  u32 = 1      // only no_mode
-	load_gate_pos         u32 = 2      // no mode & paste mode
-	item_nots_pos         u32 = 3      // no_mode and placement mode
-	item_diode_pos        u32 = 4      // no/placement mode
-	item_crossing_pos     u32 = 5      // no/placement mode
-	item_on_pos           u32 = 6      // no/placement mode
-	item_wire_pos         u32 = 7      // no/placement mode
-	speed_pos             u32 = 8      // no mode
-	slow_pos              u32 = 9      // no mode
-	pause_pos             u32 = 10     // no mode
-	paste_pos             u32 = 11     // no mode
-	save_map_pos          u32 = 12     // no mode
-	keyinput_pos          u32 = 13     // no mode
-	hide_colorchips_pos   u32 = 14     // no mode
-	quit_map_pos          u32 = 15     // no mode
-	*/
 	base_x := app.button_left_padding
 	base_y := app.button_top_padding
 	size := app.button_size
 	y_factor := app.button_top_padding + size
-	app.gg.draw_square_filled(base_x, base_y, size, default_button_color) // cancel_button
+	app.ctx.draw_square_filled(base_x, base_y, size, default_button_color) // cancel_button
 	if app.selection_mode {
-		app.gg.draw_square_filled(base_x, app.copy_button_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.copy_button_pos * y_factor + base_y, size,
 			default_button_color)
-		app.gg.draw_square_filled(base_x, app.create_color_chip_pos * y_factor + base_y,
+		app.ctx.draw_square_filled(base_x, app.create_color_chip_pos * y_factor + base_y,
 			size, default_button_color)
-		app.gg.draw_square_filled(base_x, app.save_gate_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.save_gate_pos * y_factor + base_y, size,
 			default_button_color)
-		app.gg.draw_square_filled(base_x, app.selection_delete_pos * y_factor + base_y,
+		app.ctx.draw_square_filled(base_x, app.selection_delete_pos * y_factor + base_y,
 			size, default_button_color)
 	} else if app.paste_mode {
-		app.gg.draw_square_filled(base_x, app.rotate_copy_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.rotate_copy_pos * y_factor + base_y, size,
 			default_button_color)
-		app.gg.draw_square_filled(base_x, app.load_gate_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.load_gate_pos * y_factor + base_y, size,
 			default_button_color)
 	} else if app.save_gate_mode {
-		app.gg.draw_square_filled(base_x, app.confirm_save_gate_pos * y_factor + base_y,
+		app.ctx.draw_square_filled(base_x, app.confirm_save_gate_pos * y_factor + base_y,
 			size, default_button_color)
 	} else if app.placement_mode {
-		app.gg.draw_square_filled(base_x, app.item_nots_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.item_nots_pos * y_factor + base_y, size,
 			default_button_color)
-		app.gg.draw_square_filled(base_x, app.item_diode_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.item_diode_pos * y_factor + base_y, size,
 			default_button_color)
-		app.gg.draw_square_filled(base_x, app.item_crossing_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.item_crossing_pos * y_factor + base_y,
+			size, default_button_color)
+		app.ctx.draw_square_filled(base_x, app.item_on_pos * y_factor + base_y, size,
 			default_button_color)
-		app.gg.draw_square_filled(base_x, app.item_on_pos * y_factor + base_y, size, default_button_color)
-		app.gg.draw_square_filled(base_x, app.item_wire_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.item_wire_pos * y_factor + base_y, size,
 			default_button_color)
 	} else if app.edit_mode {
-		app.gg.draw_square_filled(base_x, app.choose_colorchip_pos * y_factor + base_y,
+		app.ctx.draw_square_filled(base_x, app.choose_colorchip_pos * y_factor + base_y,
 			size, default_button_color)
-		app.gg.draw_square_filled(base_x, app.edit_color_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.edit_color_pos * y_factor + base_y, size,
 			default_button_color)
-		app.gg.draw_square_filled(base_x, app.add_input_pos * y_factor + base_y, size,
+		app.ctx.draw_square_filled(base_x, app.add_input_pos * y_factor + base_y, size,
 			default_button_color)
-		app.gg.draw_square_filled(base_x, app.steal_settings_pos * y_factor + base_y,
+		app.ctx.draw_square_filled(base_x, app.steal_settings_pos * y_factor + base_y,
 			size, default_button_color)
-		app.gg.draw_square_filled(base_x, app.delete_colorchip_pos * y_factor + base_y,
+		app.ctx.draw_square_filled(base_x, app.delete_colorchip_pos * y_factor + base_y,
 			size, default_button_color)
 	} else { // no mode
+		app.ctx.draw_square_filled(base_x, app.selection_button_pos * y_factor + base_y,
+			size, default_button_color)
+		app.ctx.draw_square_filled(base_x, app.load_gate_pos * y_factor + base_y, size,
+			default_button_color)
+		app.ctx.draw_square_filled(base_x, app.item_nots_pos * y_factor + base_y, size,
+			default_button_color)
+		app.ctx.draw_square_filled(base_x, app.item_diode_pos * y_factor + base_y, size,
+			default_button_color)
+		app.ctx.draw_square_filled(base_x, app.item_crossing_pos * y_factor + base_y,
+			size, default_button_color)
+		app.ctx.draw_square_filled(base_x, app.item_on_pos * y_factor + base_y, size,
+			default_button_color)
+		app.ctx.draw_square_filled(base_x, app.item_wire_pos * y_factor + base_y, size,
+			default_button_color)
+		app.ctx.draw_square_filled(base_x, app.speed_pos * y_factor + base_y, size, default_button_color)
+		app.ctx.draw_square_filled(base_x, app.slow_pos * y_factor + base_y, size, default_button_color)
+		app.ctx.draw_square_filled(base_x, app.pause_pos * y_factor + base_y, size, default_button_color)
+		app.ctx.draw_square_filled(base_x, app.paste_pos * y_factor + base_y, size, default_button_color)
+		app.ctx.draw_square_filled(base_x, app.save_map_pos * y_factor + base_y, size,
+			default_button_color)
+		app.ctx.draw_square_filled(base_x, app.keyinput_pos * y_factor + base_y, size,
+			default_button_color)
+		app.ctx.draw_square_filled(base_x, app.hide_colorchips_pos * y_factor + base_y,
+			size, default_button_color)
+		app.ctx.draw_square_filled(base_x, app.quit_map_pos * y_factor + base_y, size,
+			default_button_color)
 	}
 }
 
@@ -415,6 +442,7 @@ fn (mut app App) draw_selection_box() {
 }
 
 fn (mut app App) draw_map() {
+	size := app.ctx.window_size()
 	// map rendering
 	not_poly := app.scale_sprite(not_poly_unscaled)
 	not_rect := app.scale_sprite(not_rect_unscaled)
@@ -574,7 +602,7 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 					if !os.exists(gates_path) { // this one too in case
-						os.mkdir(maps_path) or {
+						os.mkdir(gates_path) or {
 							app.log('Cannot create ${maps_path}, ${err}')
 							return
 						}
@@ -615,38 +643,39 @@ fn on_event(e &gg.Event, mut app App) {
 							}
 						}
 					}
-					if app.text_input != '' && mouse_x >= app.button_new_map_x
-						&& mouse_x < app.button_new_map_x + app.button_new_map_size
-						&& mouse_y >= app.button_new_map_y
-						&& mouse_y < app.button_new_map_y + app.button_new_map_size {
-						app.solo_menu = false
-						app.map = []Chunk{}
-						app.map_name = app.text_input
-						app.text_input = ''
-						app.pause = false
-						app.nb_updates = 2
-						app.todo = []
-						app.selected_item = .not
-						app.selected_ori = north
-						app.copied = []
-						app.actual_state = 0
-						app.nots = []
-						app.n_next_rid = 1
-						app.n_states[0] = []
-						app.n_states[1] = []
-						app.diodes = []
-						app.d_next_rid = 1
-						app.d_states[0] = []
-						app.d_states[1] = []
-						app.wires = []
-						app.w_next_rid = 1
-						app.w_states[0] = []
-						app.w_states[1] = []
-						app.comp_running = true
-						spawn app.computation_loop()
-						app.cam_x = default_camera_pos_x
-						app.cam_y = default_camera_pos_y
-					}
+				}
+				if app.text_input != '' && mouse_x >= app.button_new_map_x
+					&& mouse_x < app.button_new_map_x + app.button_new_map_size
+					&& mouse_y >= app.button_new_map_y
+					&& mouse_y < app.button_new_map_y + app.button_new_map_size {
+					app.solo_menu = false
+					app.map = []Chunk{}
+					app.map_name = app.text_input
+					app.text_input = ''
+					app.pause = false
+					app.nb_updates = 2
+					app.todo = []
+					app.selected_item = .not
+					app.selected_ori = north
+					app.copied = []
+					app.actual_state = 0
+					app.nots = []
+					app.n_next_rid = 1
+					app.n_states[0] = []
+					app.n_states[1] = []
+					app.diodes = []
+					app.d_next_rid = 1
+					app.d_states[0] = []
+					app.d_states[1] = []
+					app.wires = []
+					app.w_next_rid = 1
+					app.w_states[0] = []
+					app.w_states[1] = []
+					app.comp_running = true
+					println('starting computation!!!')
+					spawn app.computation_loop()
+					app.cam_x = default_camera_pos_x
+					app.cam_y = default_camera_pos_y
 				}
 			} else if app.comp_running {
 				if app.keyinput_mode {
@@ -1214,9 +1243,6 @@ fn on_event(e &gg.Event, mut app App) {
 				if e.key_code == .delete {
 					app.text_input = app.text_input#[..-2]
 				}
-				if e.char_code != 0 {
-					app.text_input += u8(e.char_code).ascii_str()
-				}
 			} else if app.placement_mode {
 				if e.key_code == .r {
 					if e.modifiers & 1 == 1 { // shift 1<<0
@@ -1241,38 +1267,14 @@ fn on_event(e &gg.Event, mut app App) {
 				if e.key_code == .delete {
 					app.text_input = app.text_input#[..-2]
 				}
-				if e.char_code != 0 {
-					app.text_input += u8(e.char_code).ascii_str()
-				}
 			} else if app.load_gate_mode {
 				if e.key_code == .delete {
 					app.text_input = app.text_input#[..-2]
 				}
-				if e.char_code != 0 {
-					app.text_input += u8(e.char_code).ascii_str()
-				}
 			} else if app.keyinput_mode {
-				if e.char_code != 0 {
-					if app.tmp_pos_x == u32(-1) || app.tmp_pos_y == u32(-1) { // defensive: prevent map border
-						app.forced_states << app.key_pos[u8(e.char_code)]
-					} else {
-						if mut a := app.key_pos[u8(e.char_code)] {
-							a << [app.tmp_pos_x, app.tmp_pos_y]!
-						} else {
-							app.key_pos[u8(e.char_code)] = [
-								[app.tmp_pos_x, app.tmp_pos_y]!,
-							]
-						}
-					}
-					app.tmp_pos_x = u32(-1)
-					app.tmp_pos_y = u32(-1)
-				}
 			} else if app.save_gate_mode {
 				if e.key_code == .delete {
 					app.text_input = app.text_input#[..-2]
-				}
-				if e.char_code != 0 {
-					app.text_input += u8(e.char_code).ascii_str()
 				}
 			} else {
 				match e.key_code {
@@ -1289,6 +1291,33 @@ fn on_event(e &gg.Event, mut app App) {
 			}
 		}
 		else {}
+	}
+	if e.char_code != 0 {
+		if app.solo_menu {
+			app.text_input += u8(e.char_code).ascii_str()
+		} else if app.placement_mode {
+		} else if app.load_gate_mode {
+			app.text_input += u8(e.char_code).ascii_str()
+		} else if app.load_gate_mode {
+			app.text_input += u8(e.char_code).ascii_str()
+		} else if app.keyinput_mode {
+			if app.tmp_pos_x == u32(-1) || app.tmp_pos_y == u32(-1) { // defensive: prevent map border
+				app.forced_states << app.key_pos[u8(e.char_code)]
+			} else {
+				if mut a := app.key_pos[u8(e.char_code)] {
+					a << [app.tmp_pos_x, app.tmp_pos_y]!
+				} else {
+					app.key_pos[u8(e.char_code)] = [
+						[app.tmp_pos_x, app.tmp_pos_y]!,
+					]
+				}
+			}
+			app.tmp_pos_x = u32(-1)
+			app.tmp_pos_y = u32(-1)
+		} else if app.save_gate_mode {
+			app.text_input += u8(e.char_code).ascii_str()
+		} else {
+		}
 	}
 }
 
