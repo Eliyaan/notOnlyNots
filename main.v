@@ -46,6 +46,41 @@ const not_poly_unscaled = [
 	[f32(1.0), 0.2, 1.0, 0.8, 0.3, 0.5], // east
 ]
 
+enum Buttons {
+	cancel_button     // escapes modes
+	confirm_save_gate // save gate mode
+	selection_button  // no mode
+	rotate_copy       // paste mode
+	copy_button       // selection mode
+	choose_colorchip  // edit mode
+	load_gate         // no/paste
+	save_gate         // selection
+	edit_color        // edit
+	item_nots         // no/placement
+	create_color_chip // selection
+	add_input         // edit
+	item_diode        // no/placement
+	steal_settings    // edit
+	item_crossing     // no/placement
+	delete_colorchip  // edit
+	item_on           // no/placement
+	item_wire         // no/placement
+	speed             // no
+	slow              // no
+	pause             // no
+	paste             // no
+	save_map          // no
+	keyinput          // no
+	hide_colorchips   // no
+	quit_map          // no
+	selection_delete  // selection
+}
+
+struct ButtonData {
+	pos u32
+	img gg.Image
+}
+
 struct Palette {
 	junc            gg.Color = gg.Color{0, 0, 0, 255}
 	junc_v          gg.Color = gg.Color{213, 92, 247, 255} // vertical line
@@ -168,37 +203,93 @@ mut:
 	tmp_pos_x     u32 = u32(-1)
 	tmp_pos_y     u32 = u32(-1)
 	// UI on the left border, TODO: need to make it scaling automatically w/ screensize
-	ui_width              f32 = 50.0
-	button_size           f32 = 40.0
-	button_left_padding   f32 = 5.0
-	button_top_padding    f32 = 5.0
-	cancel_button_pos     u32 = u32(0) // escapes mode, first position, then multiply by padding and button size to get the coords of the button
-	confirm_save_gate_pos u32 = 1      // save gate mode
-	selection_button_pos  u32 = 1      // only no_mode
-	rotate_copy_pos       u32 = 1      // only paste mode
-	copy_button_pos       u32 = 1      // only selection mode instead of selection mode button
-	choose_colorchip_pos  u32 = 1      // edit mode
-	load_gate_pos         u32 = 2      // no mode & paste mode
-	save_gate_pos         u32 = 2      // selection mode (copies and saves the copied gate)
-	edit_color_pos        u32 = 2      // edit mode
-	item_nots_pos         u32 = 3      // no_mode and placement mode
-	create_color_chip_pos u32 = 3      // selection mode
-	add_input_pos         u32 = 3      // edit mode
-	item_diode_pos        u32 = 4      // no/placement mode
-	steal_settings_pos    u32 = 4      // edit mode
-	item_crossing_pos     u32 = 5      // no/placement mode
-	delete_colorchip_pos  u32 = 5      // edit mode
-	item_on_pos           u32 = 6      // no/placement mode
-	item_wire_pos         u32 = 7      // no/placement mode
-	speed_pos             u32 = 8      // no mode
-	slow_pos              u32 = 9      // no mode
-	pause_pos             u32 = 10     // no mode
-	paste_pos             u32 = 11     // no mode
-	save_map_pos          u32 = 12     // no mode
-	keyinput_pos          u32 = 13     // no mode
-	hide_colorchips_pos   u32 = 14     // no mode
-	quit_map_pos          u32 = 15     // no mode
-	selection_delete_pos  u32 = 10     // selection mode
+	ui_width            f32                    = 50.0
+	button_size         f32                    = 40.0
+	button_left_padding f32                    = 5.0
+	button_top_padding  f32                    = 5.0
+	buttons             map[Buttons]ButtonData = {
+		.cancel_button:     ButtonData{
+			pos: 0
+		}
+		.confirm_save_gate: ButtonData{
+			pos: 1
+		}
+		.selection_button:  ButtonData{
+			pos: 1
+		}
+		.rotate_copy:       ButtonData{
+			pos: 1
+		}
+		.copy_button:       ButtonData{
+			pos: 1
+		}
+		.choose_colorchip:  ButtonData{
+			pos: 1
+		}
+		.load_gate:         ButtonData{
+			pos: 2
+		}
+		.save_gate:         ButtonData{
+			pos: 2
+		}
+		.edit_color:        ButtonData{
+			pos: 2
+		}
+		.item_nots:         ButtonData{
+			pos: 3
+		}
+		.create_color_chip: ButtonData{
+			pos: 3
+		}
+		.add_input:         ButtonData{
+			pos: 3
+		}
+		.item_diode:        ButtonData{
+			pos: 4
+		}
+		.steal_settings:    ButtonData{
+			pos: 4
+		}
+		.item_crossing:     ButtonData{
+			pos: 5
+		}
+		.delete_colorchip:  ButtonData{
+			pos: 5
+		}
+		.item_on:           ButtonData{
+			pos: 6
+		}
+		.item_wire:         ButtonData{
+			pos: 7
+		}
+		.speed:             ButtonData{
+			pos: 8
+		}
+		.slow:              ButtonData{
+			pos: 9
+		}
+		.pause:             ButtonData{
+			pos: 10
+		}
+		.paste:             ButtonData{
+			pos: 11
+		}
+		.save_map:          ButtonData{
+			pos: 12
+		}
+		.keyinput:          ButtonData{
+			pos: 13
+		}
+		.hide_colorchips:   ButtonData{
+			pos: 14
+		}
+		.quit_map:          ButtonData{
+			pos: 15
+		}
+		.selection_delete:  ButtonData{
+			pos: 10
+		}
+	}
 
 	// logic
 	map           []Chunk
@@ -241,6 +332,33 @@ fn main() {
 
 	// lancement du programme/de la fenêtre
 	app.main_menu = true
+	app.button.cancel_button.img = app.ctx.create_image('cancel_button.png')!
+	app.button.confirm_save_gate.img = app.ctx.create_image('confirm_save_gate.png')!
+	app.button.selection_button.img = app.ctx.create_image('selection_button.png')!
+	app.button.rotate_copy.img = app.ctx.create_image('rotate_copy.png')!
+	app.button.copy_button.img = app.ctx.create_image('copy_button.png')!
+	app.button.choose_colorchip.img = app.ctx.create_image('choose_colorchip.png')!
+	app.button.load_gate.img = app.ctx.create_image('load_gate.png')!
+	app.button.save_gate.img = app.ctx.create_image('save_gate.png')!
+	app.button.edit_color.img = app.ctx.create_image('edit_color.png')!
+	app.button.item_nots.img = app.ctx.create_image('item_nots.png')!
+	app.button.create_color_chip.img = app.ctx.create_image('create_color_chip.png')!
+	app.button.add_input.img = app.ctx.create_image('add_input.png')!
+	app.button.item_diode.img = app.ctx.create_image('item_diode.png')!
+	app.button.steal_settings.img = app.ctx.create_image('steal_settings.png')!
+	app.button.item_crossing.img = app.ctx.create_image('item_crossing.png')!
+	app.button.delete_colorchip.img = app.ctx.create_image('delete_colorchip.png')!
+	app.button.item_on.img = app.ctx.create_image('item_on.png')!
+	app.button.item_wire.img = app.ctx.create_image('item_wire.png')!
+	app.button.speed.img = app.ctx.create_image('speed.png')!
+	app.button.slow.img = app.ctx.create_image('slow.png')!
+	app.button.pause.img = app.ctx.create_image('pause.png')!
+	app.button.paste.img = app.ctx.create_image('paste.png')!
+	app.button.save_map.img = app.ctx.create_image('save_map.png')!
+	app.button.keyinput.img = app.ctx.create_image('keyinput.png')!
+	app.button.hide_colorchips.img = app.ctx.create_image('hide_colorchips.png')!
+	app.button.quit_map.img = app.ctx.create_image('quit_map.png')!
+	app.button.selection_delete.img = app.ctx.create_image('selection_delete.png')!
 	app.ctx.run()
 }
 
