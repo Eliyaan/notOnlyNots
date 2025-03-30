@@ -4,6 +4,7 @@ import rand
 import time
 import gg
 
+const font_path = 'fonts/0xProtoNerdFontMono-Regular.ttf'
 const default_button_color = gg.Color{75, 108, 136, 255}
 const default_colorchip_color_on = gg.Color{197, 209, 227, 255}
 const default_colorchip_color_off = gg.Color{47, 49, 54, 255}
@@ -79,11 +80,12 @@ enum Buttons {
 const selec_buttons = [Buttons.cancel_button, .copy_button, .save_gate, .create_color_chip,
 	.selection_delete]
 const no_mode_buttons = [Buttons.cancel_button, .selection_button, .load_gate, .item_nots,
-	.item_diode, .item_crossing, .item_on, .item_wire, .speed, .slow, .pause, .paste, .save_map, .keyinput,
-	.hide_colorchips, .quit_map]
+	.item_diode, .item_crossing, .item_on, .item_wire, .speed, .slow, .pause, .paste, .save_map,
+	.keyinput, .hide_colorchips, .quit_map]
 const save_gate_buttons = [Buttons.cancel_button, .confirm_save_gate]
 const paste_buttons = [Buttons.cancel_button, .rotate_copy, .load_gate]
-const placement_buttons = [Buttons.cancel_button, .item_nots, .item_diode, .item_crossing, .item_on, .item_wire]
+const placement_buttons = [Buttons.cancel_button, .item_nots, .item_diode, .item_crossing, .item_on,
+	.item_wire]
 const edit_buttons = [Buttons.cancel_button, .choose_colorchip, .edit_color, .add_input,
 	.steal_settings, .delete_colorchip]
 
@@ -340,8 +342,9 @@ fn main() {
 		event_fn:      on_event
 		sample_count:  2
 		bg_color:      app.palette.background
+		font_path:     font_path
 	)
-
+	app.log('Start: ${time.now()}')
 	// lancement du programme/de la fenêtre
 	app.main_menu = true
 	app.buttons[.cancel_button].img = app.ctx.create_image('sprites/cancel_button.png')!
@@ -412,9 +415,9 @@ fn on_frame(mut app App) {
 		app.ctx.draw_rect_filled(app.button_solo_x, app.button_solo_y, app.button_solo_w,
 			app.button_solo_h, default_button_color)
 	} else if app.solo_menu {
-		for i, m in app.map_names_list {
+		for i, m in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 			app.ctx.draw_rect_filled(app.maps_x_offset, app.maps_y_offset + app.maps_top_spacing * i,
-				app.maps_w, app.maps_w, default_button_color)
+				app.maps_w, app.maps_h, default_button_color)
 			app.ctx.draw_text_def(int(app.maps_x_offset), int(app.maps_y_offset +
 				app.maps_top_spacing * i), m)
 		}
@@ -435,27 +438,33 @@ fn (mut app App) draw_ingame_ui_buttons() {
 	app.ctx.draw_square_filled(base_x, base_y, size, default_button_color) // cancel_button
 	if app.selection_mode {
 		for button in selec_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size, size, app.buttons[button].img)
+			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
+				size, app.buttons[button].img)
 		}
 	} else if app.paste_mode {
 		for button in paste_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size, size, app.buttons[button].img)
+			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
+				size, app.buttons[button].img)
 		}
 	} else if app.save_gate_mode {
 		for button in save_gate_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size, size, app.buttons[button].img)
+			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
+				size, app.buttons[button].img)
 		}
 	} else if app.placement_mode {
 		for button in placement_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size, size, app.buttons[button].img)
+			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
+				size, app.buttons[button].img)
 		}
 	} else if app.edit_mode {
 		for button in edit_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size, size, app.buttons[button].img)
+			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
+				size, app.buttons[button].img)
 		}
 	} else { // no mode
 		for button in no_mode_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size, size, app.buttons[button].img)
+			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
+				size, app.buttons[button].img)
 		}
 	}
 }
@@ -488,10 +497,16 @@ fn (mut app App) draw_placing_preview() {
 	} else {
 		app.place_start_y, app.place_end_y
 	}
-	for x in x_start .. x_end {
-		for y in y_start .. y_end {
-			pos_x := f32(f64(x * u32(app.tile_size)) - app.cam_x)
-			pos_y := f32(f64(y * u32(app.tile_size)) - app.cam_y)
+	/*
+	dump(x_start)
+	dump(x_end)
+	dump(y_start)
+	dump(y_end)
+	*/
+	for x in x_start .. x_end + 1 {
+		for y in y_start .. y_end + 1 {
+			pos_x := f32((f64(x) - app.cam_x) * app.tile_size)
+			pos_y := f32((f64(y) - app.cam_y) * app.tile_size)
 			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.place_preview)
 		}
 	}
@@ -569,7 +584,7 @@ fn (mut app App) draw_map() {
 										south { 1 }
 										west { 2 }
 										east { 3 }
-										else { app.log_quit('${@LINE} should not get into this else') }
+										else { app.log_quit('${@LOCATION} should not get into this else') }
 									}
 									match id & elem_type_mask {
 										elem_not_bits {
@@ -610,7 +625,7 @@ fn (mut app App) draw_map() {
 												state_color)
 										}
 										else {
-											app.log_quit('${@LINE} should not get into this else')
+											app.log_quit('${@LOCATION} should not get into this else')
 										}
 									}
 								}
@@ -630,17 +645,17 @@ fn (mut app App) draw_map() {
 fn (app App) check_ui_button_click_y(but Buttons, mouse_y f32) bool {
 	pos := app.buttons[but].pos
 	return mouse_y >= pos * (app.button_top_padding + app.button_size) + app.button_top_padding
-		&& mouse_y < (pos + 1) * (app.button_top_padding + app.button_size)
+		&& mouse_y < (pos + 1) * (app.button_top_padding + app.button_size) + app.button_top_padding
 }
 
 fn (app App) check_maps_button_click_y(pos int, mouse_y f32) bool {
 	return mouse_y >= pos * (app.maps_top_spacing + app.maps_h) + app.maps_y_offset
-		&& mouse_y < (pos + 1) * (app.maps_top_spacing + app.maps_h)
+		&& mouse_y < (pos + 1) * (app.maps_top_spacing + app.maps_h) + app.maps_y_offset
 }
 
 fn (app App) check_gates_button_click_y(pos int, mouse_y f32) bool {
 	return mouse_y >= pos * (app.gate_top_spacing + app.gate_h) + app.gate_y_offset
-		&& mouse_y < (pos + 1) * (app.gate_top_spacing + app.gate_h)
+		&& mouse_y < (pos + 1) * (app.gate_top_spacing + app.gate_h) + app.gate_y_offset
 }
 
 fn (mut app App) disable_all_ingame_modes() {
@@ -709,7 +724,7 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 						if e.mouse_button == .left {
-							if app.check_maps_button_click_y(i, mouse_x) {
+							if app.check_maps_button_click_y(i, mouse_y) {
 								app.solo_menu = false
 								app.text_input = ''
 								app.map_name = name
@@ -1223,6 +1238,8 @@ fn on_event(e &gg.Event, mut app App) {
 							app.place_down = true
 							app.place_start_x = u32(app.cam_x + mouse_x / app.tile_size)
 							app.place_start_y = u32(app.cam_y + mouse_y / app.tile_size)
+							app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+							app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
 						} else {
 							place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
 							place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
@@ -1301,8 +1318,8 @@ fn on_event(e &gg.Event, mut app App) {
 		}
 		.key_down {
 			if app.solo_menu {
-				if e.key_code == .delete {
-					app.text_input = app.text_input#[..-2]
+				if e.key_code == .backspace {
+					app.text_input = app.text_input#[..-1]
 				}
 			} else if app.placement_mode {
 				if e.key_code == .r {
@@ -1402,6 +1419,8 @@ fn (mut app App) log_quit(message string) {
 		eprintln(message)
 		panic(err)
 	}
+	f.close()
+	eprintln('Crashed: see the logs')
 	exit(1)
 }
 
@@ -1411,6 +1430,7 @@ fn (mut app App) log(message string) {
 		return
 	}
 	f.write_string('${message}\n') or { println(message) }
+	f.close()
 	// TODO: show on screen
 }
 
@@ -1449,62 +1469,66 @@ fn (mut app App) computation_loop() {
 	mut avg_update_time := 0.0
 	mut now := i64(0)
 	for app.comp_running {
-		if app.pause {
-			time.sleep(30 * time.millisecond)
-		} else {
-			for pos in app.forced_states {
-				app.set_elem_state_by_pos(pos[0], pos[1], true)
-			}
-			cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(avg_update_time) // nanosecs
-			for todo in app.todo {
-				now = time.now().unix_nano()
-				if now < cycle_end {
-					match todo.task {
-						.save_map {
-							app.save_map(todo.name) or { app.log('save copied: ${err}') }
-						}
-						.removal {
-							app.removal(todo.x, todo.y, todo.x_end, todo.y_end)
-						}
-						.paste {
-							app.paste(todo.x, todo.y)
-						}
-						.load_gate {
-							app.load_gate_to_copied(todo.name) or {
-								app.log('load gate to copied: ${err}')
-							}
-						}
-						.save_gate {
-							app.save_copied(todo.name) or { app.log('save copied: ${err}') }
-						}
-						.place {
-							app.placement(todo.x, todo.y, todo.x_end, todo.y_end)
-						}
-						.rotate {
-							app.rotate_copied()
-						}
-						.copy {
-							app.copy(todo.x, todo.y, todo.x_end, todo.y_end)
-						}
-						.quit {
-							app.comp_running = false
-							app.save_map(todo.name) or { app.log('save copied: ${err}') }
-							return
+		for pos in app.forced_states {
+			app.set_elem_state_by_pos(pos[0], pos[1], true)
+		}
+		cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(avg_update_time) // nanosecs
+		mut done := []int{}
+		for i, todo in app.todo {
+			now = time.now().unix_nano()
+			if now < cycle_end {
+				dump(todo)
+				match todo.task {
+					.save_map {
+						app.save_map(todo.name) or { app.log('save copied: ${err}') }
+					}
+					.removal {
+						app.removal(todo.x, todo.y, todo.x_end, todo.y_end)
+					}
+					.paste {
+						app.paste(todo.x, todo.y)
+					}
+					.load_gate {
+						app.load_gate_to_copied(todo.name) or {
+							app.log('load gate to copied: ${err}')
 						}
 					}
-				} else {
-					break
+					.save_gate {
+						app.save_copied(todo.name) or { app.log('save copied: ${err}') }
+					}
+					.place {
+						app.placement(todo.x, todo.y, todo.x_end, todo.y_end)
+					}
+					.rotate {
+						app.rotate_copied()
+					}
+					.copy {
+						app.copy(todo.x, todo.y, todo.x_end, todo.y_end)
+					}
+					.quit {
+						app.comp_running = false
+						app.save_map(todo.name) or { app.log('save copied: ${err}') }
+						return
+					}
 				}
+				done << i
+			} else {
+				break
 			}
-			now = time.now().unix_nano()
-			if app.todo.len == 0 && cycle_end - now >= 10000 { // 10micro sec
-				time.sleep((cycle_end - now) * time.nanosecond)
-			}
-
-			now = time.now().unix_nano()
-			app.update_cycle()
-			avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * avg_update_time
 		}
+		for i in done.reverse() {
+			app.todo.delete(i)
+		}
+		now = time.now().unix_nano()
+		if app.todo.len == 0 && cycle_end - now >= 10000 { // 10micro sec
+			time.sleep((cycle_end - now) * time.nanosecond)
+		}
+
+		now = time.now().unix_nano()
+		if !app.pause {
+			app.update_cycle()
+		}
+		avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * avg_update_time
 	}
 }
 
@@ -1912,7 +1936,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					[-1, 0]!
 				}
 				else {
-					app.log_quit('${@LINE} not a valid orientation')
+					app.log_quit('${@LOCATION} not a valid orientation')
 				}
 			}
 
@@ -2047,7 +2071,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					}
 				}
 				else {
-					app.log_quit('${@LINE} should not get into this else')
+					app.log_quit('${@LOCATION} should not get into this else')
 				}
 			}
 		}
@@ -2149,7 +2173,7 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					app.copied << PlaceInstruction{.wire, u8(0), x - x_start, y - y_start}
 				}
 				else {
-					app.log_quit('${@LINE} should not get into this else')
+					app.log_quit('${@LOCATION} should not get into this else')
 				}
 			}
 		}
@@ -2191,7 +2215,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				south { 0, 1 }
 				east { 1, 0 }
 				west { -1, 0 }
-				else { app.log_quit('${@LINE} unknown orientation') }
+				else { app.log_quit('${@LOCATION} unknown orientation') }
 			}
 			if id == elem_crossing_bits { // same bits as wires so need to be separated
 				// 1. done
@@ -2385,7 +2409,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 				}
 				else {
-					app.log_quit('${@LINE} should not get into this else')
+					app.log_quit('${@LOCATION} should not get into this else')
 				}
 			}
 		}
@@ -2441,7 +2465,7 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 							}
 						}
 						if wid_adj == -1 {
-							app.log_quit('${@LINE} should have found the appropriate wire')
+							app.log_quit('${@LOCATION} should have found the appropriate wire')
 						}
 					} else {
 						if wid_adj != cable_id { // if is in a list but not the same as cable
@@ -2559,7 +2583,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		south { 0, 1 }
 		east { 1, 0 }
 		west { -1, 0 }
-		else { app.log_quit('${@LINE} unknown orientation') }
+		else { app.log_quit('${@LOCATION} unknown orientation') }
 	}
 	match app.selected_item {
 		.not {
@@ -2945,7 +2969,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				east
 			}
 			else {
-				app.log_quit('${@LINE} not a valid step for an orientation')
+				app.log_quit('${@LOCATION} not a valid step for an orientation')
 			}
 		}
 		if opp_step_ori != next_id & ori_mask { // is not an input of the gate
@@ -2970,7 +2994,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				west, east
 			}
 			else {
-				app.log_quit('${@LINE} not a valid step for an orientation')
+				app.log_quit('${@LOCATION} not a valid step for an orientation')
 			}
 		}
 
@@ -2996,7 +3020,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				west, east
 			}
 			else {
-				app.log_quit('${@LINE} not a valid step for an orientation')
+				app.log_quit('${@LOCATION} not a valid step for an orientation')
 			}
 		}
 
@@ -3053,7 +3077,7 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 				west
 			}
 			else {
-				app.log_quit('${@LINE} not a valid step for an orientation')
+				app.log_quit('${@LOCATION} not a valid step for an orientation')
 			}
 		}
 		if step_ori == gate_ori || next_id & ori_mask != gate_ori { // is an output of the gate or is not aligned (because the next is a ON)
@@ -3167,7 +3191,9 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 			}
 		}
 	}
-	app.log_quit('${@LINE} Chunk at ${x} ${y} not found')
+	// chunk not found, create it
+	app.map << Chunk{x: (x/chunk_size)*chunk_size, y: (y/chunk_size)*chunk_size}
+	return app.map[app.map.len - 1].id_map
 }
 
 // previous: 0 for actual state, 1 for the previous state
@@ -3225,7 +3251,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 			}
 		}
 	}
-	app.log_quit('${@LINE} id not found in get_elem_state_idx_by_id: ${id}')
+	app.log_quit('${@LOCATION} id not found in get_elem_state_idx_by_id: ${id}')
 }
 
 // TODO: Explain ids
