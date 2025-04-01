@@ -3205,7 +3205,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 	// the state in the id may be an old state so it needs to get the state from the state lists
 	if id & elem_type_mask == 0b00 { // not
 		mut low := 0
-		mut high := app.nots.len
+		mut high := app.nots.len - 1
 		mut mid := 0 // tmp value
 		for low <= high {
 			mid = low + ((high - low) >> 1) // low + half
@@ -3224,7 +3224,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 		}
 	} else if id & elem_type_mask == 0b01 { // diode
 		mut low := 0
-		mut high := app.diodes.len
+		mut high := app.diodes.len - 1
 		mut mid := 0 // tmp value
 		for low <= high {
 			mid = low + ((high - low) >> 1) // low + half
@@ -3238,7 +3238,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 		}
 	} else if id & elem_type_mask == 0b11 { // wire
 		mut low := 0
-		mut high := app.wires.len
+		mut high := app.wires.len - 1
 		mut mid := 0 // tmp value
 		for low <= high {
 			mid = low + ((high - low) >> 1) // low + half
