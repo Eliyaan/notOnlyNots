@@ -2150,7 +2150,7 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			x_map := x % chunk_size
 			y_map := y % chunk_size
 			id := chunkmap[x_map][y_map]
-			if id == 0x0 { // map empty
+			if id == empty_id { // map empty
 				continue
 			}
 			if id == elem_crossing_bits { // same bits as wires so need to be separated
@@ -2205,10 +2205,10 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			mut chunkmap := app.get_chunkmap_at_coords(x, y)
 			x_map := x % chunk_size
 			y_map := y % chunk_size
-			if chunkmap[x_map][y_map] == 0x0 { // map empty
+			id := chunkmap[x_map][y_map]
+			if id == empty_id { // map empty
 				continue
 			}
-			id := chunkmap[x_map][y_map]
 			mut x_ori, mut y_ori := match id & ori_mask {
 				// Output direction
 				north { 0, -1 }
@@ -2255,7 +2255,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						} else {
 							i := app.wires[idx].outs.index(s_adj_id)
 							app.wires[idx].outs.delete(i) // remove the input from the wire
-							app.add_input(n_adj_id, empty_id) // remove output of the gate
+							app.add_input(n_adj_id, empty_id) // override output of the gate
 						}
 					} else {
 						// If the two sides are standard gates:
@@ -2515,10 +2515,10 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 
 	// Create/Modify the new wires
 	_, idx := app.get_elem_state_idx_by_id(id, 0)
-	new_wires[0].rid = id
+	new_wires[0].rid = id & rid_mask
 	app.wires[idx] = new_wires[0]
 	for mut wire in new_wires[1..] {
-		wire.rid = app.w_next_rid | elem_wire_bits
+		wire.rid = app.w_next_rid 
 		app.wires << wire
 		app.w_next_rid++
 	}
