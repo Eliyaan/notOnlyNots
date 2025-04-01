@@ -1,3 +1,4 @@
+// TODO: add tests for the backend
 import math { abs, pow }
 import os
 import rand
@@ -26,6 +27,7 @@ const west = u64(0x1000_0000_0000_0000) // 0001_000...
 const east = u64(0x1800_0000_0000_0000) // 0001_100..
 const rid_mask = u64(0x07FF_FFFF_FFFF_FFFF) // 0000_0111_11111... bit map to get the real id with &
 const elem_type_mask = u64(0xC000_0000_0000_0000) // 1100_0000...
+const id_mask = rid_mask | elem_type_mask // unique
 const ori_mask = u64(0x1800_0000_0000_0000) // 0001_1000...
 const chunk_size = 100
 const diode_poly_unscaled = [
@@ -425,6 +427,7 @@ fn on_frame(mut app App) {
 			default_button_color)
 		app.ctx.draw_text_def(int(app.text_field_x), int(app.text_field_y), app.text_input)
 	} else {
+		app.disable_all_ingame_modes()
 		app.log('Not implemented on_frame UI')
 	}
 	app.ctx.end()
@@ -1412,11 +1415,11 @@ enum Elem as u8 {
 @[noreturn]
 fn (mut app App) log_quit(message string) {
 	mut f := os.open_append('logs') or {
-		eprintln(message)
+		eprintln('FATAL: ${message}')
 		panic(err)
 	}
 	f.write_string('FATAL: ${message}\n') or {
-		eprintln(message)
+		eprintln('FATAL: ${message}')
 		panic(err)
 	}
 	f.close()
@@ -1426,10 +1429,10 @@ fn (mut app App) log_quit(message string) {
 
 fn (mut app App) log(message string) {
 	mut f := os.open_append('logs') or {
-		println(message)
+		println('LOG: ${message}')
 		return
 	}
-	f.write_string('${message}\n') or { println(message) }
+	f.write_string('LOG: ${message}\n') or { println(message) }
 	f.close()
 	// TODO: show on screen
 }
@@ -1943,11 +1946,11 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			match id & elem_type_mask {
 				elem_not_bits, elem_diode_bits {
 					inp_id := app.next_gate_id(x, y, -step[0], -step[1], ori)
-					if inp_id & rid_mask != app.get_input(id) & rid_mask {
+					if inp_id & id_mask != app.get_input(id) & id_mask {
 						return x, y, 'problem: input is not the preceding gate'
 					}
 					out_id := app.next_gate_id(x, y, step[0], step[1], ori)
-					if out_id & rid_mask != app.get_output(id) & rid_mask {
+					if out_id & id_mask != app.get_output(id) & id_mask {
 						return x, y, 'problem: output is not the following gate'
 					}
 					inp_old_state, _ := app.get_elem_state_idx_by_id(inp_id, (app.actual_state + 1) % 2)
@@ -1983,12 +1986,12 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					}
 					if s_adj_id != empty_id {
 						if s_adj_id & elem_type_mask == elem_wire_bits {
-							if id & rid_mask != s_adj_id & rid_mask {
-								return x, y, 'problem: south wire(${s_adj_id & rid_mask}) has a different id from the wire(${id & rid_mask})'
+							if id & id_mask != s_adj_id & id_mask {
+								return x, y, 'problem: south wire(${s_adj_id & id_mask}) has a different id from the wire(${id & id_mask})'
 							}
 						} else {
 							if s_is_input {
-								if s_adj_id !in app.wires[wire_idx].inps.map(it & rid_mask) {
+								if s_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s input"
 								}
 								s_old_state, _ := app.get_elem_state_idx_by_id(s_adj_id,
@@ -1997,7 +2000,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 									return x, y, 'problem: wire did not match south On state'
 								}
 							} else {
-								if s_adj_id !in app.wires[wire_idx].outs.map(it & rid_mask) {
+								if s_adj_id & id_mask !in app.wires[wire_idx].outs.map(it & id_mask) {
 									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s output"
 								}
 							}
@@ -2005,13 +2008,13 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					}
 					if n_adj_id != empty_id {
 						if n_adj_id & elem_type_mask == elem_wire_bits {
-							if id & rid_mask != n_adj_id & rid_mask {
-								return x, y, 'problem: north wire(${n_adj_id & rid_mask}) has a different id from the wire(${id & rid_mask})'
+							if id & id_mask != n_adj_id & id_mask {
+								return x, y, 'problem: north wire(${n_adj_id & id_mask}) has a different id from the wire(${id & id_mask})'
 							}
 						} else {
 							if n_is_input {
-								if n_adj_id & rid_mask !in app.wires[wire_idx].inps.map(it & rid_mask) {
-									return x, y, "problem: north(${n_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s input"
+								if n_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
+									return x, y, "problem: north(${n_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
 								n_old_state, _ := app.get_elem_state_idx_by_id(n_adj_id,
 									(app.actual_state + 1) % 2)
@@ -2019,21 +2022,21 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 									return x, y, 'problem: wire did not match north On state'
 								}
 							} else {
-								if n_adj_id & rid_mask !in app.wires[wire_idx].outs.map(it & rid_mask) {
-									return x, y, "problem: north(${n_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s output"
+								if n_adj_id & id_mask !in app.wires[wire_idx].outs.map(it & id_mask) {
+									return x, y, "problem: north(${n_adj_id & id_mask}) is not in the wire(${id & id_mask})'s output"
 								}
 							}
 						}
 					}
 					if e_adj_id != empty_id {
 						if e_adj_id & elem_type_mask == elem_wire_bits {
-							if id & rid_mask != e_adj_id & rid_mask {
-								return x, y, 'problem: east wire(${e_adj_id & rid_mask}) has a different id from the wire(${id & rid_mask})'
+							if id & id_mask != e_adj_id & id_mask {
+								return x, y, 'problem: east wire(${e_adj_id & id_mask}) has a different id from the wire(${id & id_mask})'
 							}
 						} else {
 							if e_is_input {
-								if e_adj_id & rid_mask !in app.wires[wire_idx].inps.map(it & rid_mask) {
-									return x, y, "problem: east(${e_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s input"
+								if e_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
+									return x, y, "problem: east(${e_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
 								e_old_state, _ := app.get_elem_state_idx_by_id(e_adj_id,
 									(app.actual_state + 1) % 2)
@@ -2041,21 +2044,21 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 									return x, y, 'problem: wire did not match east On state'
 								}
 							} else {
-								if e_adj_id & rid_mask !in app.wires[wire_idx].outs.map(it & rid_mask) {
-									return x, y, "problem: east(${e_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s output"
+								if e_adj_id & id_mask !in app.wires[wire_idx].outs.map(it & id_mask) {
+									return x, y, "problem: east(${e_adj_id & id_mask}) is not in the wire(${id & id_mask})'s output"
 								}
 							}
 						}
 					}
 					if w_adj_id != empty_id {
 						if w_adj_id & elem_type_mask == elem_wire_bits {
-							if id & rid_mask != w_adj_id & rid_mask {
-								return x, y, 'problem: west wire(${w_adj_id & rid_mask}) has a different id from the wire(${id & rid_mask})'
+							if id & id_mask != w_adj_id & id_mask {
+								return x, y, 'problem: west wire(${w_adj_id & id_mask}) has a different id from the wire(${id & id_mask})'
 							}
 						} else {
 							if w_is_input {
-								if w_adj_id & rid_mask !in app.wires[wire_idx].inps.map(it & rid_mask) {
-									return x, y, "problem: west(${w_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s input"
+								if w_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
+									return x, y, "problem: west(${w_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
 								w_old_state, _ := app.get_elem_state_idx_by_id(w_adj_id,
 									(app.actual_state + 1) % 2)
@@ -2063,8 +2066,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 									return x, y, 'problem: wire did not match west On state'
 								}
 							} else {
-								if w_adj_id & rid_mask !in app.wires[wire_idx].outs.map(it & rid_mask) {
-									return x, y, "problem: west(${w_adj_id & rid_mask}) is not in the wire(${id & rid_mask})'s output"
+								if w_adj_id & id_mask !in app.wires[wire_idx].outs.map(it & id_mask) {
+									return x, y, "problem: west(${w_adj_id & id_mask}) is not in the wire(${id & id_mask})'s output"
 								}
 							}
 						}
@@ -2237,11 +2240,11 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						_, idx := app.get_elem_state_idx_by_id(s_adj_id, 0)
 						if n_is_input {
-							i := app.wires[idx].inps.index(n_adj_id)
+							i := app.wires[idx].inps.map(it & id_mask).index(n_adj_id & id_mask)
 							app.wires[idx].inps.delete(i) // remove the input from the wire
 							app.add_output(s_adj_id, empty_id) // remove output of the gate
 						} else {
-							i := app.wires[idx].outs.index(n_adj_id)
+							i := app.wires[idx].outs.map(it & id_mask).index(n_adj_id & id_mask)
 							app.wires[idx].outs.delete(i) // remove the input from the wire
 							app.add_input(s_adj_id, empty_id) // remove output of the gate
 						}
@@ -2249,11 +2252,11 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						_, idx := app.get_elem_state_idx_by_id(n_adj_id, 0)
 						if s_is_input {
-							i := app.wires[idx].inps.index(s_adj_id)
+							i := app.wires[idx].inps.map(it & id_mask).index(s_adj_id & id_mask)
 							app.wires[idx].inps.delete(i) // remove the input from the wire
 							app.add_output(n_adj_id, empty_id) // remove output of the gate
 						} else {
-							i := app.wires[idx].outs.index(s_adj_id)
+							i := app.wires[idx].outs.map(it & id_mask).index(s_adj_id & id_mask)
 							app.wires[idx].outs.delete(i) // remove the input from the wire
 							app.add_input(n_adj_id, empty_id) // override output of the gate
 						}
@@ -2277,11 +2280,11 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						_, idx := app.get_elem_state_idx_by_id(e_adj_id, 0)
 						if w_is_input {
-							i := app.wires[idx].inps.index(w_adj_id)
+							i := app.wires[idx].inps.map(it & id_mask).index(w_adj_id & id_mask)
 							app.wires[idx].inps.delete(i) // remove the input from the wire
 							app.add_output(e_adj_id, empty_id) // remove output of the gate
 						} else {
-							i := app.wires[idx].outs.index(e_adj_id)
+							i := app.wires[idx].outs.map(it & id_mask).index(w_adj_id & id_mask)
 							app.wires[idx].outs.delete(i) // remove the input from the wire
 							app.add_input(e_adj_id, empty_id) // remove output of the gate
 						}
@@ -2289,11 +2292,11 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						_, idx := app.get_elem_state_idx_by_id(w_adj_id, 0)
 						if e_is_input {
-							i := app.wires[idx].inps.index(e_adj_id)
+							i := app.wires[idx].inps.map(it & id_mask).index(e_adj_id & id_mask)
 							app.wires[idx].inps.delete(i) // remove the input from the wire
 							app.add_output(w_adj_id, empty_id) // remove output of the gate
 						} else {
-							i := app.wires[idx].outs.index(e_adj_id)
+							i := app.wires[idx].outs.map(it & id_mask).index(e_adj_id & id_mask)
 							app.wires[idx].outs.delete(i) // remove the input from the wire
 							app.add_input(w_adj_id, empty_id) // remove output of the gate
 						}
@@ -2391,11 +2394,11 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						i := app.wires[idx].cable_coords.index([x, y]!)
 						app.wires[idx].cable_coords.delete(i)
 						for inp_id in adjacent_inps {
-							i_ := app.wires[idx].inps.index(inp_id)
+							i_ := app.wires[idx].inps.map(it & id_mask).index(inp_id & id_mask)
 							app.wires[idx].inps.delete(i_)
 						}
 						for out_id in adjacent_outs {
-							i_ := app.wires[idx].outs.index(out_id)
+							i_ := app.wires[idx].outs.map(it & id_mask).index(out_id & id_mask)
 							app.wires[idx].outs.delete(i_)
 						}
 					}
@@ -2461,7 +2464,8 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 						for mut wire in new_wires { // find the wire where cable is
 							if wire.rid == cable_id {
 								wid_adj = cable_id
-								wire.cable_coords << adj_coo
+								wire.cable_coords << adj_coo // the rest of this wire will get processed
+								// no need remove it from it's actual wire because it is already done in the modifications in the end
 							}
 						}
 						if wid_adj == -1 {
@@ -2469,18 +2473,19 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 						}
 					} else {
 						if wid_adj != cable_id { // if is in a list but not the same as cable
-							wid_adj = cable_id
 							// merge the lists
+							// get the two lists
 							mut i_first := -1
 							mut i_sec := -1
 							for iw, wire in new_wires {
 								if wire.rid == cable_id {
 									i_first = iw
-								} else if wire.rid == id {
+								} else if wire.rid == wid_adj {
 									i_sec = iw
 								}
 							}
-
+							wid_adj = cable_id
+							// merge
 							new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
 							new_wires[i_first].inps << new_wires[i_sec].inps
 							new_wires[i_first].outs << new_wires[i_sec].outs
@@ -2518,7 +2523,7 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	new_wires[0].rid = id & rid_mask
 	app.wires[idx] = new_wires[0]
 	for mut wire in new_wires[1..] {
-		wire.rid = app.w_next_rid 
+		wire.rid = app.w_next_rid
 		app.wires << wire
 		app.w_next_rid++
 	}
@@ -2529,14 +2534,14 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 			mut adj_chunkmap := app.get_chunkmap_at_coords(coo[0], coo[1])
 			adj_x_map := coo[0] % chunk_size
 			adj_y_map := coo[1] % chunk_size
-			adj_chunkmap[adj_x_map][adj_y_map] = wire.rid
+			adj_chunkmap[adj_x_map][adj_y_map] = wire.rid | elem_wire_bits
 		}
 
 		for inp in wire.inps {
-			app.add_output(inp, wire.rid)
+			app.add_output(inp, wire.rid | elem_wire_bits)
 		}
 		for out in wire.outs {
-			app.add_output(out, wire.rid)
+			app.add_output(out, wire.rid | elem_wire_bits)
 		}
 	}
 }
@@ -2592,7 +2597,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
+					if chunkmap[x_map][y_map] != empty_id { // map not empty
 						continue
 					}
 
@@ -2603,7 +2608,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
 					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
-					app.nots << Nots{id, inp_id, out_id, x, y}
+					app.nots << Nots{id & rid_mask, inp_id, out_id, x, y}
 					app.n_states[0] << false // default state & important to do the two lists
 					app.n_states[1] << false // default state
 
@@ -2622,7 +2627,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
+					if chunkmap[x_map][y_map] != empty_id { // map not empty
 						continue
 					}
 
@@ -2633,7 +2638,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
 					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
-					app.diodes << Diode{id, inp_id, out_id, x, y}
+					app.diodes << Diode{id & rid_mask, inp_id, out_id, x, y}
 					app.d_states[0] << false // default state & important to do the two lists
 					app.d_states[1] << false // default state
 
@@ -2652,7 +2657,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
+					if chunkmap[x_map][y_map] != empty_id { // map not empty
 						continue
 					}
 
@@ -2677,7 +2682,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
+					if chunkmap[x_map][y_map] != empty_id { // map not empty
 						continue
 					}
 
@@ -2707,7 +2712,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						app.wires << Wire{
 							rid: app.w_next_rid
 						}
-						adjacent_wires << app.w_next_rid
+						adjacent_wires << app.w_next_rid | elem_wire_bits
 						app.w_states[0] << false
 						app.w_states[1] << false
 						// 4. done /!\ only if creating a new wire
@@ -2739,7 +2744,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut chunkmap := app.get_chunkmap_at_coords(x, y)
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != 0x0 { // map not empty
+					if chunkmap[x_map][y_map] != empty_id { // map not empty
 						continue
 					}
 					// 1. done; they all have the same id
@@ -2839,7 +2844,7 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 		for coo in app.wires[i].cable_coords {
 			// change the id of all the cables on the map
 			mut w_chunkmap := app.get_chunkmap_at_coords(coo[0], coo[1])
-			w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] &= ~elem_type_mask
+			// w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] &= ~elem_type_mask not needed as adjacent_wires[0] should have the type
 			w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] |= adjacent_wires[0]
 		}
 		// change the inputs / outputs' i/o ids
@@ -2951,7 +2956,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 		next_id, input, _, _ = app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir),
 			u32(int(y) + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
 		return next_id, input, x_off, y_off
-	} else if next_id == 0x0 {
+	} else if next_id == empty_id {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
 		// need to return the id of the on gates (all the ons have the same) not an empty one if it is an input -> to know it is always ON
@@ -3059,7 +3064,7 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 		}
 		return app.next_gate_id(u32(int(x) + x_off - x_dir), u32(int(y) + y_off - y_dir),
 			x_dir, y_dir, gate_ori) // coords of the crossing just before the detected good elem
-	} else if next_id == 0x0 {
+	} else if next_id == empty_id {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
 		// need to return the id of the on gates (all the ons have the same) not an empty one if it is an input -> to know it is always ON
@@ -3101,7 +3106,7 @@ fn (mut app App) set_elem_state_by_pos(x u32, y u32, new_state bool) {
 	xmap := x % chunk_size
 	ymap := y % chunk_size
 	id := chunkmap[xmap][ymap]
-	if id == elem_crossing_bits || id == 0x0 || id & elem_type_mask == elem_on_bits {
+	if id == elem_crossing_bits || id == empty_id || id & elem_type_mask == elem_on_bits {
 		return
 	}
 	if new_state {
@@ -3192,7 +3197,10 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 		}
 	}
 	// chunk not found, create it
-	app.map << Chunk{x: (x/chunk_size)*chunk_size, y: (y/chunk_size)*chunk_size}
+	app.map << Chunk{
+		x: (x / chunk_size) * chunk_size
+		y: (y / chunk_size) * chunk_size
+	}
 	return app.map[app.map.len - 1].id_map
 }
 
@@ -3255,6 +3263,9 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 }
 
 // TODO: Explain ids
+// RIDs are pure rids (the number of the gate in it's type)
+// pure id: rid | elem_type_bits
+// others ids like inp out, are unpure ids by default (assume they are) -> if you want it's id without state/orientation -> & id_mask, if you want it's rid -> & rid_mask
 
 // An element is a something placed on the map (so not empty)
 // A gate is an element with some inputs or some outputs or both
