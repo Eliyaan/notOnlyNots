@@ -3205,61 +3205,65 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 }
 
 // previous: 0 for actual state, 1 for the previous state
-// returns id of the concerned element & the index in the list
+// returns the state of the concerned element & the index in the list
 // crossing & ons dont have different states nor idx
 fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 	concerned_state := (app.actual_state + previous) % 2
 	rid := id & rid_mask
 	// the state in the id may be an old state so it needs to get the state from the state lists
-	if id & elem_type_mask == 0b00 { // not
+	if id == empty_id {
+		return false, -1
+	}
+	if id & elem_type_mask == elem_not_bits { // not
 		mut low := 0
 		mut high := app.nots.len - 1
 		mut mid := 0 // tmp value
 		for low <= high {
 			mid = low + ((high - low) >> 1) // low + half
-			// If x is smaller, ignore right half
+			// If x is smaller, ignore left half
 			if app.nots[mid].rid < rid {
-				high = mid - 1
-			}
-			// If x greater, ignore left half
-			else if app.nots[mid].rid > rid {
 				low = mid + 1
+			}
+			// If x greater, ignore right half
+			else if app.nots[mid].rid > rid {
+				high = mid - 1
 			}
 			// Check if x is present at mid
 			else {
 				return app.n_states[concerned_state][mid], mid
 			}
 		}
-	} else if id & elem_type_mask == 0b01 { // diode
+	} else if id & elem_type_mask == elem_diode_bits { // diode
 		mut low := 0
 		mut high := app.diodes.len - 1
 		mut mid := 0 // tmp value
 		for low <= high {
 			mid = low + ((high - low) >> 1) // low + half
 			if app.diodes[mid].rid < rid {
-				high = mid - 1
-			} else if app.diodes[mid].rid > rid {
 				low = mid + 1
+			} else if app.diodes[mid].rid > rid {
+				high = mid - 1
 			} else {
 				return app.d_states[concerned_state][mid], mid
 			}
 		}
-	} else if id & elem_type_mask == 0b11 { // wire
+	} else if id & elem_type_mask == elem_wire_bits { // wire
 		mut low := 0
 		mut high := app.wires.len - 1
 		mut mid := 0 // tmp value
 		for low <= high {
 			mid = low + ((high - low) >> 1) // low + half
 			if app.wires[mid].rid < rid {
-				high = mid - 1
-			} else if app.wires[mid].rid > rid {
 				low = mid + 1
+			} else if app.wires[mid].rid > rid {
+				high = mid - 1
 			} else {
 				return app.w_states[concerned_state][mid], mid
 			}
 		}
 	}
-	app.log_quit('${@LOCATION} id not found in get_elem_state_idx_by_id: ${id}')
+	// app.log_quit('${@LOCATION} id not found in get_elem_state_idx_by_id: ${id & rid}')
+	panic('${@LOCATION} id not found in get_elem_state_idx_by_id: ${id & rid}')
 }
 
 // TODO: Explain ids
