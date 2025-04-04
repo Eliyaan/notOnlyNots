@@ -33,8 +33,8 @@ const chunk_size = 100
 const diode_poly_unscaled = [
 	[f32(0.2), 1.0, 0.4, 0.0, 0.6, 0.0, 0.8, 1.0], // north
 	[f32(0.2), 0.0, 0.8, 0.0, 0.6, 1.0, 0.4, 1.0], // south
-	[f32(0.0), 0.2, 1.0, 0.4, 1.0, 0.6, 0.0, 0.8], // west
-	[f32(1.0), 0.2, 1.0, 0.8, 0.0, 0.6, 0.0, 0.4], // east
+	[f32(1.0), 0.2, 1.0, 0.8, 0.0, 0.6, 0.0, 0.4], // west
+	[f32(0.0), 0.2, 1.0, 0.4, 1.0, 0.6, 0.0, 0.8], // east
 ]
 const not_rect_unscaled = [// x, y, width, height
 	[f32(0.33), 0.0, 0.33, 0.2], // north
@@ -43,10 +43,10 @@ const not_rect_unscaled = [// x, y, width, height
 	[f32(0.8), 0.33, 0.2, 0.33], // east
 ]
 const not_poly_unscaled = [
-	[f32(0.2), 1.0, 0.5, 0.3, 0.8, 1.0], // north
-	[f32(0.2), 0.0, 0.8, 0.0, 0.5, 0.7], // south
-	[f32(0.0), 0.2, 0.7, 0.5, 0.0, 0.8], // west
-	[f32(1.0), 0.2, 1.0, 0.8, 0.3, 0.5], // east
+	[f32(0.2), 1.0, 0.5, 0.0, 0.8, 1.0], // north
+	[f32(0.2), 0.0, 0.8, 0.0, 0.5, 1.0], // south
+	[f32(1.0), 0.2, 1.0, 0.8, 0.0, 0.5], // west
+	[f32(0.0), 0.2, 1.0, 0.5, 0.0, 0.8], // east
 ]
 
 enum Buttons {
@@ -104,7 +104,7 @@ struct Palette {
 	wire_on         gg.Color = gg.Color{131, 247, 92, 255}
 	wire_off        gg.Color = gg.Color{247, 92, 92, 255}
 	on              gg.Color = gg.Color{89, 181, 71, 255}
-	not             gg.Color = gg.Color{247, 92, 170, 255}
+	not             gg.Color = gg.Color{247, 152, 239, 255}
 	diode           gg.Color = gg.Color{92, 190, 247, 255}
 	background      gg.Color = gg.Color{255, 235, 179, 255}
 	place_preview   gg.Color = gg.Color{128, 128, 128, 128}
@@ -130,6 +130,7 @@ mut:
 	tile_size         int         = 50
 	text_input        string // holds what the user typed
 	colorchips_hidden bool   // if colorchips are hidden
+	mouse_down        bool
 	scroll_pos        f32
 	// main menu
 	main_menu     bool
@@ -500,12 +501,6 @@ fn (mut app App) draw_placing_preview() {
 	} else {
 		app.place_start_y, app.place_end_y
 	}
-	/*
-	dump(x_start)
-	dump(x_end)
-	dump(y_start)
-	dump(y_end)
-	*/
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
 			pos_x := f32((f64(x) - app.cam_x) * app.tile_size)
@@ -563,10 +558,10 @@ fn (mut app App) draw_map() {
 				for x, column in chunk.id_map {
 					if chunk_cam_x + x < size.width { // cant break like that for lower bound
 						for y, id in column {
+							if id == empty_id {
+								continue
+							}
 							if chunk_cam_y + y < size.height {
-								if id == empty_id {
-									continue
-								}
 								pos_x := f32((chunk_cam_x + x) * app.tile_size)
 								pos_y := f32((chunk_cam_y + y) * app.tile_size)
 								if id == elem_crossing_bits { // same bits as wires so need to be separated
@@ -600,10 +595,10 @@ fn (mut app App) draw_map() {
 											not_poly_offset[4] = not_poly[ori][4] + pos_x
 											not_poly_offset[5] = not_poly[ori][5] + pos_y
 											app.ctx.draw_convex_poly(not_poly_offset,
-												state_color)
+												not_state_color)
 											app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x,
 												not_rect[ori][1] + pos_y, not_rect[ori][2],
-												not_rect[ori][3], not_state_color)
+												not_rect[ori][3], state_color)
 										}
 										elem_diode_bits {
 											app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
@@ -695,6 +690,7 @@ fn on_event(e &gg.Event, mut app App) {
 	}
 	match e.typ {
 		.mouse_up {
+			app.mouse_down = false
 			if app.main_menu {
 				if mouse_x >= app.button_solo_x && mouse_x < app.button_solo_x + app.button_solo_w
 					&& mouse_y >= app.button_solo_y
@@ -1233,52 +1229,7 @@ fn on_event(e &gg.Event, mut app App) {
 			}
 		}
 		.mouse_down {
-			if app.comp_running {
-				if app.placement_mode {
-					if mouse_x <= app.ui_width {
-					} else {
-						if !app.place_down {
-							app.place_down = true
-							app.place_start_x = u32(app.cam_x + mouse_x / app.tile_size)
-							app.place_start_y = u32(app.cam_y + mouse_y / app.tile_size)
-							app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
-							app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
-						} else {
-							place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
-							place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
-							if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
-								app.place_end_x = place_end_x
-								app.place_end_y = app.place_start_y
-							} else {
-								app.place_end_y = place_end_y
-								app.place_end_x = app.place_start_x
-							}
-						}
-					}
-				} else if app.selection_mode {
-					if mouse_x <= app.ui_width {
-					} else {
-						if e.mouse_button == .left {
-							app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
-							app.select_start_y = u32(app.cam_y + mouse_y / app.tile_size)
-						} else if e.mouse_button == .right {
-							app.select_end_x = u32(app.cam_x + mouse_x / app.tile_size)
-							app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
-						}
-					}
-				} else {
-					if mouse_x <= app.ui_width {
-					} else {
-						if !app.move_down {
-							app.move_down = true
-							app.click_x = mouse_x
-							app.click_y = mouse_y
-						}
-						app.drag_x = mouse_x
-						app.drag_y = mouse_y
-					}
-				}
-			}
+			app.mouse_down = true
 		}
 		.key_up {
 			if app.keyinput_mode {
@@ -1400,6 +1351,54 @@ fn on_event(e &gg.Event, mut app App) {
 		} else {
 		}
 	}
+	if app.mouse_down {
+		if app.comp_running {
+			if app.placement_mode {
+				if mouse_x <= app.ui_width {
+				} else {
+					if !app.place_down {
+						app.place_down = true
+						app.place_start_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.place_start_y = u32(app.cam_y + mouse_y / app.tile_size)
+						app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+					} else {
+						place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
+						place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
+						if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
+							app.place_end_x = place_end_x
+							app.place_end_y = app.place_start_y
+						} else {
+							app.place_end_y = place_end_y
+							app.place_end_x = app.place_start_x
+						}
+					}
+				}
+			} else if app.selection_mode {
+				if mouse_x <= app.ui_width {
+				} else {
+					if e.mouse_button == .left {
+						app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.select_start_y = u32(app.cam_y + mouse_y / app.tile_size)
+					} else if e.mouse_button == .right {
+						app.select_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+					}
+				}
+			} else {
+				if mouse_x <= app.ui_width {
+				} else {
+					if !app.move_down {
+						app.move_down = true
+						app.click_x = mouse_x
+						app.click_y = mouse_y
+					}
+					app.drag_x = mouse_x
+					app.drag_y = mouse_y
+				}
+			}
+		}
+	}
 }
 
 // logic
@@ -1423,8 +1422,8 @@ fn (mut app App) log_quit(message string) {
 		panic(err)
 	}
 	f.close()
-	eprintln('Crashed: see the logs')
-	exit(1)
+	// eprintln('Crashed: see the logs')
+	panic(message)
 }
 
 fn (mut app App) log(message string) {
@@ -1914,10 +1913,11 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	}
 	for x in x_start .. x_end {
 		for y in y_start .. y_end {
-			mut chunkmap := app.get_chunkmap_at_coords(x, y)
+			chunk_i := app.tmp_get_chunkmap_at_coords(x, y)
+			mut chunkmap := &app.map[chunk_i].id_map
 			x_map := x % chunk_size
 			y_map := y % chunk_size
-			id := chunkmap[x_map][y_map]
+			id := unsafe{chunkmap[x_map][y_map]}
 			if id == 0x0 { // map empty
 				continue
 			}
@@ -2149,10 +2149,11 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
-			mut chunkmap := app.get_chunkmap_at_coords(x, y)
+			chunk_i := app.tmp_get_chunkmap_at_coords(x, y)
+			mut chunkmap := &app.map[chunk_i].id_map
 			x_map := x % chunk_size
 			y_map := y % chunk_size
-			id := chunkmap[x_map][y_map]
+			id := unsafe{chunkmap[x_map][y_map]}
 			if id == empty_id { // map empty
 				continue
 			}
@@ -2205,10 +2206,11 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
-			mut chunkmap := app.get_chunkmap_at_coords(x, y)
+			chunk_i := app.tmp_get_chunkmap_at_coords(x, y)
+			mut chunkmap := &app.map[chunk_i].id_map
 			x_map := x % chunk_size
 			y_map := y % chunk_size
-			id := chunkmap[x_map][y_map]
+			id := unsafe{chunkmap[x_map][y_map]}
 			if id == empty_id { // map empty
 				continue
 			}
@@ -2222,7 +2224,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			}
 			if id == elem_crossing_bits { // same bits as wires so need to be separated
 				// 1. done
-				chunkmap[x_map][y_map] = empty_id
+				unsafe{chunkmap[x_map][y_map] = empty_id}
 
 				// 2. done: no state & no struct
 
@@ -2316,7 +2318,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			match id & elem_type_mask {
 				elem_not_bits {
 					// 1. done
-					chunkmap[x_map][y_map] = empty_id
+					unsafe{chunkmap[x_map][y_map] = empty_id}
 
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
@@ -2332,7 +2334,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				}
 				elem_diode_bits {
 					// 1. done
-					chunkmap[x_map][y_map] = empty_id
+					unsafe{chunkmap[x_map][y_map] = empty_id}
 
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
@@ -2348,7 +2350,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				}
 				elem_on_bits {
 					// 1. done
-					chunkmap[x_map][y_map] = empty_id
+					unsafe{chunkmap[x_map][y_map] = empty_id}
 
 					// 2. done
 					// no arrays for the ons
@@ -2378,7 +2380,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 
 					// 1. done; doing it before the join because it would count it as a valid wire
-					chunkmap[x_map][y_map] = empty_id
+					unsafe{chunkmap[x_map][y_map] = empty_id}
 
 					// 2. done
 					// Separate the wires:
@@ -2452,10 +2454,11 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 			if adj_id != empty_id {
 				total_x := u32(int(cable[0]) + x_off)
 				total_y := u32(int(cable[1]) + y_off)
-				mut adj_chunkmap := app.get_chunkmap_at_coords(total_x, total_y)
+				chunk_i := app.tmp_get_chunkmap_at_coords(total_x, total_y)
+				mut adj_chunkmap := &app.map[chunk_i].id_map
 				adj_x_map := total_x % chunk_size
 				adj_y_map := total_y % chunk_size
-				assert adj_id == adj_chunkmap[adj_x_map][adj_y_map]
+				assert adj_id == unsafe{adj_chunkmap[adj_x_map][adj_y_map]}
 				if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
 					adj_coo := [total_x, total_y]!
 					mut wid_adj_int := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
@@ -2531,10 +2534,11 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	// change the ids of the cables on the map and the I/O's i/o (actual I/O of the new wires)
 	for wire in new_wires {
 		for coo in wire.cable_coords {
-			mut adj_chunkmap := app.get_chunkmap_at_coords(coo[0], coo[1])
+			chunk_i := app.tmp_get_chunkmap_at_coords(coo[0], coo[1])
+			mut adj_chunkmap := &app.map[chunk_i].id_map
 			adj_x_map := coo[0] % chunk_size
 			adj_y_map := coo[1] % chunk_size
-			adj_chunkmap[adj_x_map][adj_y_map] = wire.rid | elem_wire_bits
+			unsafe{adj_chunkmap[adj_x_map][adj_y_map] = wire.rid | elem_wire_bits}
 		}
 
 		for inp in wire.inps {
@@ -2594,17 +2598,18 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		.not {
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
+					chunk_i := app.tmp_get_chunkmap_at_coords(x, y)
+					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != empty_id { // map not empty
+					if unsafe{chunkmap[x_map][y_map]} != empty_id { // map not empty
 						continue
 					}
 
 					// 1. done
 					id := elem_not_bits | app.n_next_rid | app.selected_ori
-					chunkmap[x_map][y_map] = id
-
+					unsafe{chunkmap[x_map][y_map] = id}
+					
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
 					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
@@ -2624,16 +2629,17 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		.diode {
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
+					chunk_i := app.tmp_get_chunkmap_at_coords(x, y)
+					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != empty_id { // map not empty
+					if unsafe{chunkmap[x_map][y_map]} != empty_id { // map not empty
 						continue
 					}
 
 					// 1. done
 					id := elem_diode_bits | app.d_next_rid | app.selected_ori
-					chunkmap[x_map][y_map] = id
+					unsafe{chunkmap[x_map][y_map] = id}
 
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
@@ -2654,16 +2660,17 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		.on {
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
+					chunk_i := app.tmp_get_chunkmap_at_coords(x, y)
+					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != empty_id { // map not empty
+					if unsafe{chunkmap[x_map][y_map]} != empty_id { // map not empty
 						continue
 					}
 
 					// 1. done
 					id := elem_on_bits | app.selected_ori
-					chunkmap[x_map][y_map] = id
+					unsafe{chunkmap[x_map][y_map] = id}
 
 					// 2. done
 					// no arrays for the ons
@@ -2679,10 +2686,11 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		.wire {
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
+					chunk_i := app.tmp_get_chunkmap_at_coords(x, y)
+					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != empty_id { // map not empty
+					if unsafe{chunkmap[x_map][y_map]} != empty_id { // map not empty
 						continue
 					}
 
@@ -2721,7 +2729,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
 
 					// 1. done
-					chunkmap[x_map][y_map] = elem_wire_bits | adjacent_wires[0] // no orientation
+					unsafe{chunkmap[x_map][y_map] = elem_wire_bits | adjacent_wires[0]} // no orientation
 
 					// 2. done
 					app.wires[first_i].cable_coords << [x, y]!
@@ -2741,14 +2749,15 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		.crossing {
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					mut chunkmap := app.get_chunkmap_at_coords(x, y)
+					chunk_i := app.tmp_get_chunkmap_at_coords(x, y)
+					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
-					if chunkmap[x_map][y_map] != empty_id { // map not empty
+					if unsafe{chunkmap[x_map][y_map]} != empty_id { // map not empty
 						continue
 					}
 					// 1. done; they all have the same id
-					chunkmap[x_map][y_map] = elem_crossing_bits
+					unsafe{chunkmap[x_map][y_map] = elem_crossing_bits}
 
 					// 2. done: no state & no struct
 
@@ -2843,9 +2852,10 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 		_, i := app.get_elem_state_idx_by_id(wire, 0)
 		for coo in app.wires[i].cable_coords {
 			// change the id of all the cables on the map
-			mut w_chunkmap := app.get_chunkmap_at_coords(coo[0], coo[1])
+			chunk_i := app.tmp_get_chunkmap_at_coords(coo[0], coo[1])
+			mut w_chunkmap := &app.map[chunk_i].id_map
 			// w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] &= ~elem_type_mask not needed as adjacent_wires[0] should have the type
-			w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] |= adjacent_wires[0]
+			unsafe{w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] |= adjacent_wires[0]}
 		}
 		// change the inputs / outputs' i/o ids
 		for inp in app.wires[i].inps {
@@ -2937,8 +2947,9 @@ fn (mut app App) add_output(elem_id u64, output_id u64) {
 fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64, bool, int, int) {
 	conv_x := u32(int(x) + x_dir)
 	conv_y := u32(int(y) + y_dir)
-	mut next_chunkmap := app.get_chunkmap_at_coords(conv_x, conv_y)
-	mut next_id := next_chunkmap[conv_x % chunk_size][conv_y % chunk_size]
+	mut chunk_i := app.tmp_get_chunkmap_at_coords(conv_x, conv_y)
+	mut next_chunkmap := &app.map[chunk_i].id_map
+	mut next_id := unsafe{next_chunkmap[conv_x % chunk_size][conv_y % chunk_size]}
 	mut input := false
 	// Check if next gate's orientation is matching and not orthogonal
 	if next_id == elem_crossing_bits {
@@ -2950,8 +2961,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			y_off += y_dir
 			x_conv := u32(int(x) + x_off)
 			y_conv := u32(int(y) + y_off)
-			next_chunkmap = app.get_chunkmap_at_coords(x_conv, y_conv)
-			next_id = next_chunkmap[x_conv % chunk_size][y_conv % chunk_size]
+			chunk_i = app.tmp_get_chunkmap_at_coords(x_conv, y_conv)
+			next_chunkmap = &app.map[chunk_i].id_map
+			next_id = unsafe{next_chunkmap[x_conv % chunk_size][y_conv % chunk_size]}
 		}
 		next_id, input, _, _ = app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir),
 			u32(int(y) + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
@@ -3047,8 +3059,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) u64 {
 	conv_x := u32(int(x) + x_dir)
 	conv_y := u32(int(y) + y_dir)
-	mut next_chunkmap := app.get_chunkmap_at_coords(conv_x, conv_y)
-	mut next_id := next_chunkmap[conv_x % chunk_size][conv_y % chunk_size]
+	mut chunk_i := app.tmp_get_chunkmap_at_coords(conv_x, conv_y)
+	mut next_chunkmap := &app.map[chunk_i].id_map
+	mut next_id := unsafe{next_chunkmap[conv_x % chunk_size][conv_y % chunk_size]}
 	// Check if next gate's orientation is matching and not orthogonal
 	if next_id == elem_crossing_bits {
 		// check until wire
@@ -3059,8 +3072,9 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 			y_off += y_dir
 			x_conv := u32(int(x) + x_off)
 			y_conv := u32(int(y) + y_off)
-			next_chunkmap = app.get_chunkmap_at_coords(x_conv, y_conv)
-			next_id = next_chunkmap[x_conv % chunk_size][y_conv % chunk_size]
+			chunk_i = app.tmp_get_chunkmap_at_coords(x_conv, y_conv)
+			next_chunkmap = &app.map[chunk_i].id_map
+			next_id = unsafe{next_chunkmap[x_conv % chunk_size][y_conv % chunk_size]}
 		}
 		return app.next_gate_id(u32(int(x) + x_off - x_dir), u32(int(y) + y_off - y_dir),
 			x_dir, y_dir, gate_ori) // coords of the crossing just before the detected good elem
@@ -3102,19 +3116,20 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 }
 
 fn (mut app App) set_elem_state_by_pos(x u32, y u32, new_state bool) {
-	mut chunkmap := app.get_chunkmap_at_coords(x, y)
+	chunk_i := app.tmp_get_chunkmap_at_coords(x, y)
+	mut chunkmap := &app.map[chunk_i].id_map
 	xmap := x % chunk_size
 	ymap := y % chunk_size
-	id := chunkmap[xmap][ymap]
+	id := unsafe{chunkmap[xmap][ymap]}
 	if id == elem_crossing_bits || id == empty_id || id & elem_type_mask == elem_on_bits {
 		return
 	}
 	if new_state {
-		chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+		unsafe{chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits}
 	} else {
-		chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
+		unsafe{chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)}
 	}
-	_, i := app.get_elem_state_idx_by_id(chunkmap[xmap][ymap], 0)
+	_, i := app.get_elem_state_idx_by_id(unsafe{chunkmap[xmap][ymap]}, 0)
 	if id & elem_type_mask == elem_wire_bits {
 		app.w_states[app.actual_state][i] = new_state
 	} else if id & elem_type_mask == elem_not_bits {
@@ -3140,13 +3155,14 @@ fn (mut app App) update_cycle() {
 		old_inp_state, _ := app.get_elem_state_idx_by_id(not.inp, 1)
 		// 4. done
 		app.n_states[app.actual_state][i] = !old_inp_state
-		mut chunkmap := app.get_chunkmap_at_coords(not.x, not.y)
+		chunk_i := app.tmp_get_chunkmap_at_coords(not.x, not.y)
+		mut chunkmap := &app.map[chunk_i].id_map
 		xmap := not.x % chunk_size
 		ymap := not.y % chunk_size
 		if !old_inp_state {
-			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+			unsafe{chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits}
 		} else {
-			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
+			unsafe{chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)}
 		}
 	}
 	for i, diode in app.diodes {
@@ -3154,13 +3170,14 @@ fn (mut app App) update_cycle() {
 		old_inp_state, _ := app.get_elem_state_idx_by_id(diode.inp, 1)
 		// 4. done
 		app.d_states[app.actual_state][i] = old_inp_state
-		mut chunkmap := app.get_chunkmap_at_coords(diode.x, diode.y)
+		chunk_i := app.tmp_get_chunkmap_at_coords(diode.x, diode.y)
+		mut chunkmap := &app.map[chunk_i].id_map
 		xmap := diode.x % chunk_size
 		ymap := diode.y % chunk_size
 		if old_inp_state {
-			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+			unsafe{chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits}
 		} else {
-			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
+			unsafe{chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)}
 		}
 	}
 	for i, wire in app.wires {
@@ -3176,18 +3193,34 @@ fn (mut app App) update_cycle() {
 		// 4. done
 		app.w_states[app.actual_state][i] = old_or_inp_state
 		for cable_coo in wire.cable_coords {
-			mut chunkmap := app.get_chunkmap_at_coords(cable_coo[0], cable_coo[1])
+			chunk_i := app.tmp_get_chunkmap_at_coords(cable_coo[0], cable_coo[1])
+			mut chunkmap := &app.map[chunk_i].id_map
 			xmap := cable_coo[0] % chunk_size
 			ymap := cable_coo[1] % chunk_size
 			if old_or_inp_state {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+				unsafe{chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits}
 			} else {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
+				unsafe{chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)}
 			}
 		}
 	}
 }
 
+fn (mut app App) tmp_get_chunkmap_at_coords(x u32, y u32) int {
+	for i, chunk in app.map {
+		if x >= chunk.x && y >= chunk.y {
+			if x < chunk.x + chunk_size && y < chunk.y + chunk_size {
+				return i
+			}
+		}
+	}
+	// chunk not found, create it
+	app.map << Chunk{
+		x: (x / chunk_size) * chunk_size
+		y: (y / chunk_size) * chunk_size
+	}
+	return app.map.len - 1
+}
 fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u64 {
 	for chunk in app.map {
 		if x >= chunk.x && y >= chunk.y {
@@ -3262,8 +3295,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 			}
 		}
 	}
-	// app.log_quit('${@LOCATION} id not found in get_elem_state_idx_by_id: ${id & rid}')
-	panic('${@LOCATION} id not found in get_elem_state_idx_by_id: ${id & rid}')
+	app.log_quit('${@LOCATION} id not found in get_elem_state_idx_by_id: ${id & rid}')
 }
 
 // TODO: Explain ids
@@ -3279,6 +3311,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 // Example: a not gate facing west placed next to a crossing (the not gate is on it's west side), will have as input the element placed next to the crossing on the east side
 
 struct Chunk {
+mut:
 	x      u32
 	y      u32
 	id_map [chunk_size][chunk_size]u64 // [x][y] x++=east y++=south
