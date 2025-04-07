@@ -2457,10 +2457,9 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	// 			else: add adj_cable to the wire list of cable
 	//			add adj_cable in the stack (with it's wire id on the id_stack)
 	//		else: do nothing
-
 	mut new_wires := []Wire{len: coo_adj_wires.len, init: Wire{
 		rid:          u64(index)
-		cable_coords: [coo_adj_wires[index]]
+		cable_coords: [[coo_adj_wires[index][0], coo_adj_wires[index][1]]!]
 	}}
 	mut c_stack := [][2]u32{len: coo_adj_wires.len, init: coo_adj_wires[index]}
 	mut id_stack := []u64{len: coo_adj_wires.len, init: u64(index)}
@@ -2468,6 +2467,8 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	for c_stack.len > 0 { // for each wire in the stack
 		cable := c_stack.pop()
 		cable_id := id_stack.pop()
+		dump(cable)
+		dump(new_wires)
 		for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] { // for each adjacent tile
 			adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable[0], cable[1],
 				coo[0], coo[1])
@@ -2481,9 +2482,13 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 				assert adj_id == unsafe { adj_chunkmap[adj_x_map][adj_y_map] }
 				if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
 					adj_coo := [total_x, total_y]!
-					mut wid_adj_int := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
-					mut wid_adj := u64(wid_adj_int)
-					if wid_adj_int == -1 { // if the coord is not already in a wire list
+					dump(adj_coo)
+					dump(new_wires)
+					mut wid_adj := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
+					dump(cable_id)
+					dump(wid_adj)
+					dump(new_wires)
+					if wid_adj == u64(-1) { // if the coord is not already in a wire list
 						for mut wire in new_wires { // find the wire where cable is
 							if wire.rid == cable_id {
 								wid_adj = cable_id
@@ -2491,7 +2496,7 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 								// no need remove it from it's actual wire because it is already done in the modifications in the end
 							}
 						}
-						if wid_adj == -1 {
+						if wid_adj == u64(-1) {
 							app.log_quit('${@LOCATION} should have found the appropriate wire')
 						}
 					} else {
@@ -2500,9 +2505,6 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 							// get the two lists
 							mut i_first := -1
 							mut i_sec := -1
-							dump(cable_id)
-							dump(wid_adj)
-							dump(new_wires)
 							for iw, wire in new_wires {
 								if wire.rid == cable_id {
 									i_first = iw
@@ -2582,11 +2584,11 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	}
 }
 
-fn which_wire(new_wires []Wire, coo [2]u32) int {
+fn which_wire(new_wires []Wire, coo [2]u32) u64 {
 	for wire in new_wires {
 		i := wire.cable_coords.index(coo)
 		if i != -1 {
-			return i
+			return wire.rid
 		}
 	}
 	return -1
