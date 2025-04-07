@@ -400,6 +400,8 @@ fn on_frame(mut app App) {
 	// Draw
 	app.ctx.begin()
 	if app.comp_running {
+		app.draw_map()
+		
 		// placing preview
 		if app.placement_mode && app.place_start_x != u32(-1) { // did not hide the check to be able to see when it is happening
 			app.draw_placing_preview()
@@ -411,7 +413,6 @@ fn on_frame(mut app App) {
 			app.draw_input_buttons()
 		}
 
-		app.draw_map()
 		app.draw_ingame_ui_buttons()
 
 		if !app.colorchips_hidden {
@@ -2499,6 +2500,9 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 							// get the two lists
 							mut i_first := -1
 							mut i_sec := -1
+							dump(cable_id)
+							dump(wid_adj)
+							dump(new_wires)
 							for iw, wire in new_wires {
 								if wire.rid == cable_id {
 									i_first = iw
@@ -2508,6 +2512,8 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 							}
 							wid_adj = cable_id
 							// merge
+							dump(i_first)
+							dump(i_sec)
 							new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
 							new_wires[i_first].inps << new_wires[i_sec].inps
 							new_wires[i_first].outs << new_wires[i_sec].outs
@@ -2544,11 +2550,16 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	_, idx := app.get_elem_state_idx_by_id(id, 0)
 	new_wires[0].rid = id & rid_mask
 	app.wires[idx] = new_wires[0]
+	state0 := app.w_states[0][idx]
+	state1 := app.w_states[1][idx]
 	for mut wire in new_wires[1..] {
 		wire.rid = app.w_next_rid
 		app.wires << wire
+		app.w_states[0] << state0
+		app.w_states[1] << state1
 		app.w_next_rid++
 	}
+	
 
 	// change the ids of the cables on the map and the I/O's i/o (actual I/O of the new wires)
 	for wire in new_wires {
@@ -2717,7 +2728,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					if unsafe { chunkmap[x_map][y_map] } != empty_id { // map not empty
 						continue
 					}
-
+					dump(chunkmap)
 					// Find if a part of an existing wire
 					mut adjacent_wires := []u64{}
 					mut adjacent_inps := []u64{}
@@ -2737,6 +2748,14 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 
+					// remove redundancy:
+					mut tmp_adj_wires := []u64{}
+					for aw in adjacent_wires {
+						if !(aw in tmp_adj_wires) {
+							tmp_adj_wires << aw
+						}
+					}
+					adjacent_wires = tmp_adj_wires.clone()
 					// Join the wires:
 					if adjacent_wires.len > 1 { // if only one wire, there is no need to join it
 						app.join_wires(mut adjacent_wires)
@@ -2883,7 +2902,7 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 			mut w_chunkmap := &app.map[chunk_i].id_map
 			// w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] &= ~elem_type_mask not needed as adjacent_wires[0] should have the type
 			unsafe {
-				w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] |= adjacent_wires[0]
+				w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] = adjacent_wires[0]
 			}
 		}
 		// change the inputs / outputs' i/o ids
@@ -3263,6 +3282,7 @@ fn (mut app App) update_cycle() {
 			}
 		}
 		// 4. done
+		dump(app.w_states)
 		app.w_states[app.actual_state][i] = old_or_inp_state
 		for cable_coo in wire.cable_coords {
 			chunk_i := app.tmp_get_chunkmap_at_coords(cable_coo[0], cable_coo[1])
@@ -3361,6 +3381,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 			}
 		}
 	} else if id & elem_type_mask == elem_wire_bits { // wire
+		dump(app.wires)
 		mut low := 0
 		mut high := app.wires.len - 1
 		mut mid := 0 // tmp value
