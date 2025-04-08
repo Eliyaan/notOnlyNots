@@ -401,7 +401,7 @@ fn on_frame(mut app App) {
 	app.ctx.begin()
 	if app.comp_running {
 		app.draw_map()
-		
+
 		// placing preview
 		if app.placement_mode && app.place_start_x != u32(-1) { // did not hide the check to be able to see when it is happening
 			app.draw_placing_preview()
@@ -2751,7 +2751,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// remove redundancy:
 					mut tmp_adj_wires := []u64{}
 					for aw in adjacent_wires {
-						if !(aw in tmp_adj_wires) {
+						if aw !in tmp_adj_wires {
 							tmp_adj_wires << aw
 						}
 					}
@@ -2770,10 +2770,14 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						app.w_next_rid++
 					}
 					_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
-
+					
 					// 1. done
 					unsafe {
-						chunkmap[x_map][y_map] = elem_wire_bits | adjacent_wires[0]
+						if app.w_states[app.actual_state][first_i] {
+							chunkmap[x_map][y_map] = elem_wire_bits | adjacent_wires[0] | on_bits
+						} else {
+							chunkmap[x_map][y_map] = elem_wire_bits | adjacent_wires[0]
+						}
 					} // no orientation
 
 					// 2. done
@@ -2894,15 +2898,35 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 fn (mut app App) join_wires(mut adjacent_wires []u64) {
 	adjacent_wires.sort() // the id order is the same as the idx order so no problem for deletion
 	_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
+	for wire in adjacent_wires[1..] { // find the state
+		_, i := app.get_elem_state_idx_by_id(wire, 0)
+		app.w_states[app.actual_state][first_i] = app.w_states[app.actual_state][first_i]
+			|| app.w_states[app.actual_state][i]
+	}
+	state := app.w_states[app.actual_state][first_i]
+	if state { // update the first wire's state
+		for coo in app.wires[first_i].cable_coords {
+			// change the id of all the cables on the map
+			chunk_i := app.tmp_get_chunkmap_at_coords(coo[0], coo[1])
+			mut w_chunkmap := &app.map[chunk_i].id_map
+			unsafe {
+				w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] |= on_bits
+			}
+		}
+	}
+	// join the other wires with the first one
 	for wire in adjacent_wires[1..] {
 		_, i := app.get_elem_state_idx_by_id(wire, 0)
 		for coo in app.wires[i].cable_coords {
 			// change the id of all the cables on the map
 			chunk_i := app.tmp_get_chunkmap_at_coords(coo[0], coo[1])
 			mut w_chunkmap := &app.map[chunk_i].id_map
-			// w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] &= ~elem_type_mask not needed as adjacent_wires[0] should have the type
 			unsafe {
-				w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] = adjacent_wires[0]
+				if state {
+					w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] = adjacent_wires[0] | on_bits
+				} else {
+					w_chunkmap[coo[0] % chunk_size][coo[1] % chunk_size] = adjacent_wires[0]
+				}
 			}
 		}
 		// change the inputs / outputs' i/o ids
@@ -2918,7 +2942,6 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 		app.wires[first_i].outs << app.wires[i].outs
 		// delete the old wires
 		app.wires.delete(i)
-		app.w_states[app.actual_state][first_i] = app.w_states[app.actual_state][first_i] || app.w_states[app.actual_state][i]
 		app.w_states[0].delete(i)
 		app.w_states[1].delete(i)
 	}
