@@ -356,33 +356,35 @@ fn main() {
 	app.log('Start: ${time.now()}')
 	// lancement du programme/de la fenêtre
 	app.main_menu = true
-	app.buttons[.cancel_button].img = app.ctx.create_image('sprites/cancel_button.png')!
-	app.buttons[.confirm_save_gate].img = app.ctx.create_image('sprites/confirm_save_gate.png')!
-	app.buttons[.selection_button].img = app.ctx.create_image('sprites/selection_button.png')!
-	app.buttons[.rotate_copy].img = app.ctx.create_image('sprites/rotate_copy.png')!
-	app.buttons[.copy_button].img = app.ctx.create_image('sprites/copy_button.png')!
-	app.buttons[.choose_colorchip].img = app.ctx.create_image('sprites/choose_colorchip.png')!
-	app.buttons[.load_gate].img = app.ctx.create_image('sprites/load_gate.png')!
-	app.buttons[.save_gate].img = app.ctx.create_image('sprites/save_gate.png')!
-	app.buttons[.edit_color].img = app.ctx.create_image('sprites/edit_color.png')!
-	app.buttons[.item_nots].img = app.ctx.create_image('sprites/item_nots.png')!
-	app.buttons[.create_color_chip].img = app.ctx.create_image('sprites/create_color_chip.png')!
-	app.buttons[.add_input].img = app.ctx.create_image('sprites/add_input.png')!
-	app.buttons[.item_diode].img = app.ctx.create_image('sprites/item_diode.png')!
-	app.buttons[.steal_settings].img = app.ctx.create_image('sprites/steal_settings.png')!
-	app.buttons[.item_crossing].img = app.ctx.create_image('sprites/item_crossing.png')!
-	app.buttons[.delete_colorchip].img = app.ctx.create_image('sprites/delete_colorchip.png')!
-	app.buttons[.item_on].img = app.ctx.create_image('sprites/item_on.png')!
-	app.buttons[.item_wire].img = app.ctx.create_image('sprites/item_wire.png')!
-	app.buttons[.speed].img = app.ctx.create_image('sprites/speed.png')!
-	app.buttons[.slow].img = app.ctx.create_image('sprites/slow.png')!
-	app.buttons[.pause].img = app.ctx.create_image('sprites/pause.png')!
-	app.buttons[.paste].img = app.ctx.create_image('sprites/paste.png')!
-	app.buttons[.save_map].img = app.ctx.create_image('sprites/save_map.png')!
-	app.buttons[.keyinput].img = app.ctx.create_image('sprites/keyinput.png')!
-	app.buttons[.hide_colorchips].img = app.ctx.create_image('sprites/hide_colorchips.png')!
-	app.buttons[.quit_map].img = app.ctx.create_image('sprites/quit_map.png')!
-	app.buttons[.selection_delete].img = app.ctx.create_image('sprites/selection_delete.png')!
+	unsafe {
+		app.buttons[.cancel_button].img = app.ctx.create_image('sprites/cancel_button.png')!
+		app.buttons[.confirm_save_gate].img = app.ctx.create_image('sprites/confirm_save_gate.png')!
+		app.buttons[.selection_button].img = app.ctx.create_image('sprites/selection_button.png')!
+		app.buttons[.rotate_copy].img = app.ctx.create_image('sprites/rotate_copy.png')!
+		app.buttons[.copy_button].img = app.ctx.create_image('sprites/copy_button.png')!
+		app.buttons[.choose_colorchip].img = app.ctx.create_image('sprites/choose_colorchip.png')!
+		app.buttons[.load_gate].img = app.ctx.create_image('sprites/load_gate.png')!
+		app.buttons[.save_gate].img = app.ctx.create_image('sprites/save_gate.png')!
+		app.buttons[.edit_color].img = app.ctx.create_image('sprites/edit_color.png')!
+		app.buttons[.item_nots].img = app.ctx.create_image('sprites/item_nots.png')!
+		app.buttons[.create_color_chip].img = app.ctx.create_image('sprites/create_color_chip.png')!
+		app.buttons[.add_input].img = app.ctx.create_image('sprites/add_input.png')!
+		app.buttons[.item_diode].img = app.ctx.create_image('sprites/item_diode.png')!
+		app.buttons[.steal_settings].img = app.ctx.create_image('sprites/steal_settings.png')!
+		app.buttons[.item_crossing].img = app.ctx.create_image('sprites/item_crossing.png')!
+		app.buttons[.delete_colorchip].img = app.ctx.create_image('sprites/delete_colorchip.png')!
+		app.buttons[.item_on].img = app.ctx.create_image('sprites/item_on.png')!
+		app.buttons[.item_wire].img = app.ctx.create_image('sprites/item_wire.png')!
+		app.buttons[.speed].img = app.ctx.create_image('sprites/speed.png')!
+		app.buttons[.slow].img = app.ctx.create_image('sprites/slow.png')!
+		app.buttons[.pause].img = app.ctx.create_image('sprites/pause.png')!
+		app.buttons[.paste].img = app.ctx.create_image('sprites/paste.png')!
+		app.buttons[.save_map].img = app.ctx.create_image('sprites/save_map.png')!
+		app.buttons[.keyinput].img = app.ctx.create_image('sprites/keyinput.png')!
+		app.buttons[.hide_colorchips].img = app.ctx.create_image('sprites/hide_colorchips.png')!
+		app.buttons[.quit_map].img = app.ctx.create_image('sprites/quit_map.png')!
+		app.buttons[.selection_delete].img = app.ctx.create_image('sprites/selection_delete.png')!
+	}
 	app.ctx.run()
 }
 
@@ -447,35 +449,37 @@ fn (mut app App) draw_ingame_ui_buttons() {
 	size := app.button_size
 	y_factor := app.button_top_padding + size
 	app.ctx.draw_square_filled(base_x, base_y, size, default_button_color) // cancel_button
-	if app.selection_mode {
-		for button in selec_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
-				size, app.buttons[button].img)
-		}
-	} else if app.paste_mode {
-		for button in paste_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
-				size, app.buttons[button].img)
-		}
-	} else if app.save_gate_mode {
-		for button in save_gate_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
-				size, app.buttons[button].img)
-		}
-	} else if app.placement_mode {
-		for button in placement_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
-				size, app.buttons[button].img)
-		}
-	} else if app.edit_mode {
-		for button in edit_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
-				size, app.buttons[button].img)
-		}
-	} else { // no mode
-		for button in no_mode_buttons {
-			app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y, size,
-				size, app.buttons[button].img)
+	unsafe {
+		if app.selection_mode {
+			for button in selec_buttons {
+				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
+					size, size, app.buttons[button].img)
+			}
+		} else if app.paste_mode {
+			for button in paste_buttons {
+				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
+					size, size, app.buttons[button].img)
+			}
+		} else if app.save_gate_mode {
+			for button in save_gate_buttons {
+				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
+					size, size, app.buttons[button].img)
+			}
+		} else if app.placement_mode {
+			for button in placement_buttons {
+				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
+					size, size, app.buttons[button].img)
+			}
+		} else if app.edit_mode {
+			for button in edit_buttons {
+				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
+					size, size, app.buttons[button].img)
+			}
+		} else { // no mode
+			for button in no_mode_buttons {
+				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
+					size, size, app.buttons[button].img)
+			}
 		}
 	}
 }
@@ -656,7 +660,7 @@ fn (mut app App) draw_map() {
 }
 
 fn (app App) check_ui_button_click_y(but Buttons, mouse_y f32) bool {
-	pos := app.buttons[but].pos
+	pos := unsafe { app.buttons[but].pos }
 	return mouse_y >= pos * (app.button_top_padding + app.button_size) + app.button_top_padding
 		&& mouse_y < (pos + 1) * (app.button_top_padding + app.button_size) + app.button_top_padding
 }
@@ -2765,7 +2769,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						app.w_next_rid++
 					}
 					_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
-					
+
 					// 1. done
 					unsafe {
 						if app.w_states[app.actual_state][first_i] {
