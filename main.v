@@ -3048,7 +3048,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			next_chunkmap = &app.map[chunk_i].id_map
 			next_id = unsafe { next_chunkmap[x_conv % chunk_size][y_conv % chunk_size] }
 		}
-		next_id2, input2, x_off2, y_off2 := app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir),
+		next_id2, input2, _, _ := app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir),
 			u32(int(y) + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
 		return next_id2, input2, x_off, y_off
 	} else if next_id == empty_id {
