@@ -2827,6 +2827,14 @@ dump('at least')
 							&& n_adj_id & elem_type_mask == elem_wire_bits {
 							// two wires: join them
 							mut adjacent_wires := [s_adj_id, n_adj_id]
+							// remove redundancy:
+							mut tmp_adj_wires := []u64{}
+							for aw in adjacent_wires {
+								if aw !in tmp_adj_wires {
+									tmp_adj_wires << aw
+								}
+							}
+							adjacent_wires = tmp_adj_wires.clone()
 							app.join_wires(mut adjacent_wires)
 						} else if s_adj_id & elem_type_mask == elem_wire_bits {
 							// one side is a wire: add the new i/o for the wire & for the gate
@@ -2862,6 +2870,14 @@ dump('at least')
 							&& w_adj_id & elem_type_mask == elem_wire_bits {
 							// two wires: join them
 							mut adjacent_wires := [e_adj_id, w_adj_id]
+							// remove redundancy:
+							mut tmp_adj_wires := []u64{}
+							for aw in adjacent_wires {
+								if aw !in tmp_adj_wires {
+									tmp_adj_wires << aw
+								}
+							}
+							adjacent_wires = tmp_adj_wires.clone()
 							app.join_wires(mut adjacent_wires)
 						} else if e_adj_id & elem_type_mask == elem_wire_bits {
 							// one side is a wire: add the new i/o for the wire & for the gate
@@ -3352,6 +3368,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 				return app.n_states[concerned_state][mid], mid
 			}
 		}
+		dump(app.nots)
 	} else if id & elem_type_mask == elem_diode_bits { // diode
 		mut low := 0
 		mut high := app.diodes.len - 1
@@ -3366,6 +3383,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 				return app.d_states[concerned_state][mid], mid
 			}
 		}
+		dump(app.diodes)
 	} else if id & elem_type_mask == elem_wire_bits { // wire
 		mut low := 0
 		mut high := app.wires.len - 1
@@ -3380,6 +3398,7 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 				return app.w_states[concerned_state][mid], mid
 			}
 		}
+		dump(app.wires)
 	}
 	app.log_quit('${@LOCATION} id not found in get_elem_state_idx_by_id: ${id & rid_mask}')
 }
