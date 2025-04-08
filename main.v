@@ -2464,11 +2464,16 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	mut c_stack := [][2]u32{len: coo_adj_wires.len, init: coo_adj_wires[index]}
 	mut id_stack := []u64{len: coo_adj_wires.len, init: u64(index)}
 
-	for c_stack.len > 0 { // for each wire in the stack
+	cable_stack: for c_stack.len > 0 { // for each wire in the stack
 		cable := c_stack.pop()
 		cable_id := id_stack.pop()
-		dump(cable)
-		dump(new_wires)
+		for w in new_wires {
+			if w.rid != cable_id {
+				if cable in w.cable_coords {
+					continue cable_stack // cable was already processed and the id is outdated
+				}
+			}
+		}
 		for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] { // for each adjacent tile
 			adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable[0], cable[1],
 				coo[0], coo[1])
@@ -2482,12 +2487,7 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 				assert adj_id == unsafe { adj_chunkmap[adj_x_map][adj_y_map] }
 				if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
 					adj_coo := [total_x, total_y]!
-					dump(adj_coo)
-					dump(new_wires)
 					mut wid_adj := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
-					dump(cable_id)
-					dump(wid_adj)
-					dump(new_wires)
 					if wid_adj == u64(-1) { // if the coord is not already in a wire list
 						for mut wire in new_wires { // find the wire where cable is
 							if wire.rid == cable_id {
@@ -2514,8 +2514,6 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 							}
 							wid_adj = cable_id
 							// merge
-							dump(i_first)
-							dump(i_sec)
 							new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
 							new_wires[i_first].inps << new_wires[i_sec].inps
 							new_wires[i_first].outs << new_wires[i_sec].outs
@@ -2549,9 +2547,12 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	}
 
 	// Create/Modify the new wires
+	dump(app.wires)
+	dump(app.w_states)
 	_, idx := app.get_elem_state_idx_by_id(id, 0)
 	new_wires[0].rid = id & rid_mask
 	app.wires[idx] = new_wires[0]
+	dump(app.w_states[app.actual_state][idx])
 	state0 := app.w_states[0][idx]
 	state1 := app.w_states[1][idx]
 	for mut wire in new_wires[1..] {
@@ -2561,7 +2562,8 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 		app.w_states[1] << state1
 		app.w_next_rid++
 	}
-	
+	dump(app.wires)
+	dump(app.w_states)
 
 	// change the ids of the cables on the map and the I/O's i/o (actual I/O of the new wires)
 	for wire in new_wires {
@@ -2571,7 +2573,8 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 			adj_x_map := coo[0] % chunk_size
 			adj_y_map := coo[1] % chunk_size
 			unsafe {
-				adj_chunkmap[adj_x_map][adj_y_map] = wire.rid | elem_wire_bits
+				adj_chunkmap[adj_x_map][adj_y_map] &= on_bits // keep the state
+				adj_chunkmap[adj_x_map][adj_y_map] |= wire.rid | elem_wire_bits // add the new id
 			}
 		}
 
@@ -2730,7 +2733,6 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					if unsafe { chunkmap[x_map][y_map] } != empty_id { // map not empty
 						continue
 					}
-					dump(chunkmap)
 					// Find if a part of an existing wire
 					mut adjacent_wires := []u64{}
 					mut adjacent_inps := []u64{}
@@ -3236,6 +3238,7 @@ fn (mut app App) update_cycle() {
 	// 2. done
 	for i, not in app.nots {
 		// 3. done
+		dump(not.inp & rid_mask)
 		old_inp_state, _ := app.get_elem_state_idx_by_id(not.inp, 1)
 		// 4. done
 		app.n_states[app.actual_state][i] = !old_inp_state
@@ -3272,10 +3275,10 @@ fn (mut app App) update_cycle() {
 			}
 		}
 	}
+	dump(app.w_states)
 	for i, wire in app.wires {
 		// 3. done
 		mut old_or_inp_state := false // will be all the inputs of the wire ORed
-		dump(wire.inps)
 		for inp in wire.inps {
 			inp_state, _ := app.get_elem_state_idx_by_id(inp, 1)
 			if inp_state {
@@ -3284,7 +3287,6 @@ fn (mut app App) update_cycle() {
 			}
 		}
 		// 4. done
-		dump(app.w_states)
 		app.w_states[app.actual_state][i] = old_or_inp_state
 		for cable_coo in wire.cable_coords {
 			chunk_i := app.tmp_get_chunkmap_at_coords(cable_coo[0], cable_coo[1])
@@ -3340,7 +3342,6 @@ fn (mut app App) get_chunkmap_at_coords(x u32, y u32) [chunk_size][chunk_size]u6
 // returns the state of the concerned element & the index in the list
 // crossing & ons dont have different states nor idx
 fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
-	dump('${id:b}')
 	concerned_state := (app.actual_state + previous) % 2
 	rid := id & rid_mask
 	// the state in the id may be an old state so it needs to get the state from the state lists
