@@ -2543,12 +2543,9 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	}
 
 	// Create/Modify the new wires
-	dump(app.wires)
-	dump(app.w_states)
 	_, idx := app.get_elem_state_idx_by_id(id, 0)
 	new_wires[0].rid = id & rid_mask
 	app.wires[idx] = new_wires[0]
-	dump(app.w_states[app.actual_state][idx])
 	state0 := app.w_states[0][idx]
 	state1 := app.w_states[1][idx]
 	for mut wire in new_wires[1..] {
@@ -2558,8 +2555,6 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 		app.w_states[1] << state1
 		app.w_next_rid++
 	}
-	dump(app.wires)
-	dump(app.w_states)
 
 	// change the ids of the cables on the map and the I/O's i/o (actual I/O of the new wires)
 	for wire in new_wires {
@@ -2590,7 +2585,7 @@ fn which_wire(new_wires []Wire, coo [2]u32) u64 {
 			return wire.rid
 		}
 	}
-	return -1
+	return u64(-1)
 }
 
 fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
@@ -2738,12 +2733,12 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 							coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
-							adjacent_wires << adj_id
+							adjacent_wires << adj_id & id_mask
 						} else {
 							if is_input {
-								adjacent_inps << adj_id // for the new inps
+								adjacent_inps << adj_id & id_mask // for the new inps
 							} else {
-								adjacent_outs << adj_id // for the new inps
+								adjacent_outs << adj_id & id_mask // for the new inps
 							}
 						}
 					}
@@ -2931,10 +2926,10 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 		}
 		// change the inputs / outputs' i/o ids
 		for inp in app.wires[i].inps {
-			app.add_output(inp, wire)
+			app.add_output(inp, adjacent_wires[0])
 		}
 		for out in app.wires[i].outs {
-			app.add_input(out, wire)
+			app.add_input(out, adjacent_wires[0])
 		}
 		// merge all the arrays in the new main wire
 		app.wires[first_i].cable_coords << app.wires[i].cable_coords
@@ -2996,7 +2991,7 @@ fn (mut app App) remove_input(elem_id u64, input_id u64) {
 // add output_id to the output(s) of elem_id (if it is a valid id)
 fn (mut app App) add_output(elem_id u64, output_id u64) {
 	if elem_id != empty_id && elem_id != elem_crossing_bits {
-		if elem_id & elem_type_mask == 0b11 { // wire
+		if elem_id & elem_type_mask == elem_wire_bits { // wire
 			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
 			app.wires[idx].outs << output_id
 		}
@@ -3005,7 +3000,7 @@ fn (mut app App) add_output(elem_id u64, output_id u64) {
 
 fn (mut app App) remove_output(elem_id u64, output_id u64) {
 	if elem_id != empty_id && elem_id != elem_crossing_bits {
-		if elem_id & elem_type_mask == 0b11 { // wire
+		if elem_id & elem_type_mask == elem_wire_bits { // wire
 			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
 			i := app.wires[idx].outs.map(it & id_mask).index(output_id & id_mask)
 			app.wires[idx].outs.delete(i)
@@ -3232,7 +3227,6 @@ fn (mut app App) update_cycle() {
 	// 2. done
 	for i, not in app.nots {
 		// 3. done
-		dump(not.inp & rid_mask)
 		old_inp_state, _ := app.get_elem_state_idx_by_id(not.inp, 1)
 		// 4. done
 		app.n_states[app.actual_state][i] = !old_inp_state
@@ -3269,7 +3263,6 @@ fn (mut app App) update_cycle() {
 			}
 		}
 	}
-	dump(app.w_states)
 	for i, wire in app.wires {
 		// 3. done
 		mut old_or_inp_state := false // will be all the inputs of the wire ORed
@@ -3362,7 +3355,6 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 			}
 		}
 	} else if id & elem_type_mask == elem_wire_bits { // wire
-		dump(app.wires)
 		mut low := 0
 		mut high := app.wires.len - 1
 		mut mid := 0 // tmp value
