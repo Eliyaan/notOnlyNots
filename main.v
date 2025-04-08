@@ -105,7 +105,7 @@ mut:
 
 struct Palette {
 	junc            gg.Color = gg.Color{0, 0, 0, 255}
-	junc_v          gg.Color = gg.Color{213, 92, 247, 255} // vertical line
+	junc_v          gg.Color = gg.Color{255, 217, 46, 255} // vertical line
 	junc_h          gg.Color = gg.Color{190, 92, 247, 255} // horiz line
 	wire_on         gg.Color = gg.Color{131, 247, 92, 255}
 	wire_off        gg.Color = gg.Color{247, 92, 92, 255}
@@ -2736,6 +2736,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut adjacent_wires := []u64{}
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
+dump('gotcha')
 					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
 						adj_id, is_input, _, _ := app.wire_next_gate_id_coo(x, y, coo[0],
 							coo[1])
@@ -2750,7 +2751,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 							}
 						}
 					}
-
+dump('hehe')
 					// remove redundancy:
 					mut tmp_adj_wires := []u64{}
 					for aw in adjacent_wires {
@@ -3024,7 +3025,7 @@ fn (mut app App) remove_output(elem_id u64, output_id u64) {
 // the selected ori is irrelevant and will need to use the step direction instead
 // returns id, (next_gate is input of the gate), x_delta, y_delta
 // example: id, false, 21, 23 -> is an output
-fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64, bool, int, int) {
+fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64, bool, i64, i64) {
 	conv_x := u32(int(x) + x_dir)
 	conv_y := u32(int(y) + y_dir)
 	mut chunk_i := app.get_chunkmap_idx_at_coords(conv_x, conv_y)
@@ -3033,21 +3034,23 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 	mut input := false
 	// Check if next gate's orientation is matching and not orthogonal
 	if next_id == elem_crossing_bits {
-		// check until wire
-		mut x_off := x_dir
-		mut y_off := y_dir
+		dump('hallo')
+		// check until other than crossing
+		mut x_off := i64(x_dir)
+		mut y_off := i64(y_dir)
 		for next_id == elem_crossing_bits {
-			x_off = x_dir
+			x_off += x_dir
 			y_off += y_dir
-			x_conv := u32(int(x) + x_off)
-			y_conv := u32(int(y) + y_off)
+			x_conv := u32(i64(x) + x_off)
+			y_conv := u32(i64(y) + y_off)
 			chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
 			next_chunkmap = &app.map[chunk_i].id_map
 			next_id = unsafe { next_chunkmap[x_conv % chunk_size][y_conv % chunk_size] }
 		}
-		next_id, input, _, _ = app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir),
+		dump('rip')
+		next_id2, input2, x_off2, y_off2 := app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir),
 			u32(int(y) + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
-		return next_id, input, x_off, y_off
+		return next_id2, input2, x_off + x_off2, y_off + y_off2
 	} else if next_id == empty_id {
 		next_id = empty_id
 	} else if next_id & elem_type_mask == elem_on_bits {
@@ -3145,13 +3148,13 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 	// Check if next gate's orientation is matching and not orthogonal
 	if next_id == elem_crossing_bits {
 		// check until wire
-		mut x_off := x_dir
-		mut y_off := y_dir
+		mut x_off := i64(x_dir)
+		mut y_off := i64(y_dir)
 		for next_id == elem_crossing_bits {
 			x_off += x_dir
 			y_off += y_dir
-			x_conv := u32(int(x) + x_off)
-			y_conv := u32(int(y) + y_off)
+			x_conv := u32(i64(x) + x_off)
+			y_conv := u32(i64(y) + y_off)
 			chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
 			next_chunkmap = &app.map[chunk_i].id_map
 			next_id = unsafe { next_chunkmap[x_conv % chunk_size][y_conv % chunk_size] }
