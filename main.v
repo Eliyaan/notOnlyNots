@@ -1049,31 +1049,35 @@ fn on_event(e &gg.Event, mut app App) {
 				} else if app.placement_mode {
 					if app.place_down { // TODO: make the UI disapear/fade out when doing a placement
 						app.place_down = false
-						place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
-						place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
-						if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
-							if app.place_start_x > place_end_x {
+						app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+						x_diff := app.place_start_x - app.place_end_x
+						y_diff := app.place_start_y - app.place_end_y
+						if x_diff*x_diff >= y_diff*y_diff {
+							app.place_end_y = app.place_start_y
+							if app.place_start_x > app.place_end_x {
 								app.selected_ori = west
 							} else {
 								app.selected_ori = east
 							}
 							if e.mouse_button == .left {
 								// start_y at the end because it's a X placement
-								app.todo << TodoInfo{.place, app.place_start_x, app.place_start_y, place_end_x, app.place_start_y, ''}
+								app.todo << TodoInfo{.place, app.place_start_x, app.place_start_y, app.place_end_x, app.place_start_y, ''}
 							} else if e.mouse_button == .right {
-								app.todo << TodoInfo{.removal, app.place_start_x, app.place_start_y, place_end_x, app.place_start_y, ''}
+								app.todo << TodoInfo{.removal, app.place_start_x, app.place_start_y, app.place_end_x, app.place_start_y, ''}
 							}
 						} else {
-							if app.place_start_y > place_end_y {
+							app.place_end_x = app.place_start_x
+							if app.place_start_y > app.place_end_y {
 								app.selected_ori = north
 							} else {
 								app.selected_ori = south
 							}
 							if e.mouse_button == .left {
 								// start_x at the end because it's a Y placement
-								app.todo << TodoInfo{.place, app.place_start_x, app.place_start_y, app.place_start_x, place_end_y, ''}
+								app.todo << TodoInfo{.place, app.place_start_x, app.place_start_y, app.place_start_x, app.place_end_y, ''}
 							} else if e.mouse_button == .right {
-								app.todo << TodoInfo{.removal, app.place_start_x, app.place_start_y, app.place_start_x, place_end_y, ''}
+								app.todo << TodoInfo{.removal, app.place_start_x, app.place_start_y, app.place_start_x, app.place_end_y, ''}
 							}
 						}
 						app.place_start_x = u32(-1)
@@ -1382,15 +1386,15 @@ fn on_event(e &gg.Event, mut app App) {
 						app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
 						app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
 					} else {
-						place_end_x := u32(app.cam_x + mouse_x / app.tile_size)
-						place_end_y := u32(app.cam_y + mouse_y / app.tile_size)
-						if abs(app.place_start_x - place_end_x) >= abs(app.place_start_y - place_end_y) {
-							app.place_end_x = place_end_x
-							app.place_end_y = app.place_start_y
-						} else {
-							app.place_end_y = place_end_y
-							app.place_end_x = app.place_start_x
-						}
+						app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+						app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+					}
+					x_diff := app.place_start_x - app.place_end_x
+					y_diff := app.place_start_y - app.place_end_y
+					if x_diff*x_diff >= y_diff*y_diff {
+						app.place_end_y = app.place_start_y
+					} else {
+						app.place_end_x = app.place_start_x
 					}
 				}
 			} else if app.selection_mode {
@@ -2797,6 +2801,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		.crossing {
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
+dump('at least')
 					chunk_i := app.get_chunkmap_idx_at_coords(x, y)
 					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
