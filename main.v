@@ -1964,10 +1964,6 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					if inp_id & id_mask != app.get_input(id) & id_mask {
 						return x, y, 'problem: input is not the preceding gate'
 					}
-					out_id := app.next_gate_id(x, y, step[0], step[1], ori)
-					if out_id & id_mask != app.get_output(id) & id_mask {
-						return x, y, 'problem: output is not the following gate'
-					}
 					inp_old_state, _ := app.get_elem_state_idx_by_id(inp_id, (app.actual_state + 1) % 2)
 					if id & elem_type_mask == elem_not_bits {
 						state, _ := app.get_elem_state_idx_by_id(id, app.actual_state)
@@ -2650,12 +2646,12 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
-					app.nots << Nots{id & rid_mask, inp_id, out_id, x, y}
+					app.nots << Nots{id & rid_mask, inp_id, x, y}
 					app.n_states[0] << false // default state & important to do the two lists
 					app.n_states[1] << false // default state
 
 					// 3. done
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.add_input(out_id, id)
 					app.add_output(inp_id, id)
 
@@ -2682,12 +2678,12 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
-					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
-					app.diodes << Diode{id & rid_mask, inp_id, out_id, x, y}
+					app.diodes << Diode{id & rid_mask, inp_id, x, y}
 					app.d_states[0] << false // default state & important to do the two lists
 					app.d_states[1] << false // default state
 
 					// 3. done
+					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.add_input(out_id, id)
 					app.add_output(inp_id, id)
 
@@ -2922,6 +2918,7 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 		app.wires[first_i].outs << app.wires[i].outs
 		// delete the old wires
 		app.wires.delete(i)
+		app.w_states[app.actual_state][first_i] = app.w_states[app.actual_state][first_i] || app.w_states[app.actual_state][i]
 		app.w_states[0].delete(i)
 		app.w_states[1].delete(i)
 	}
@@ -2936,22 +2933,6 @@ fn (mut app App) get_input(elem_id u64) u64 {
 		} else if elem_id & elem_type_mask == 0b01 { // diode
 			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
 			return app.diodes[idx].inp
-		} else if elem_id & elem_type_mask == 0b10 { // on -> does not have inputs
-		} else if elem_id & elem_type_mask == 0b11 { // wire
-		}
-	}
-	return empty_id
-}
-
-// get the output of the elem (empty_id for wires & ons)
-fn (mut app App) get_output(elem_id u64) u64 {
-	if elem_id != empty_id && elem_id != elem_crossing_bits {
-		if elem_id & elem_type_mask == 0b00 { // not
-			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
-			return app.nots[idx].out
-		} else if elem_id & elem_type_mask == 0b01 { // diode
-			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
-			return app.diodes[idx].out
 		} else if elem_id & elem_type_mask == 0b10 { // on -> does not have inputs
 		} else if elem_id & elem_type_mask == 0b11 { // wire
 		}
@@ -2992,13 +2973,8 @@ fn (mut app App) remove_input(elem_id u64, input_id u64) {
 // add output_id to the output(s) of elem_id (if it is a valid id)
 fn (mut app App) add_output(elem_id u64, output_id u64) {
 	if elem_id != empty_id && elem_id != elem_crossing_bits {
-		_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
-		if elem_id & elem_type_mask == 0b00 { // not
-			app.nots[idx].out = output_id
-		} else if elem_id & elem_type_mask == 0b01 { // diode
-			app.diodes[idx].out = output_id
-		} else if elem_id & elem_type_mask == 0b10 { // on -> does not have outputs
-		} else if elem_id & elem_type_mask == 0b11 { // wire
+		if elem_id & elem_type_mask == 0b11 { // wire
+			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
 			app.wires[idx].outs << output_id
 		}
 	}
@@ -3006,13 +2982,8 @@ fn (mut app App) add_output(elem_id u64, output_id u64) {
 
 fn (mut app App) remove_output(elem_id u64, output_id u64) {
 	if elem_id != empty_id && elem_id != elem_crossing_bits {
-		_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
-		if elem_id & elem_type_mask == 0b00 { // not
-			app.nots[idx].out = empty_id
-		} else if elem_id & elem_type_mask == 0b01 { // diode
-			app.diodes[idx].out = empty_id
-		} else if elem_id & elem_type_mask == 0b10 { // on -> does not have outputs
-		} else if elem_id & elem_type_mask == 0b11 { // wire
+		if elem_id & elem_type_mask == 0b11 { // wire
+			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
 			i := app.wires[idx].outs.map(it & id_mask).index(output_id & id_mask)
 			app.wires[idx].outs.delete(i)
 		}
@@ -3426,7 +3397,6 @@ struct Nots {
 	rid u64 // real id
 mut:
 	inp u64 // id of the input element of the not gate
-	out u64 // id of the output of the not gate
 	// Map coordinates
 	x u32
 	y u32
@@ -3437,7 +3407,6 @@ struct Diode {
 	rid u64 // real id
 mut:
 	inp u64 // id of the input element of the not gate
-	out u64 // id of the output of the not gate
 	// Map coordinates
 	x u32
 	y u32
