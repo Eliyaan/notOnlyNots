@@ -118,6 +118,7 @@ struct Palette {
 	selection_end   gg.Color = gg.Color{72, 97, 138, 128}
 	selection_box   gg.Color = gg.Color{66, 136, 245, 128}
 	input_preview   gg.Color = gg.Color{217, 159, 0, 128}
+	selected_ui	gg.Color = gg.Color{128, 128, 128, 64}
 }
 
 struct ColorChip { // TODO: save color chips and keyboard inputs too
@@ -320,6 +321,7 @@ mut:
 	comp_running  bool   // is a map loaded and running
 	pause         bool   // is the map updating
 	nb_updates    int = 5 // number of updates per second
+	avg_update_time f64 // nanosecs
 	todo          []TodoInfo
 	selected_item Elem
 	selected_ori  u64 = north
@@ -423,6 +425,11 @@ fn on_frame(mut app App) {
 				// draw the rect
 			}
 		}
+		
+		compute_info := '${app.nb_updates}/s = ${int(time.second/app.nb_updates)/1_000_000}ms/update (required:${app.avg_update_time/1_000_000.0:.2f}ms)'
+		coords_info := 'x:${i64(app.cam_x)} y:${i64(app.cam_y)}'
+		app.ctx.draw_text_def(int(app.ui_width + 1), 10, compute_info)
+		app.ctx.draw_text_def(int(app.ui_width + 1), 30, coords_info)
 	} else if app.main_menu {
 		app.ctx.draw_rect_filled(app.button_solo_x, app.button_solo_y, app.button_solo_w,
 			app.button_solo_h, default_button_color)
@@ -467,8 +474,19 @@ fn (mut app App) draw_ingame_ui_buttons() {
 			}
 		} else if app.placement_mode {
 			for button in placement_buttons {
-				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
-					size, size, app.buttons[button].img)
+				y := app.buttons[button].pos * y_factor + base_y
+				app.ctx.draw_image(base_x, y, size, size, app.buttons[button].img)
+				if button == .item_nots && app.selected_item == .not {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				} else if button == .item_diode && app.selected_item == .diode {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				} else if button == .item_on && app.selected_item == .on {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				} else if button == .item_crossing && app.selected_item == .crossing {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				} else if button == .item_wire && app.selected_item == .wire {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				}
 			}
 		} else if app.edit_mode {
 			for button in edit_buttons {
@@ -477,8 +495,11 @@ fn (mut app App) draw_ingame_ui_buttons() {
 			}
 		} else { // no mode
 			for button in no_mode_buttons {
-				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
-					size, size, app.buttons[button].img)
+				y := app.buttons[button].pos * y_factor + base_y
+				app.ctx.draw_image(base_x, y, size, size, app.buttons[button].img)
+				if button == .pause && app.pause {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				}
 			}
 		}
 	}
@@ -751,7 +772,7 @@ fn on_event(e &gg.Event, mut app App) {
 									return
 								}
 								app.pause = false
-								app.nb_updates = 2
+								app.nb_updates = 5
 								app.todo = []
 								app.selected_item = .not
 								app.selected_ori = north
@@ -775,7 +796,7 @@ fn on_event(e &gg.Event, mut app App) {
 					app.map_name = app.text_input
 					app.text_input = ''
 					app.pause = false
-					app.nb_updates = 2
+					app.nb_updates = 5
 					app.todo = []
 					app.selected_item = .not
 					app.selected_ori = north
@@ -997,7 +1018,6 @@ fn on_event(e &gg.Event, mut app App) {
 							]!
 							for app.colorchips[app.selected_colorchip].colors.len < pow(2,
 								app.colorchips[app.selected_colorchip].inputs.len) {
-								app.colorchips[app.selected_colorchip].colors << gg.Color{0, 0, 0, 255}
 							}
 							app.disable_all_ingame_modes()
 						} else if app.choose_colorchip_submode {
@@ -1491,13 +1511,12 @@ struct TodoInfo {
 
 fn (mut app App) computation_loop() {
 	mut cycle_end := i64(0)
-	mut avg_update_time := 0.0
 	mut now := i64(0)
 	for app.comp_running {
 		for pos in app.forced_states {
 			app.set_elem_state_by_pos(pos[0], pos[1], true)
 		}
-		cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(avg_update_time) // nanosecs
+		cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(app.avg_update_time) // nanosecs
 		mut done := []int{}
 		for i, todo in app.todo {
 			now = time.now().unix_nano()
@@ -1553,7 +1572,7 @@ fn (mut app App) computation_loop() {
 		if !app.pause {
 			app.update_cycle()
 		}
-		avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * avg_update_time
+		app.avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * app.avg_update_time
 	}
 }
 
