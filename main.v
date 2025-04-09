@@ -422,7 +422,22 @@ fn on_frame(mut app App) {
 		if !app.colorchips_hidden {
 			for cc in app.colorchips {
 				// TODO: compute the index of the color w/ the inputs
-				// draw the rect
+/*
+struct ColorChip { // TODO: save color chips and keyboard inputs too
+	x u32
+	y u32
+	w u32
+	h u32
+mut:
+	colors []gg.Color // colors to show
+	inputs [][2]u32   // the state will be converted to a number (binary) and it will be the index of the shown color
+}
+*/
+				pos_x := f32((f64(cc.x) - app.cam_x) * app.tile_size)
+				pos_y := f32((f64(cc.y) - app.cam_y) * app.tile_size)
+				end_pos_x := f32((f64(cc.w) - app.cam_x) * app.tile_size)
+				end_pos_y := f32((f64(cc.h) - app.cam_y) * app.tile_size)
+				app.ctx.draw_rect_filled(pos_x, pos_y, end_pos_x, end_pos_y, app.palette.selection_box)
 			}
 		}
 		
@@ -544,13 +559,13 @@ fn (mut app App) draw_placing_preview() {
 
 fn (mut app App) draw_selection_box() {
 	if app.select_start_x != u32(-1) {
-		pos_x := f32(f64(app.select_start_x * u32(app.tile_size)) - app.cam_x)
-		pos_y := f32(f64(app.select_start_y * u32(app.tile_size)) - app.cam_y)
+		pos_x := f32((f64(app.select_start_x) - app.cam_x) * app.tile_size)
+		pos_y := f32((f64(app.select_start_y) - app.cam_x) * app.tile_size)
 		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_start)
 	}
 	if app.select_end_x != u32(-1) {
-		pos_x := f32(f64(app.select_end_x * u32(app.tile_size)) - app.cam_x)
-		pos_y := f32(f64(app.select_end_y * u32(app.tile_size)) - app.cam_y)
+		pos_x := f32((f64(app.select_end_x) - app.cam_x) * app.tile_size)
+		pos_y := f32((f64(app.select_end_y) - app.cam_x) * app.tile_size)
 		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_end)
 	}
 	if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
@@ -564,13 +579,11 @@ fn (mut app App) draw_selection_box() {
 		} else {
 			app.select_start_y, app.select_end_y
 		}
-		for x in x_start .. x_end {
-			for y in y_start .. y_end {
-				pos_x := f32(f64(x * u32(app.tile_size)) - app.cam_x)
-				pos_y := f32(f64(y * u32(app.tile_size)) - app.cam_y)
-				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_box)
-			}
-		}
+		pos_x := f32((f64(x_start) - app.cam_x) * app.tile_size)
+		pos_y := f32((f64(y_start) - app.cam_y) * app.tile_size)
+		end_pos_x := f32((f64(x_end + 1) - app.cam_x) * app.tile_size) - pos_x
+		end_pos_y := f32((f64(y_end + 1) - app.cam_y) * app.tile_size) - pos_y
+		app.ctx.draw_rect_filled(pos_x, pos_y, end_pos_x, end_pos_y, app.palette.selection_box)
 	}
 }
 
@@ -1131,7 +1144,13 @@ fn on_event(e &gg.Event, mut app App) {
 								if app.check_ui_button_click_y(.cancel_button, mouse_y) {
 									app.disable_all_ingame_modes()
 								} else if app.check_ui_button_click_y(.rotate_copy, mouse_y) {
-									app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+									if e.modifiers & 1 == 1 { // shift: 1<<0
+										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+									} else {
+										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+									}
 								} else if app.check_ui_button_click_y(.load_gate, mouse_y) {
 									app.disable_all_ingame_modes()
 									app.load_gate_mode = true
@@ -1428,6 +1447,7 @@ fn on_event(e &gg.Event, mut app App) {
 						app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
 					}
 				}
+			} else if app.paste_mode {
 			} else {
 				if mouse_x <= app.ui_width {
 				} else {
