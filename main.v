@@ -1,5 +1,5 @@
 // TODO: add tests for the backend
-import math { abs, pow }
+import math { pow }
 import os
 import rand
 import time
@@ -118,7 +118,45 @@ struct Palette {
 	selection_end   gg.Color = gg.Color{72, 97, 138, 128}
 	selection_box   gg.Color = gg.Color{66, 136, 245, 128}
 	input_preview   gg.Color = gg.Color{217, 159, 0, 128}
-	selected_ui	gg.Color = gg.Color{128, 128, 128, 64}
+	selected_ui     gg.Color = gg.Color{128, 128, 128, 64}
+	ui_bg		gg.Color = gg.Color{255, 255, 255, 255}
+}
+
+const palette_1 = Palette{}
+const palette_def = Palette{
+	wire_off:   gg.Color{239, 71, 111, 255}
+	wire_on:    gg.Color{6, 214, 160, 255}
+	background: gg.Color{252, 252, 252, 255}
+	diode:	    gg.Color{31, 176, 255, 255}
+	not:        gg.Color{255, 209, 102, 255}
+	on: 	    gg.Color{37, 248, 157, 255}
+	junc:       gg.Color{30, 33, 43, 255}
+	junc_v:     gg.Color{255, 220, 92, 255}
+	junc_h:     gg.Color{255, 132, 39, 255}
+	ui_bg: 	    gg.Color{234, 235, 235, 255}
+}
+const palette_3 = Palette{
+	wire_off:   gg.Color{239, 71, 111, 255}
+	wire_on:    gg.Color{6, 214, 160, 255}
+	background: gg.Color{252, 252, 252, 255}
+	diode:      gg.Color{44, 159, 201, 255}
+	not:        gg.Color{255, 209, 102, 255}
+	on: 	    gg.Color{37, 248, 157, 255}
+	junc:       gg.Color{0, 26, 35, 255}
+	junc_v:     gg.Color{251, 196, 171, 255}
+	junc_h:     gg.Color{135, 188, 222, 255}
+	ui_bg: 	    gg.Color{234, 235, 235, 255}
+}
+const palette_2 = Palette{
+	wire_off:   gg.Color{239, 71, 111, 255}
+	wire_on:    gg.Color{6, 214, 160, 255}
+	background: gg.Color{252, 252, 252, 255}
+	diode:      gg.Color{38, 84, 125, 255}
+	not:        gg.Color{255, 209, 102, 255}
+	junc:       gg.Color{0, 26, 35, 255}
+	junc_v:     gg.Color{236, 207, 195, 255}
+	junc_h:     gg.Color{135, 188, 222, 255}
+	ui_bg: 	    gg.Color{255, 235, 179, 255}
 }
 
 struct ColorChip { // TODO: save color chips and keyboard inputs too
@@ -129,6 +167,90 @@ struct ColorChip { // TODO: save color chips and keyboard inputs too
 mut:
 	colors []gg.Color // colors to show
 	inputs [][2]u32   // the state will be converted to a number (binary) and it will be the index of the shown color
+}
+
+const button_map = {
+	Buttons.cancel_button: ButtonData{
+		pos: 0
+	}
+	.confirm_save_gate:    ButtonData{
+		pos: 1
+	}
+	.selection_button:     ButtonData{
+		pos: 1
+	}
+	.rotate_copy:          ButtonData{
+		pos: 1
+	}
+	.copy_button:          ButtonData{
+		pos: 1
+	}
+	.choose_colorchip:     ButtonData{
+		pos: 1
+	}
+	.load_gate:            ButtonData{
+		pos: 2
+	}
+	.save_gate:            ButtonData{
+		pos: 2
+	}
+	.edit_color:           ButtonData{
+		pos: 2
+	}
+	.item_nots:            ButtonData{
+		pos: 3
+	}
+	.create_color_chip:    ButtonData{
+		pos: 3
+	}
+	.add_input:            ButtonData{
+		pos: 3
+	}
+	.item_diode:           ButtonData{
+		pos: 4
+	}
+	.steal_settings:       ButtonData{
+		pos: 4
+	}
+	.item_crossing:        ButtonData{
+		pos: 5
+	}
+	.delete_colorchip:     ButtonData{
+		pos: 5
+	}
+	.item_on:              ButtonData{
+		pos: 6
+	}
+	.item_wire:            ButtonData{
+		pos: 7
+	}
+	.speed:                ButtonData{
+		pos: 8
+	}
+	.slow:                 ButtonData{
+		pos: 9
+	}
+	.pause:                ButtonData{
+		pos: 10
+	}
+	.paste:                ButtonData{
+		pos: 11
+	}
+	.save_map:             ButtonData{
+		pos: 12
+	}
+	.keyinput:             ButtonData{
+		pos: 13
+	}
+	.hide_colorchips:      ButtonData{
+		pos: 14
+	}
+	.quit_map:             ButtonData{
+		pos: 15
+	}
+	.selection_delete:     ButtonData{
+		pos: 10
+	}
 }
 
 struct App {
@@ -231,114 +353,32 @@ mut:
 	button_size         f32                    = 40.0
 	button_left_padding f32                    = 5.0
 	button_top_padding  f32                    = 5.0
-	buttons             map[Buttons]ButtonData = {
-		.cancel_button:     ButtonData{
-			pos: 0
-		}
-		.confirm_save_gate: ButtonData{
-			pos: 1
-		}
-		.selection_button:  ButtonData{
-			pos: 1
-		}
-		.rotate_copy:       ButtonData{
-			pos: 1
-		}
-		.copy_button:       ButtonData{
-			pos: 1
-		}
-		.choose_colorchip:  ButtonData{
-			pos: 1
-		}
-		.load_gate:         ButtonData{
-			pos: 2
-		}
-		.save_gate:         ButtonData{
-			pos: 2
-		}
-		.edit_color:        ButtonData{
-			pos: 2
-		}
-		.item_nots:         ButtonData{
-			pos: 3
-		}
-		.create_color_chip: ButtonData{
-			pos: 3
-		}
-		.add_input:         ButtonData{
-			pos: 3
-		}
-		.item_diode:        ButtonData{
-			pos: 4
-		}
-		.steal_settings:    ButtonData{
-			pos: 4
-		}
-		.item_crossing:     ButtonData{
-			pos: 5
-		}
-		.delete_colorchip:  ButtonData{
-			pos: 5
-		}
-		.item_on:           ButtonData{
-			pos: 6
-		}
-		.item_wire:         ButtonData{
-			pos: 7
-		}
-		.speed:             ButtonData{
-			pos: 8
-		}
-		.slow:              ButtonData{
-			pos: 9
-		}
-		.pause:             ButtonData{
-			pos: 10
-		}
-		.paste:             ButtonData{
-			pos: 11
-		}
-		.save_map:          ButtonData{
-			pos: 12
-		}
-		.keyinput:          ButtonData{
-			pos: 13
-		}
-		.hide_colorchips:   ButtonData{
-			pos: 14
-		}
-		.quit_map:          ButtonData{
-			pos: 15
-		}
-		.selection_delete:  ButtonData{
-			pos: 10
-		}
-	}
+	buttons             map[Buttons]ButtonData = button_map.clone()
 
 	// logic
-	map           []Chunk
-	map_name      string // to fill when loading a map
-	comp_running  bool   // is a map loaded and running
-	pause         bool   // is the map updating
-	nb_updates    int = 5 // number of updates per second
+	map             []Chunk
+	map_name        string // to fill when loading a map
+	comp_running    bool   // is a map loaded and running
+	pause           bool   // is the map updating
+	nb_updates      int = 5 // number of updates per second
 	avg_update_time f64 // nanosecs
-	todo          []TodoInfo
-	selected_item Elem
-	selected_ori  u64 = north
-	copied        []PlaceInstruction
-	actual_state  int // indicate which list is the old state list and which is the actual one, 0 for the first, 1 for the second
-	nots          []Nots
-	n_next_rid    u64 = 1
-	n_states      [2][]bool // the old state and the actual state list
-	diodes        []Diode
-	d_next_rid    u64 = 1
-	d_states      [2][]bool
-	wires         []Wire
-	w_next_rid    u64 = 1
-	w_states      [2][]bool
-	forced_states [][2]u32    // forced to ON state by a keyboard input
-	colorchips    []ColorChip // screens
-	palette       Palette     // TODO: edit palette and save palette
+	todo            []TodoInfo
+	selected_item   Elem
+	selected_ori    u64 = north
+	copied          []PlaceInstruction
+	actual_state    int // indicate which list is the old state list and which is the actual one, 0 for the first, 1 for the second
+	nots            []Nots
+	n_next_rid      u64 = 1
+	n_states        [2][]bool // the old state and the actual state list
+	diodes          []Diode
+	d_next_rid      u64 = 1
+	d_states        [2][]bool
+	wires           []Wire
+	w_next_rid      u64 = 1
+	w_states        [2][]bool
+	forced_states   [][2]u32    // forced to ON state by a keyboard input
+	colorchips      []ColorChip // screens
+	palette         Palette = palette_def // TODO: edit palette and save palette
 }
 
 // graphics
@@ -422,7 +462,7 @@ fn on_frame(mut app App) {
 		if !app.colorchips_hidden {
 			for cc in app.colorchips {
 				// TODO: compute the index of the color w/ the inputs
-/*
+				/*
 struct ColorChip { // TODO: save color chips and keyboard inputs too
 	x u32
 	y u32
@@ -432,7 +472,7 @@ mut:
 	colors []gg.Color // colors to show
 	inputs [][2]u32   // the state will be converted to a number (binary) and it will be the index of the shown color
 }
-*/
+				*/
 				pos_x := f32((f64(cc.x) - app.cam_x) * app.tile_size)
 				pos_y := f32((f64(cc.y) - app.cam_y) * app.tile_size)
 				end_pos_x := f32((f64(cc.w) - app.cam_x) * app.tile_size)
@@ -440,20 +480,21 @@ mut:
 				app.ctx.draw_rect_filled(pos_x, pos_y, end_pos_x, end_pos_y, app.palette.selection_box)
 			}
 		}
-		
-		compute_info := '${app.nb_updates}/s = ${int(time.second/app.nb_updates)/1_000_000}ms/update (required:${app.avg_update_time/1_000_000.0:.2f}ms)'
+
+		compute_info := '${app.nb_updates}/s = ${int(time.second / app.nb_updates) / 1_000_000}ms/update (required:${app.avg_update_time / 1_000_000.0:.2f}ms)'
 		coords_info := 'x:${i64(app.cam_x)} y:${i64(app.cam_y)}'
-		app.ctx.draw_text_def(int(app.ui_width + 1), 10, compute_info)
-		app.ctx.draw_text_def(int(app.ui_width + 1), 30, coords_info)
+		app.ctx.draw_text_def(int(app.ui_width + 1), 10, app.map_name)
+		app.ctx.draw_text_def(int(app.ui_width + 1), 30, compute_info)
+		app.ctx.draw_text_def(int(app.ui_width + 1), 50, coords_info)
 	} else if app.main_menu {
 		app.ctx.draw_rect_filled(app.button_solo_x, app.button_solo_y, app.button_solo_w,
 			app.button_solo_h, default_button_color)
 	} else if app.solo_menu {
 		for i, m in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
-			app.ctx.draw_rect_filled(app.maps_x_offset, app.maps_y_offset + app.maps_top_spacing * i,
-				app.maps_w, app.maps_h, default_button_color)
-			app.ctx.draw_text_def(int(app.maps_x_offset), int(app.maps_y_offset +
-				app.maps_top_spacing * i), m)
+			app.ctx.draw_rect_filled(app.maps_x_offset, (app.maps_y_offset + app.maps_top_spacing) * (
+				i + 1), app.maps_w, app.maps_h, default_button_color)
+			app.ctx.draw_text_def(int(app.maps_x_offset), int((app.maps_y_offset +
+				app.maps_top_spacing) * (i + 1)), m)
 		}
 		app.ctx.draw_square_filled(app.button_new_map_x, app.button_new_map_y, app.button_new_map_size,
 			default_button_color)
@@ -470,6 +511,7 @@ fn (mut app App) draw_ingame_ui_buttons() {
 	base_y := app.button_top_padding
 	size := app.button_size
 	y_factor := app.button_top_padding + size
+	app.ctx.draw_rect_filled(0, 0, app.ui_width, 5000, app.palette.ui_bg)
 	app.ctx.draw_square_filled(base_x, base_y, size, default_button_color) // cancel_button
 	unsafe {
 		if app.selection_mode {
@@ -1086,7 +1128,7 @@ fn on_event(e &gg.Event, mut app App) {
 						app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
 						x_diff := app.place_start_x - app.place_end_x
 						y_diff := app.place_start_y - app.place_end_y
-						if x_diff*x_diff >= y_diff*y_diff {
+						if x_diff * x_diff >= y_diff * y_diff {
 							app.place_end_y = app.place_start_y
 							if app.place_start_x > app.place_end_x {
 								app.selected_ori = west
@@ -1430,7 +1472,7 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 					x_diff := app.place_start_x - app.place_end_x
 					y_diff := app.place_start_y - app.place_end_y
-					if x_diff*x_diff >= y_diff*y_diff {
+					if x_diff * x_diff >= y_diff * y_diff {
 						app.place_end_y = app.place_start_y
 					} else {
 						app.place_end_x = app.place_start_x
@@ -2288,15 +2330,20 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				// 2. done: no state & no struct
 
 				// 3. done
-				s_adj_id, s_is_input, _, s_y_off := app.wire_next_gate_id_coo(x, y, 0, 1)
-				n_adj_id, n_is_input, _, n_y_off := app.wire_next_gate_id_coo(x, y, 0, -1)
-				e_adj_id, e_is_input, e_x_off, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-				w_adj_id, w_is_input, w_x_off, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
+				s_adj_id, s_is_input, _, s_y_off := app.wire_next_gate_id_coo(x, y, 0,
+					1)
+				n_adj_id, n_is_input, _, n_y_off := app.wire_next_gate_id_coo(x, y, 0,
+					-1)
+				e_adj_id, e_is_input, e_x_off, _ := app.wire_next_gate_id_coo(x, y, 1,
+					0)
+				w_adj_id, w_is_input, w_x_off, _ := app.wire_next_gate_id_coo(x, y, -1,
+					0)
 				if s_adj_id != empty_id && n_adj_id != empty_id {
 					if s_adj_id & elem_type_mask == elem_wire_bits
 						&& n_adj_id & elem_type_mask == elem_wire_bits {
 						// two wires: separate them
-						app.separate_wires([[x, u32(y + n_y_off)]!, [u32(x), u32(y + s_y_off)]!], s_adj_id) // same id for north and south
+						app.separate_wires([[x, u32(y + n_y_off)]!,
+							[u32(x), u32(y + s_y_off)]!], s_adj_id) // same id for north and south
 					} else if s_adj_id & elem_type_mask == elem_wire_bits {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						if n_is_input {
@@ -2330,7 +2377,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					if e_adj_id & elem_type_mask == elem_wire_bits
 						&& w_adj_id & elem_type_mask == elem_wire_bits {
 						// two wires: separate them
-						app.separate_wires([[u32(x + w_x_off), y]!, [u32(x + e_x_off), y]!], e_adj_id) // same id for east and west
+						app.separate_wires([[u32(x + w_x_off), y]!,
+							[u32(x + e_x_off), y]!], e_adj_id) // same id for east and west
 					} else if e_adj_id & elem_type_mask == elem_wire_bits {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						if w_is_input {
@@ -2415,8 +2463,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
 					for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] {
-						adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(x, y, coo[0],
-							coo[1])
+						adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(x,
+							y, coo[0], coo[1])
 						assert adj_id != elem_crossing_bits
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
