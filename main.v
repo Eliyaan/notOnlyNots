@@ -119,7 +119,8 @@ struct Palette {
 	selection_box   gg.Color = gg.Color{66, 136, 245, 128}
 	input_preview   gg.Color = gg.Color{217, 159, 0, 128}
 	selected_ui     gg.Color = gg.Color{128, 128, 128, 64}
-	ui_bg		gg.Color = gg.Color{255, 255, 255, 255}
+	ui_bg           gg.Color = gg.Color{255, 255, 255, 255}
+	grid            gg.Color = gg.Color{232, 217, 203, 255}
 }
 
 const palette_1 = Palette{}
@@ -127,13 +128,13 @@ const palette_def = Palette{
 	wire_off:   gg.Color{239, 71, 111, 255}
 	wire_on:    gg.Color{6, 214, 160, 255}
 	background: gg.Color{252, 252, 252, 255}
-	diode:	    gg.Color{31, 176, 255, 255}
+	diode:      gg.Color{31, 176, 255, 255}
 	not:        gg.Color{255, 209, 102, 255}
-	on: 	    gg.Color{37, 248, 157, 255}
+	on:         gg.Color{37, 248, 157, 255}
 	junc:       gg.Color{30, 33, 43, 255}
 	junc_v:     gg.Color{255, 220, 92, 255}
 	junc_h:     gg.Color{255, 132, 39, 255}
-	ui_bg: 	    gg.Color{234, 235, 235, 255}
+	ui_bg:      gg.Color{234, 235, 235, 255}
 }
 const palette_3 = Palette{
 	wire_off:   gg.Color{239, 71, 111, 255}
@@ -141,11 +142,11 @@ const palette_3 = Palette{
 	background: gg.Color{252, 252, 252, 255}
 	diode:      gg.Color{44, 159, 201, 255}
 	not:        gg.Color{255, 209, 102, 255}
-	on: 	    gg.Color{37, 248, 157, 255}
+	on:         gg.Color{37, 248, 157, 255}
 	junc:       gg.Color{0, 26, 35, 255}
 	junc_v:     gg.Color{251, 196, 171, 255}
 	junc_h:     gg.Color{135, 188, 222, 255}
-	ui_bg: 	    gg.Color{234, 235, 235, 255}
+	ui_bg:      gg.Color{234, 235, 235, 255}
 }
 const palette_2 = Palette{
 	wire_off:   gg.Color{239, 71, 111, 255}
@@ -156,7 +157,7 @@ const palette_2 = Palette{
 	junc:       gg.Color{0, 26, 35, 255}
 	junc_v:     gg.Color{236, 207, 195, 255}
 	junc_h:     gg.Color{135, 188, 222, 255}
-	ui_bg: 	    gg.Color{255, 235, 179, 255}
+	ui_bg:      gg.Color{255, 235, 179, 255}
 }
 
 struct ColorChip { // TODO: save color chips and keyboard inputs too
@@ -488,16 +489,16 @@ mut:
 		app.ctx.draw_text_def(int(app.ui_width + 1), 50, coords_info)
 	} else if app.main_menu {
 		app.ctx.draw_rect_filled(app.button_solo_x, app.button_solo_y, app.button_solo_w,
-			app.button_solo_h, default_button_color)
+			app.button_solo_h, app.palette.ui_bg)
 	} else if app.solo_menu {
 		for i, m in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 			app.ctx.draw_rect_filled(app.maps_x_offset, (app.maps_y_offset + app.maps_top_spacing) * (
-				i + 1), app.maps_w, app.maps_h, default_button_color)
+				i + 1), app.maps_w, app.maps_h, app.palette.ui_bg)
 			app.ctx.draw_text_def(int(app.maps_x_offset), int((app.maps_y_offset +
 				app.maps_top_spacing) * (i + 1)), m)
 		}
 		app.ctx.draw_square_filled(app.button_new_map_x, app.button_new_map_y, app.button_new_map_size,
-			default_button_color)
+			app.palette.ui_bg)
 		app.ctx.draw_text_def(int(app.text_field_x), int(app.text_field_y), app.text_input)
 	} else {
 		app.disable_all_ingame_modes()
@@ -639,19 +640,29 @@ fn (mut app App) draw_map() {
 	mut diode_poly_offset := []f32{len: 8, cap: 8}
 	on_poly := app.scale_sprite(on_poly_unscaled)
 	mut on_poly_offset := []f32{len: 8, cap: 8}
+	virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
+	virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
+	for i in 0 .. (size.width) / app.tile_size + 1 {
+		pos_x := f32((int(virt_cam_x) - virt_cam_x + i) * app.tile_size)
+		app.ctx.draw_line(pos_x, 0, pos_x, size.height, app.palette.grid)
+	}
+	for i in 0 .. (size.height) / app.tile_size + 1 {
+		pos_y := f32((int(virt_cam_y) - virt_cam_y + i) * app.tile_size)
+		app.ctx.draw_line(0, pos_y, size.width, pos_y, app.palette.grid)
+	}
 	for chunk in app.map {
-		chunk_cam_x := chunk.x - (app.cam_x + (app.drag_x - app.click_x) / app.tile_size)
-		chunk_cam_y := chunk.y - (app.cam_y + (app.drag_y - app.click_y) / app.tile_size)
+		chunk_cam_x := chunk.x - virt_cam_x
+		chunk_cam_y := chunk.y - virt_cam_y
 		if chunk_cam_x > -chunk_size && chunk_cam_x < size.width && chunk_cam_y > -chunk_size
 			&& chunk_cam_y < size.height {
 			for x, column in chunk.id_map {
 				if chunk_cam_x + x < size.width { // cant break like that for lower bound
+					pos_x := f32((chunk_cam_x + x) * app.tile_size)
 					for y, id in column {
 						if id == empty_id {
 							continue
 						}
 						if chunk_cam_y + y < size.height {
-							pos_x := f32((chunk_cam_x + x) * app.tile_size)
 							pos_y := f32((chunk_cam_y + y) * app.tile_size)
 							if id == elem_crossing_bits { // same bits as wires so need to be separated
 								app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
@@ -1275,8 +1286,12 @@ fn on_event(e &gg.Event, mut app App) {
 				} else {
 					if app.move_down {
 						app.move_down = false
-						app.cam_x = app.cam_x + ((mouse_x - app.click_x) / app.tile_size)
-						app.cam_y = app.cam_y + ((mouse_y - app.click_y) / app.tile_size)
+						app.cam_x = app.cam_x - ((mouse_x - app.click_x) / app.tile_size)
+						app.cam_y = app.cam_y - ((mouse_y - app.click_y) / app.tile_size)
+						app.click_x = 0
+						app.click_y = 0
+						app.drag_x = 0
+						app.drag_y = 0
 					} else if mouse_x < app.ui_width {
 						if mouse_x >= app.button_left_padding
 							&& mouse_x < app.button_size + app.button_left_padding { // button area
