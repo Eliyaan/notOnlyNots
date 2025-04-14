@@ -268,6 +268,9 @@ mut:
 	button_solo_y f32 = 0.0
 	button_solo_w f32 = 300.0
 	button_solo_h f32 = 300.0
+	button_quit_size f32 = 50.0
+	btn_quit_ofst f32 = 20.0
+	solo_img      gg.Image
 	// solo menu TODO: display map info of the hovered map (size bits, nb of hours played, gates placed... fun stuff)
 	solo_menu           bool
 	map_names_list      []string // without folder name
@@ -355,6 +358,8 @@ mut:
 	button_left_padding f32                    = 5.0
 	button_top_padding  f32                    = 5.0
 	buttons             map[Buttons]ButtonData = button_map.clone()
+	log string
+	log_timer int
 
 	// logic
 	map             []Chunk
@@ -428,6 +433,7 @@ fn main() {
 		app.buttons[.quit_map].img = app.ctx.create_image('sprites/quit_map.png')!
 		app.buttons[.selection_delete].img = app.ctx.create_image('sprites/selection_delete.png')!
 	}
+	app.solo_img = app.ctx.create_image('sprites/nots_icon.png')!
 	app.ctx.run()
 }
 
@@ -442,6 +448,7 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 }
 
 fn on_frame(mut app App) {
+	size := app.ctx.window_size()
 	// Draw
 	app.ctx.begin()
 	if app.comp_running {
@@ -484,12 +491,17 @@ mut:
 
 		compute_info := '${app.nb_updates}/s = ${int(time.second / app.nb_updates) / 1_000_000}ms/update (required:${app.avg_update_time / 1_000_000.0:.2f}ms)'
 		coords_info := 'x:${i64(app.cam_x)} y:${i64(app.cam_y)}'
-		app.ctx.draw_text_def(int(app.ui_width + 1), 10, app.map_name)
-		app.ctx.draw_text_def(int(app.ui_width + 1), 30, compute_info)
-		app.ctx.draw_text_def(int(app.ui_width + 1), 50, coords_info)
+		app.ctx.draw_text_def(int(app.ui_width + 10), 10, app.map_name)
+		app.ctx.draw_text_def(int(app.ui_width + 10), 30, compute_info)
+		app.ctx.draw_text_def(int(app.ui_width + 10), 50, coords_info)
+
+		if app.save_gate_mode {
+			app.ctx.draw_rect_filled(app.ui_width + 10, 10, 250, 40, app.palette.ui_bg)
+			app.ctx.draw_text_def(int(app.ui_width + 15), 20, "Gate's name: ${app.text_input}")
+		}
 	} else if app.main_menu {
-		app.ctx.draw_rect_filled(app.button_solo_x, app.button_solo_y, app.button_solo_w,
-			app.button_solo_h, app.palette.ui_bg)
+		app.ctx.draw_image(app.button_solo_x, app.button_solo_y, app.button_solo_w, app.button_solo_h, app.solo_img)
+		unsafe{app.ctx.draw_image(app.btn_quit_ofst, app.button_solo_h + app.btn_quit_ofst, app.button_quit_size, app.button_quit_size, app.buttons[.quit_map].img)}
 	} else if app.solo_menu {
 		for i, m in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 			app.ctx.draw_rect_filled(app.maps_x_offset, (app.maps_y_offset + app.maps_top_spacing) * (
@@ -502,7 +514,12 @@ mut:
 		app.ctx.draw_text_def(int(app.text_field_x), int(app.text_field_y), app.text_input)
 	} else {
 		app.disable_all_ingame_modes()
+		app.ctx.draw_square_filled(0, 0, 10, gg.Color{255, 0, 0, 255})
 		app.log('Not implemented on_frame UI')
+	}
+	if app.log_timer > 0 {
+		app.ctx.draw_text_def(int(app.ui_width + 10), size.height - 20, app.log)
+		app.log_timer -= 1
 	}
 	app.ctx.end()
 }
@@ -520,6 +537,8 @@ fn (mut app App) draw_ingame_ui_buttons() {
 				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
 					size, size, app.buttons[button].img)
 			}
+		} else if app.load_gate_mode {
+			app.ctx.draw_image(base_x, app.buttons[.cancel_button].pos * y_factor + base_y, size, size, app.buttons[.cancel_button].img)
 		} else if app.paste_mode {
 			for button in paste_buttons {
 				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
@@ -603,12 +622,12 @@ fn (mut app App) draw_placing_preview() {
 fn (mut app App) draw_selection_box() {
 	if app.select_start_x != u32(-1) {
 		pos_x := f32((f64(app.select_start_x) - app.cam_x) * app.tile_size)
-		pos_y := f32((f64(app.select_start_y) - app.cam_x) * app.tile_size)
+		pos_y := f32((f64(app.select_start_y) - app.cam_y) * app.tile_size)
 		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_start)
 	}
 	if app.select_end_x != u32(-1) {
 		pos_x := f32((f64(app.select_end_x) - app.cam_x) * app.tile_size)
-		pos_y := f32((f64(app.select_end_y) - app.cam_x) * app.tile_size)
+		pos_y := f32((f64(app.select_end_y) - app.cam_y) * app.tile_size)
 		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_end)
 	}
 	if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
@@ -624,9 +643,9 @@ fn (mut app App) draw_selection_box() {
 		}
 		pos_x := f32((f64(x_start) - app.cam_x) * app.tile_size)
 		pos_y := f32((f64(y_start) - app.cam_y) * app.tile_size)
-		end_pos_x := f32((f64(x_end + 1) - app.cam_x) * app.tile_size) - pos_x
-		end_pos_y := f32((f64(y_end + 1) - app.cam_y) * app.tile_size) - pos_y
-		app.ctx.draw_rect_filled(pos_x, pos_y, end_pos_x, end_pos_y, app.palette.selection_box)
+		end_pos_w := f32((f64(x_end + 1) - app.cam_x) * app.tile_size) - pos_x
+		end_pos_h := f32((f64(y_end + 1) - app.cam_y) * app.tile_size) - pos_y
+		app.ctx.draw_rect_filled(pos_x, pos_y, end_pos_w, end_pos_h, app.palette.selection_box)
 	}
 }
 
@@ -820,6 +839,9 @@ fn on_event(e &gg.Event, mut app App) {
 						app.log('Cannot list files in ${maps_path}, ${err}')
 						return
 					}
+				} else if mouse_x >= app.btn_quit_ofst && mouse_x < app.btn_quit_ofst + app.button_quit_size
+					&& mouse_y >= app.button_solo_h + app.btn_quit_ofst && mouse_y < app.button_solo_h + app.btn_quit_ofst + app.button_quit_size {
+					exit(0)
 				}
 			} else if app.solo_menu {
 				if mouse_x >= app.maps_x_offset && mouse_x < app.maps_x_offset + app.maps_w {
@@ -830,13 +852,13 @@ fn on_event(e &gg.Event, mut app App) {
 					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 						if e.mouse_button == .left {
 							if app.check_maps_button_click_y(i, mouse_y) {
-								app.solo_menu = false
-								app.text_input = ''
-								app.map_name = name
 								app.load_map(name) or {
 									app.log('Cannot load map ${name}, ${err}')
 									return
 								}
+								app.solo_menu = false
+								app.text_input = ''
+								app.map_name = name
 								app.pause = false
 								app.nb_updates = 5
 								app.todo = []
@@ -1298,6 +1320,9 @@ fn on_event(e &gg.Event, mut app App) {
 							if app.check_ui_button_click_y(.selection_button, mouse_y) {
 								app.disable_all_ingame_modes()
 								app.selection_mode = true
+							} else if app.check_ui_button_click_y(.load_gate, mouse_y) {
+								app.disable_all_ingame_modes()
+								app.load_gate_mode = true
 							} else if app.check_ui_button_click_y(.item_nots, mouse_y) {
 								app.disable_all_ingame_modes()
 								app.selected_item = .not
@@ -1336,9 +1361,6 @@ fn on_event(e &gg.Event, mut app App) {
 								app.main_menu = true
 								app.todo << TodoInfo{.quit, 0, 0, 0, 0, app.map_name}
 								for app.comp_running {} // wait for quitting
-							} else if app.check_ui_button_click_y(.load_gate, mouse_y) {
-								app.disable_all_ingame_modes()
-								app.load_gate_mode = true
 							} else if app.check_ui_button_click_y(.hide_colorchips, mouse_y) {
 								app.colorchips_hidden = !app.colorchips_hidden
 							}
@@ -1415,17 +1437,17 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 				}
 			} else if app.load_gate_mode {
-				if e.key_code == .delete {
-					app.text_input = app.text_input#[..-2]
+				if e.key_code == .backspace  {
+					app.text_input = app.text_input#[..-1]
 				}
 			} else if app.load_gate_mode {
-				if e.key_code == .delete {
-					app.text_input = app.text_input#[..-2]
+				if e.key_code == .backspace {
+					app.text_input = app.text_input#[..-1]
 				}
 			} else if app.keyinput_mode {
 			} else if app.save_gate_mode {
-				if e.key_code == .delete {
-					app.text_input = app.text_input#[..-2]
+				if e.key_code == .backspace {
+					app.text_input = app.text_input#[..-1]
 				}
 			} else {
 				match e.key_code {
@@ -1447,8 +1469,6 @@ fn on_event(e &gg.Event, mut app App) {
 		if app.solo_menu {
 			app.text_input += u8(e.char_code).ascii_str()
 		} else if app.placement_mode {
-		} else if app.load_gate_mode {
-			app.text_input += u8(e.char_code).ascii_str()
 		} else if app.load_gate_mode {
 			app.text_input += u8(e.char_code).ascii_str()
 		} else if app.keyinput_mode {
@@ -1543,7 +1563,9 @@ fn (mut app App) log_quit(message string) {
 	}
 	f.close()
 	// eprintln('Crashed: see the logs')
-	panic(message)
+	eprintln(message)
+	print_backtrace()
+	exit(1)
 }
 
 fn (mut app App) log(message string) {
@@ -1553,6 +1575,9 @@ fn (mut app App) log(message string) {
 	}
 	f.write_string('LOG: ${message}\n') or { println(message) }
 	f.close()
+	println(message)
+	app.log = message
+	app.log_timer = 180
 	// TODO: show on screen
 }
 
@@ -1707,6 +1732,7 @@ fn (mut app App) load_map(map_name string) ! {
 	//	inputs [2]u32
 
 	if os.exists(maps_path) {
+		dump('heyy')
 		mut f := os.open(maps_path + map_name)!
 		assert f.read_raw[u32]()! == 0
 		map_len := f.read_raw[i64]()!
@@ -1716,7 +1742,7 @@ fn (mut app App) load_map(map_name string) ! {
 			f.read_struct(mut new_c)!
 			app.map << new_c
 		}
-
+dump('Chunkmap')
 		app.actual_state = f.read_raw[int]()!
 
 		nots_len := f.read_raw[i64]()!
@@ -1728,7 +1754,7 @@ fn (mut app App) load_map(map_name string) ! {
 		}
 		f.read_into_ptr(app.n_states[app.actual_state].data, int(nots_len))!
 		app.n_states[(app.actual_state + 1) / 2] = []bool{len: int(nots_len)}
-
+dump('Nots')
 		diodes_len := f.read_raw[i64]()!
 		mut new_d := Diode{}
 		app.diodes = []
@@ -1738,7 +1764,7 @@ fn (mut app App) load_map(map_name string) ! {
 		}
 		f.read_into_ptr(app.d_states[app.actual_state].data, int(diodes_len))!
 		app.d_states[(app.actual_state + 1) / 2] = []bool{len: int(diodes_len)}
-
+dump('Didodes')
 		wires_len := f.read_raw[i64]()!
 		app.wires = []
 		for _ in 0 .. wires_len {
@@ -1761,14 +1787,16 @@ fn (mut app App) load_map(map_name string) ! {
 		}
 		f.read_into_ptr(app.w_states[app.actual_state].data, int(wires_len))!
 		app.w_states[(app.actual_state + 1) / 2] = []bool{len: int(wires_len)}
-
+dump('Wires')
 		forced_states_len := f.read_raw[i64]()!
+dump(forced_states_len)
 		app.forced_states = []
 		for _ in 0 .. forced_states_len {
 			app.forced_states << [f.read_raw[u32]()!, f.read_raw[u32]()!]!
 		}
-
+dump('forced states')
 		colorchips_len := f.read_raw[i64]()!
+dump(colorchips_len)
 		app.colorchips = []
 		for _ in 0 .. colorchips_len {
 			mut new_cc := ColorChip{
@@ -1778,14 +1806,17 @@ fn (mut app App) load_map(map_name string) ! {
 				h: f.read_raw[u32]()!
 			}
 			colors_len := f.read_raw[i64]()!
+dump(colors_len)
 			for _ in 0 .. colors_len {
 				new_cc.colors << gg.Color{f.read_raw[u8]()!, f.read_raw[u8]()!, f.read_raw[u8]()!, 255}
 			}
 			inputs_len := f.read_raw[i64]()!
+dump(inputs_len)
 			for _ in 0 .. inputs_len {
 				new_cc.inputs << [f.read_raw[u32]()!, f.read_raw[u32]()!]!
 			}
 		}
+		dump('Done!')
 	}
 }
 
@@ -1837,6 +1868,7 @@ fn (mut app App) save_map(map_name string) ! {
 	offset += sizeof(save_version)
 	file.write_raw_at(i64(app.map.len), offset)!
 	offset += sizeof(i64)
+	dump(offset)
 	for mut chunk in app.map {
 		file.write_raw_at(chunk.x, offset)!
 		offset += sizeof(chunk.x)
@@ -1860,6 +1892,7 @@ fn (mut app App) save_map(map_name string) ! {
 	}
 	offset += u64(app.diodes.len) * sizeof(bool)
 
+	dump(offset)
 	file.write_raw_at(i64(app.diodes.len), offset)!
 	offset += sizeof(i64)
 	unsafe { file.write_ptr_at(app.diodes, app.diodes.len * int(sizeof(Diode)), offset) }
@@ -1870,6 +1903,7 @@ fn (mut app App) save_map(map_name string) ! {
 	}
 	offset += u64(app.diodes.len) * sizeof(bool)
 
+	dump(offset)
 	file.write_raw_at(i64(app.wires.len), offset)!
 	offset += sizeof(i64)
 	for wire in app.wires {
@@ -1899,6 +1933,7 @@ fn (mut app App) save_map(map_name string) ! {
 	}
 	offset += u64(app.wires.len) * sizeof(bool)
 
+	dump(offset)
 	file.write_raw_at(i64(app.forced_states.len), offset)!
 	offset += sizeof(i64)
 	for pos in app.forced_states {
@@ -1908,6 +1943,7 @@ fn (mut app App) save_map(map_name string) ! {
 		offset += sizeof(u32)
 	}
 
+	dump(offset)
 	file.write_raw_at(i64(app.colorchips.len), offset)!
 	offset += sizeof(i64)
 	for cc in app.colorchips {
@@ -1920,6 +1956,7 @@ fn (mut app App) save_map(map_name string) ! {
 		file.write_raw_at(cc.h, offset)!
 		offset += sizeof(u32)
 
+	dump(offset)
 		file.write_raw_at(i64(cc.colors.len), offset)!
 		offset += sizeof(i64)
 		for color in cc.colors {
@@ -1931,6 +1968,7 @@ fn (mut app App) save_map(map_name string) ! {
 			offset += sizeof(u8)
 		}
 
+	dump(offset)
 		file.write_raw_at(i64(cc.inputs.len), offset)!
 		offset += sizeof(i64)
 		for i in cc.inputs {
@@ -1940,6 +1978,8 @@ fn (mut app App) save_map(map_name string) ! {
 			offset += sizeof(u32)
 		}
 	}
+	dump(offset)
+	file.close()
 }
 
 fn (mut app App) load_gate_to_copied(gate_name string) ! {
