@@ -261,16 +261,18 @@ mut:
 	text_input        string // holds what the user typed
 	colorchips_hidden bool   // if colorchips are hidden
 	mouse_down        bool
+	mouse_map_x       u32
+	mouse_map_y       u32
 	scroll_pos        f32
 	// main menu
-	main_menu     bool
-	button_solo_x f32 = 0.0 // TODO: make it scale with screensize and place it properly
-	button_solo_y f32 = 0.0
-	button_solo_w f32 = 300.0
-	button_solo_h f32 = 300.0
+	main_menu        bool
+	button_solo_x    f32 = 0.0 // TODO: make it scale with screensize and place it properly
+	button_solo_y    f32 = 0.0
+	button_solo_w    f32 = 300.0
+	button_solo_h    f32 = 300.0
 	button_quit_size f32 = 50.0
-	btn_quit_ofst f32 = 20.0
-	solo_img      gg.Image
+	btn_quit_ofst    f32 = 20.0
+	solo_img         gg.Image
 	// solo menu TODO: display map info of the hovered map (size bits, nb of hours played, gates placed... fun stuff)
 	solo_menu           bool
 	map_names_list      []string // without folder name
@@ -282,6 +284,9 @@ mut:
 	button_new_map_x    f32 = 5.0
 	button_new_map_y    f32 = 5.0
 	button_new_map_size f32 = 40.0
+	btn_back_x          f32 = 5.0
+	btn_back_y          f32 = 50.0
+	btn_back_s          f32 = 40.0
 	text_field_x        f32 = 50.0
 	text_field_y        f32 = 5.0
 	// edit mode -> edit colorchips
@@ -340,7 +345,7 @@ mut:
 	// load gate mode
 	load_gate_mode   bool
 	gate_name_list   []string // without folder name
-	gate_x_ofst    f32 = 5.0
+	gate_x_ofst      f32 = 5.0
 	gate_y_offset    f32 = 50.0
 	gate_top_spacing f32 = 10.0
 	gate_h           f32 = 50.0
@@ -358,8 +363,8 @@ mut:
 	button_left_padding f32                    = 5.0
 	button_top_padding  f32                    = 5.0
 	buttons             map[Buttons]ButtonData = button_map.clone()
-	log string
-	log_timer int
+	log                 string
+	log_timer           int
 
 	// logic
 	map             []Chunk
@@ -397,7 +402,7 @@ fn main() {
 		user_data:     app
 		frame_fn:      on_frame
 		event_fn:      on_event
-		sample_count:  2
+		sample_count:  4
 		bg_color:      app.palette.background
 		font_path:     font_path
 	)
@@ -464,7 +469,9 @@ fn on_frame(mut app App) {
 		if app.keyinput_mode {
 			app.draw_input_buttons()
 		}
-
+		if app.paste_mode {
+			app.draw_paste_preview()
+		}
 		app.draw_ingame_ui_buttons()
 
 		if !app.colorchips_hidden {
@@ -497,13 +504,13 @@ mut:
 
 		if app.save_gate_mode {
 			app.ctx.draw_rect_filled(app.ui_width + 10, 10, 250, 40, app.palette.ui_bg)
-			app.ctx.draw_text_def(int(app.ui_width + 15), 20, "Save gate: ${app.text_input}")
+			app.ctx.draw_text_def(int(app.ui_width + 15), 20, 'Save gate: ${app.text_input}')
 		}
 		if app.load_gate_mode {
 			app.ctx.draw_rect_filled(app.ui_width + 10, 10, 250, 40, app.palette.ui_bg)
-			app.ctx.draw_text_def(int(app.ui_width + 15), 20, "Load gate: ${app.text_input}")
+			app.ctx.draw_text_def(int(app.ui_width + 15), 20, 'Load gate: ${app.text_input}')
 			// search results
-			
+
 			app.gate_name_list = os.ls(gates_path) or {
 				app.log('cannot list files in ${gates_path}, ${err}')
 				[]string{}
@@ -512,13 +519,18 @@ mut:
 			w := app.ui_width + app.gate_x_ofst + app.gate_w
 			h := app.gate_top_spacing + app.gate_h
 			for pos, name in app.gate_name_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
-				app.ctx.draw_rect_filled(x, pos * h + app.gate_y_offset, w, app.gate_h, app.palette.ui_bg)
+				app.ctx.draw_rect_filled(x, pos * h + app.gate_y_offset, w, app.gate_h,
+					app.palette.ui_bg)
 				app.ctx.draw_text_def(int(x), int(pos * h + app.gate_y_offset + 10), name)
 			}
 		}
 	} else if app.main_menu {
-		app.ctx.draw_image(app.button_solo_x, app.button_solo_y, app.button_solo_w, app.button_solo_h, app.solo_img)
-		unsafe{app.ctx.draw_image(app.btn_quit_ofst, app.button_solo_h + app.btn_quit_ofst, app.button_quit_size, app.button_quit_size, app.buttons[.quit_map].img)}
+		app.ctx.draw_image(app.button_solo_x, app.button_solo_y, app.button_solo_w, app.button_solo_h,
+			app.solo_img)
+		unsafe {
+			app.ctx.draw_image(app.btn_quit_ofst, app.button_solo_h + app.btn_quit_ofst,
+				app.button_quit_size, app.button_quit_size, app.buttons[.quit_map].img)
+		}
 	} else if app.solo_menu {
 		for i, m in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 			app.ctx.draw_rect_filled(app.maps_x_offset, (app.maps_y_offset + app.maps_top_spacing) * (
@@ -528,6 +540,10 @@ mut:
 		}
 		app.ctx.draw_square_filled(app.button_new_map_x, app.button_new_map_y, app.button_new_map_size,
 			app.palette.ui_bg)
+		unsafe {
+			app.ctx.draw_image(app.btn_back_x, app.btn_back_y, app.btn_back_s, app.btn_back_s,
+				app.buttons[.cancel_button].img)
+		}
 		app.ctx.draw_text_def(int(app.text_field_x), int(app.text_field_y), app.text_input)
 	} else {
 		app.disable_all_ingame_modes()
@@ -555,7 +571,8 @@ fn (mut app App) draw_ingame_ui_buttons() {
 					size, size, app.buttons[button].img)
 			}
 		} else if app.load_gate_mode {
-			app.ctx.draw_image(base_x, app.buttons[.cancel_button].pos * y_factor + base_y, size, size, app.buttons[.cancel_button].img)
+			app.ctx.draw_image(base_x, app.buttons[.cancel_button].pos * y_factor + base_y,
+				size, size, app.buttons[.cancel_button].img)
 		} else if app.paste_mode {
 			for button in paste_buttons {
 				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
@@ -633,6 +650,14 @@ fn (mut app App) draw_placing_preview() {
 			pos_y := f32((f64(y) - app.cam_y) * app.tile_size)
 			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.place_preview)
 		}
+	}
+}
+
+fn (mut app App) draw_paste_preview() {
+	for pi in app.copied {
+		pos_x := f32((f64(pi.rel_x) + f64(app.mouse_map_x) - app.cam_x) * app.tile_size)
+		pos_y := f32((f64(pi.rel_y) + f64(app.mouse_map_y) - app.cam_y) * app.tile_size)
+		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.place_preview)
 	}
 }
 
@@ -830,6 +855,8 @@ fn on_event(e &gg.Event, mut app App) {
 	if app.scroll_pos < 0 {
 		app.scroll_pos = 0
 	}
+	app.mouse_map_x = u32(app.cam_x + mouse_x / app.tile_size)
+	app.mouse_map_y = u32(app.cam_y + mouse_y / app.tile_size)
 	match e.typ {
 		.mouse_up {
 			app.mouse_down = false
@@ -856,8 +883,10 @@ fn on_event(e &gg.Event, mut app App) {
 						app.log('Cannot list files in ${maps_path}, ${err}')
 						return
 					}
-				} else if mouse_x >= app.btn_quit_ofst && mouse_x < app.btn_quit_ofst + app.button_quit_size
-					&& mouse_y >= app.button_solo_h + app.btn_quit_ofst && mouse_y < app.button_solo_h + app.btn_quit_ofst + app.button_quit_size {
+				} else if mouse_x >= app.btn_quit_ofst
+					&& mouse_x < app.btn_quit_ofst + app.button_quit_size
+					&& mouse_y >= app.button_solo_h + app.btn_quit_ofst
+					&& mouse_y < app.button_solo_h + app.btn_quit_ofst + app.button_quit_size {
 					exit(0)
 				}
 			} else if app.solo_menu {
@@ -896,6 +925,7 @@ fn on_event(e &gg.Event, mut app App) {
 					&& mouse_x < app.button_new_map_x + app.button_new_map_size
 					&& mouse_y >= app.button_new_map_y
 					&& mouse_y < app.button_new_map_y + app.button_new_map_size {
+					app.disable_all_ingame_modes()
 					app.solo_menu = false
 					app.map = []Chunk{}
 					app.map_name = app.text_input
@@ -924,6 +954,11 @@ fn on_event(e &gg.Event, mut app App) {
 					spawn app.computation_loop()
 					app.cam_x = default_camera_pos_x
 					app.cam_y = default_camera_pos_y
+				} else if mouse_x >= app.btn_back_x && mouse_x < app.btn_back_x + app.btn_back_s
+					&& mouse_y >= app.btn_back_y && mouse_y < app.btn_back_y + app.btn_back_s {
+					app.disable_all_ingame_modes()
+					app.solo_menu = false
+					app.main_menu = true
 				}
 			} else if app.comp_running {
 				if app.keyinput_mode {
@@ -1160,7 +1195,8 @@ fn on_event(e &gg.Event, mut app App) {
 							app.log('cannot list files in ${gates_path}, ${err}')
 							return
 						}
-						if mouse_x >= app.ui_width + app.gate_x_ofst && mouse_x < app.ui_width + app.gate_x_ofst + app.gate_w {
+						if mouse_x >= app.ui_width + app.gate_x_ofst
+							&& mouse_x < app.ui_width + app.gate_x_ofst + app.gate_w {
 							for i, name in app.gate_name_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 								if e.mouse_button == .left {
 									if app.check_gates_button_click_y(i, mouse_y) {
@@ -1456,7 +1492,7 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 				}
 			} else if app.load_gate_mode {
-				if e.key_code == .backspace  {
+				if e.key_code == .backspace {
 					app.text_input = app.text_input#[..-1]
 				}
 			} else if app.load_gate_mode {
@@ -1605,8 +1641,8 @@ mut:
 	elem        Elem
 	orientation u8
 	// relative coos to the selection/gate
-	rel_x u32
-	rel_y u32
+	rel_x i32
+	rel_y i32
 }
 
 enum Todos {
@@ -1761,7 +1797,7 @@ fn (mut app App) load_map(map_name string) ! {
 			f.read_struct(mut new_c)!
 			app.map << new_c
 		}
-dump('Chunkmap')
+		dump('Chunkmap')
 		app.actual_state = f.read_raw[int]()!
 
 		nots_len := f.read_raw[i64]()!
@@ -1773,7 +1809,7 @@ dump('Chunkmap')
 		}
 		f.read_into_ptr(app.n_states[app.actual_state].data, int(nots_len))!
 		app.n_states[(app.actual_state + 1) / 2] = []bool{len: int(nots_len)}
-dump('Nots')
+		dump('Nots')
 		diodes_len := f.read_raw[i64]()!
 		mut new_d := Diode{}
 		app.diodes = []
@@ -1783,7 +1819,7 @@ dump('Nots')
 		}
 		f.read_into_ptr(app.d_states[app.actual_state].data, int(diodes_len))!
 		app.d_states[(app.actual_state + 1) / 2] = []bool{len: int(diodes_len)}
-dump('Didodes')
+		dump('Didodes')
 		wires_len := f.read_raw[i64]()!
 		app.wires = []
 		for _ in 0 .. wires_len {
@@ -1806,16 +1842,16 @@ dump('Didodes')
 		}
 		f.read_into_ptr(app.w_states[app.actual_state].data, int(wires_len))!
 		app.w_states[(app.actual_state + 1) / 2] = []bool{len: int(wires_len)}
-dump('Wires')
+		dump('Wires')
 		forced_states_len := f.read_raw[i64]()!
-dump(forced_states_len)
+		dump(forced_states_len)
 		app.forced_states = []
 		for _ in 0 .. forced_states_len {
 			app.forced_states << [f.read_raw[u32]()!, f.read_raw[u32]()!]!
 		}
-dump('forced states')
+		dump('forced states')
 		colorchips_len := f.read_raw[i64]()!
-dump(colorchips_len)
+		dump(colorchips_len)
 		app.colorchips = []
 		for _ in 0 .. colorchips_len {
 			mut new_cc := ColorChip{
@@ -1825,12 +1861,12 @@ dump(colorchips_len)
 				h: f.read_raw[u32]()!
 			}
 			colors_len := f.read_raw[i64]()!
-dump(colors_len)
+			dump(colors_len)
 			for _ in 0 .. colors_len {
 				new_cc.colors << gg.Color{f.read_raw[u8]()!, f.read_raw[u8]()!, f.read_raw[u8]()!, 255}
 			}
 			inputs_len := f.read_raw[i64]()!
-dump(inputs_len)
+			dump(inputs_len)
 			for _ in 0 .. inputs_len {
 				new_cc.inputs << [f.read_raw[u32]()!, f.read_raw[u32]()!]!
 			}
@@ -1975,7 +2011,7 @@ fn (mut app App) save_map(map_name string) ! {
 		file.write_raw_at(cc.h, offset)!
 		offset += sizeof(u32)
 
-	dump(offset)
+		dump(offset)
 		file.write_raw_at(i64(cc.colors.len), offset)!
 		offset += sizeof(i64)
 		for color in cc.colors {
@@ -1987,7 +2023,7 @@ fn (mut app App) save_map(map_name string) ! {
 			offset += sizeof(u8)
 		}
 
-	dump(offset)
+		dump(offset)
 		file.write_raw_at(i64(cc.inputs.len), offset)!
 		offset += sizeof(i64)
 		for i in cc.inputs {
@@ -2017,16 +2053,31 @@ fn (mut app App) load_gate_to_copied(gate_name string) ! {
 
 fn (mut app App) rotate_copied() {
 	// find size of the patern
-	mut max_x := u32(0)
-	for place in app.copied {
-		if place.rel_x > max_x {
-			max_x = place.rel_x
+	if app.copied.len > 0 {
+		mut max_x := i32(0)
+		for place in app.copied {
+			if place.rel_x > max_x {
+				max_x = place.rel_x
+			}
 		}
-	}
-	for mut place in app.copied { // matrix rotation by 90 deg
-		tmp_x := place.rel_x
-		place.rel_x = place.rel_y
-		place.rel_y = max_x - tmp_x - 1
+
+		mut min_x := app.copied[0].rel_y
+		mut min_y := app.copied[0].rel_x
+		for mut place in app.copied { // matrix rotation by 90 deg
+			tmp_x := place.rel_x
+			place.rel_x = place.rel_y
+			place.rel_y = max_x - tmp_x - 1
+			if min_x > place.rel_x {
+				min_x = place.rel_x
+			}
+			if min_y > place.rel_y {
+				min_y = place.rel_y
+			}
+		}
+		for mut place in app.copied {
+			place.rel_x -= min_x
+			place.rel_y -= min_y
+		}
 	}
 }
 
@@ -2066,8 +2117,8 @@ fn (mut app App) paste(x_start u32, y_start u32) {
 	for place in app.copied {
 		app.selected_item = place.elem
 		app.selected_ori = u64(place.orientation) << 56
-		app.placement(place.rel_x + x_start, place.rel_y + y_start, place.rel_x + x_start,
-			place.rel_y + y_start)
+		app.placement(u32(i64(place.rel_x) + i64(x_start)), u32(i64(place.rel_y) + i64(y_start)),
+			u32(i64(place.rel_x) + i64(x_start)), u32(i64(place.rel_y) + i64(y_start)))
 	}
 	app.selected_ori = old_ori
 	app.selected_item = old_item
@@ -2332,23 +2383,25 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				continue
 			}
 			if id == elem_crossing_bits { // same bits as wires so need to be separated
-				app.copied << PlaceInstruction{.crossing, u8(0), x - x_start, y - y_start}
+				app.copied << PlaceInstruction{.crossing, u8(0), i32(x - x_start), i32(y - y_start)}
 				continue
 			}
 
 			ori := id & ori_mask
+			rel_x := i32(x - x_start)
+			rel_y := i32(y - y_start)
 			match id & elem_type_mask {
 				elem_not_bits {
-					app.copied << PlaceInstruction{.not, u8(ori >> 56), x - x_start, y - y_start}
+					app.copied << PlaceInstruction{.not, u8(ori >> 56), rel_x, rel_y}
 				}
 				elem_diode_bits {
-					app.copied << PlaceInstruction{.diode, u8(ori >> 56), x - x_start, y - y_start}
+					app.copied << PlaceInstruction{.diode, u8(ori >> 56), rel_x, rel_y}
 				}
 				elem_on_bits {
-					app.copied << PlaceInstruction{.on, u8(ori >> 56), x - x_start, y - y_start}
+					app.copied << PlaceInstruction{.on, u8(ori >> 56), rel_x, rel_y}
 				}
 				elem_wire_bits {
-					app.copied << PlaceInstruction{.wire, u8(0), x - x_start, y - y_start}
+					app.copied << PlaceInstruction{.wire, u8(0), rel_x, rel_y}
 				}
 				else {
 					app.log_quit('${@LOCATION} should not get into this else')
