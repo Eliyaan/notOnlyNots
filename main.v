@@ -340,7 +340,7 @@ mut:
 	// load gate mode
 	load_gate_mode   bool
 	gate_name_list   []string // without folder name
-	gate_x_offset    f32 = 5.0
+	gate_x_ofst    f32 = 5.0
 	gate_y_offset    f32 = 50.0
 	gate_top_spacing f32 = 10.0
 	gate_h           f32 = 50.0
@@ -497,7 +497,24 @@ mut:
 
 		if app.save_gate_mode {
 			app.ctx.draw_rect_filled(app.ui_width + 10, 10, 250, 40, app.palette.ui_bg)
-			app.ctx.draw_text_def(int(app.ui_width + 15), 20, "Gate's name: ${app.text_input}")
+			app.ctx.draw_text_def(int(app.ui_width + 15), 20, "Save gate: ${app.text_input}")
+		}
+		if app.load_gate_mode {
+			app.ctx.draw_rect_filled(app.ui_width + 10, 10, 250, 40, app.palette.ui_bg)
+			app.ctx.draw_text_def(int(app.ui_width + 15), 20, "Load gate: ${app.text_input}")
+			// search results
+			
+			app.gate_name_list = os.ls(gates_path) or {
+				app.log('cannot list files in ${gates_path}, ${err}')
+				[]string{}
+			}
+			x := app.ui_width + app.gate_x_ofst
+			w := app.ui_width + app.gate_x_ofst + app.gate_w
+			h := app.gate_top_spacing + app.gate_h
+			for pos, name in app.gate_name_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
+				app.ctx.draw_rect_filled(x, pos * h + app.gate_y_offset, w, app.gate_h, app.palette.ui_bg)
+				app.ctx.draw_text_def(int(x), int(pos * h + app.gate_y_offset + 10), name)
+			}
 		}
 	} else if app.main_menu {
 		app.ctx.draw_image(app.button_solo_x, app.button_solo_y, app.button_solo_w, app.button_solo_h, app.solo_img)
@@ -1139,17 +1156,19 @@ fn on_event(e &gg.Event, mut app App) {
 							}
 						}
 					} else {
-						app.gate_name_list = os.ls(gates_path) or { // todo: do that in the frame update too
+						app.gate_name_list = os.ls(gates_path) or {
 							app.log('cannot list files in ${gates_path}, ${err}')
 							return
 						}
-						for i, name in app.gate_name_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
-							if e.mouse_button == .left {
-								if app.check_gates_button_click_y(i, mouse_x) {
-									app.disable_all_ingame_modes()
-									app.paste_mode = true
-									app.text_input = ''
-									app.todo << TodoInfo{.load_gate, 0, 0, 0, 0, name}
+						if mouse_x >= app.ui_width + app.gate_x_ofst && mouse_x < app.ui_width + app.gate_x_ofst + app.gate_w {
+							for i, name in app.gate_name_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
+								if e.mouse_button == .left {
+									if app.check_gates_button_click_y(i, mouse_y) {
+										app.disable_all_ingame_modes()
+										app.paste_mode = true
+										app.text_input = ''
+										app.todo << TodoInfo{.load_gate, 0, 0, 0, 0, name}
+									}
 								}
 							}
 						}
