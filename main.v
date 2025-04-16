@@ -1475,11 +1475,7 @@ fn on_event(e &gg.Event, mut app App) {
 			}
 		}
 		.key_down {
-			if app.solo_menu {
-				if e.key_code == .backspace {
-					app.text_input = app.text_input#[..-1]
-				}
-			} else if app.placement_mode {
+			if app.placement_mode {
 				if e.key_code == .r {
 					if e.modifiers & 1 == 1 { // shift: 1<<0
 						app.selected_ori = match app.selected_ori {
@@ -1499,6 +1495,12 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				}
+			}
+	
+			if app.solo_menu {
+				if e.key_code == .backspace {
+					app.text_input = app.text_input#[..-1]
+				}
 			} else if app.load_gate_mode {
 				if e.key_code == .backspace {
 					app.text_input = app.text_input#[..-1]
@@ -1517,13 +1519,13 @@ fn on_event(e &gg.Event, mut app App) {
 					.escape {}
 					else {}
 				}
-			}
-			match e.key_code {
-				.z, .w, .up { app.cam_y -= 1 }
-				.s, .down { app.cam_y += 1 }
-				.d, .right { app.cam_x += 1 }
-				.a, .q, .left { app.cam_x -= 1 }
-				else {}
+				match e.key_code {
+					.z, .w, .up { app.cam_y -= 1 }
+					.s, .down { app.cam_y += 1 }
+					.d, .right { app.cam_x += 1 }
+					.a, .q, .left { app.cam_x -= 1 }
+					else {}
+				}
 			}
 		}
 		else {}
@@ -1748,7 +1750,7 @@ fn (mut app App) save_copied(name_ string) ! {
 			name += 'New'
 		}
 		mut file := os.open_file('${gates_path}${name}', 'w')!
-		unsafe { file.write_ptr(app.copied, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it -> successful or not?
+		unsafe { file.write_ptr(app.copied.data, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it -> successful or not?
 		file.close()
 	}
 }
@@ -1815,6 +1817,7 @@ fn (mut app App) load_map(map_name string) ! {
 			f.read_struct(mut new_n)!
 			app.nots << new_n
 		}
+		app.n_states[app.actual_state + 1] = []bool{len: int(nots_len)} // to have an array in a good shape
 		f.read_into_ptr(app.n_states[app.actual_state].data, int(nots_len))!
 		app.n_states[(app.actual_state + 1) / 2] = []bool{len: int(nots_len)}
 		dump('Nots')
@@ -1825,6 +1828,7 @@ fn (mut app App) load_map(map_name string) ! {
 			f.read_struct(mut new_d)!
 			app.diodes << new_d
 		}
+		app.d_states[app.actual_state] = []bool{len: int(diodes_len)}
 		f.read_into_ptr(app.d_states[app.actual_state].data, int(diodes_len))!
 		app.d_states[(app.actual_state + 1) / 2] = []bool{len: int(diodes_len)}
 		dump('Didodes')
@@ -1848,6 +1852,7 @@ fn (mut app App) load_map(map_name string) ! {
 			}
 			app.wires << new_w
 		}
+		app.w_states[app.actual_state] = []bool{len: int(wires_len)}
 		f.read_into_ptr(app.w_states[app.actual_state].data, int(wires_len))!
 		app.w_states[(app.actual_state + 1) / 2] = []bool{len: int(wires_len)}
 		dump('Wires')
@@ -1938,7 +1943,7 @@ fn (mut app App) save_map(map_name string) ! {
 		file.write_raw_at(chunk.y, offset)!
 		offset += sizeof(chunk.y)
 		unsafe {
-			file.write_ptr_at(&chunk.id_map, chunk_size * chunk_size * int(sizeof(u64)),
+			file.write_ptr_at(chunk.id_map, chunk_size * chunk_size * int(sizeof(u64)),
 				offset)
 		}
 		offset += chunk_size * chunk_size * sizeof(u64)
@@ -1950,7 +1955,7 @@ fn (mut app App) save_map(map_name string) ! {
 	unsafe { file.write_ptr_at(app.nots, app.nots.len * int(sizeof(Nots)), offset) }
 	offset += u64(app.nots.len) * sizeof(Nots)
 	unsafe {
-		file.write_ptr_at(app.n_states[app.actual_state], app.nots.len * int(sizeof(bool)),
+		file.write_ptr_at(app.n_states[app.actual_state].data, app.nots.len * int(sizeof(bool)),
 			offset)
 	}
 	offset += u64(app.diodes.len) * sizeof(bool)
@@ -1961,7 +1966,7 @@ fn (mut app App) save_map(map_name string) ! {
 	unsafe { file.write_ptr_at(app.diodes, app.diodes.len * int(sizeof(Diode)), offset) }
 	offset += u64(app.diodes.len) * sizeof(Diode)
 	unsafe {
-		file.write_ptr_at(app.d_states[app.actual_state], app.diodes.len * int(sizeof(bool)),
+		file.write_ptr_at(app.d_states[app.actual_state].data, app.diodes.len * int(sizeof(bool)),
 			offset)
 	}
 	offset += u64(app.diodes.len) * sizeof(bool)
@@ -1975,11 +1980,11 @@ fn (mut app App) save_map(map_name string) ! {
 
 		file.write_raw_at(i64(wire.inps.len), offset)!
 		offset += sizeof(i64)
-		unsafe { file.write_ptr_at(wire.inps, wire.inps.len * int(sizeof(u64)), offset) }
+		unsafe { file.write_ptr_at(wire.inps.data, wire.inps.len * int(sizeof(u64)), offset) }
 
 		file.write_raw_at(i64(wire.outs.len), offset)!
 		offset += sizeof(i64)
-		unsafe { file.write_ptr_at(wire.outs, wire.outs.len * int(sizeof(u64)), offset) }
+		unsafe { file.write_ptr_at(wire.outs.data, wire.outs.len * int(sizeof(u64)), offset) }
 
 		file.write_raw_at(i64(wire.cable_coords.len), offset)!
 		offset += sizeof(i64)
@@ -1991,7 +1996,7 @@ fn (mut app App) save_map(map_name string) ! {
 		}
 	}
 	unsafe {
-		file.write_ptr_at(app.w_states[app.actual_state], app.diodes.len * int(sizeof(bool)),
+		file.write_ptr_at(app.w_states[app.actual_state].data, app.diodes.len * int(sizeof(bool)),
 			offset)
 	}
 	offset += u64(app.wires.len) * sizeof(bool)
