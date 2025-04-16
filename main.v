@@ -114,6 +114,7 @@ struct Palette {
 	diode           gg.Color = gg.Color{92, 190, 247, 255}
 	background      gg.Color = gg.Color{255, 235, 179, 255}
 	place_preview   gg.Color = gg.Color{128, 128, 128, 128}
+	copy_preview    gg.Color = gg.Color{255, 255, 255, 128}
 	selection_start gg.Color = gg.Color{26, 107, 237, 128}
 	selection_end   gg.Color = gg.Color{72, 97, 138, 128}
 	selection_box   gg.Color = gg.Color{66, 136, 245, 128}
@@ -654,10 +655,82 @@ fn (mut app App) draw_placing_preview() {
 }
 
 fn (mut app App) draw_paste_preview() {
+	size := app.ctx.window_size()
+	// map rendering
+	not_poly := app.scale_sprite(not_poly_unscaled)
+	not_rect := app.scale_sprite(not_rect_unscaled)
+	mut not_poly_offset := []f32{len: 6, cap: 6}
+	diode_poly := app.scale_sprite(diode_poly_unscaled)
+	mut diode_poly_offset := []f32{len: 8, cap: 8}
+	on_poly := app.scale_sprite(on_poly_unscaled)
+	mut on_poly_offset := []f32{len: 8, cap: 8}
+
 	for pi in app.copied {
 		pos_x := f32((f64(pi.rel_x) + f64(app.mouse_map_x) - app.cam_x) * app.tile_size)
 		pos_y := f32((f64(pi.rel_y) + f64(app.mouse_map_y) - app.cam_y) * app.tile_size)
-		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.place_preview)
+		orient := u64(pi.orientation) << 56
+		if pi.elem == .crossing { // same bits as wires so need to be separated
+			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.junc)
+			app.ctx.draw_rect_filled(pos_x, pos_y + app.tile_size / 3, app.tile_size,
+				app.tile_size / 3, app.palette.junc_h)
+			app.ctx.draw_rect_filled(pos_x + app.tile_size / 3, pos_y, app.tile_size / 3,
+				app.tile_size, app.palette.junc_v)
+		} else {
+			state_color, not_state_color := app.palette.wire_off, app.palette.wire_on
+
+			ori := match orient {
+				north { 0 }
+				south { 1 }
+				west { 2 }
+				east { 3 }
+				else { app.log_quit('${@LOCATION} should not get into this else') }
+			}
+			match pi.elem {
+				.not {
+					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.not)
+					not_poly_offset[0] = not_poly[ori][0] + pos_x
+					not_poly_offset[1] = not_poly[ori][1] + pos_y
+					not_poly_offset[2] = not_poly[ori][2] + pos_x
+					not_poly_offset[3] = not_poly[ori][3] + pos_y
+					not_poly_offset[4] = not_poly[ori][4] + pos_x
+					not_poly_offset[5] = not_poly[ori][5] + pos_y
+					app.ctx.draw_convex_poly(not_poly_offset, not_state_color)
+					app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x, not_rect[ori][1] + pos_y,
+						not_rect[ori][2], not_rect[ori][3], state_color)
+				}
+				.diode {
+					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.diode)
+					diode_poly_offset[0] = diode_poly[ori][0] + pos_x
+					diode_poly_offset[1] = diode_poly[ori][1] + pos_y
+					diode_poly_offset[2] = diode_poly[ori][2] + pos_x
+					diode_poly_offset[3] = diode_poly[ori][3] + pos_y
+					diode_poly_offset[4] = diode_poly[ori][4] + pos_x
+					diode_poly_offset[5] = diode_poly[ori][5] + pos_y
+					diode_poly_offset[6] = diode_poly[ori][6] + pos_x
+					diode_poly_offset[7] = diode_poly[ori][7] + pos_y
+					app.ctx.draw_convex_poly(diode_poly_offset, state_color)
+				}
+				.on {
+					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.on)
+					on_poly_offset[0] = on_poly[ori][0] + pos_x
+					on_poly_offset[1] = on_poly[ori][1] + pos_y
+					on_poly_offset[2] = on_poly[ori][2] + pos_x
+					on_poly_offset[3] = on_poly[ori][3] + pos_y
+					on_poly_offset[4] = on_poly[ori][4] + pos_x
+					on_poly_offset[5] = on_poly[ori][5] + pos_y
+					on_poly_offset[6] = on_poly[ori][6] + pos_x
+					on_poly_offset[7] = on_poly[ori][7] + pos_y
+					app.ctx.draw_convex_poly(on_poly_offset, app.palette.wire_on)
+				}
+				.wire {
+					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, state_color)
+				}
+				else {
+					app.log_quit('${@LOCATION} should not get into this else')
+				}
+			}
+		}
+		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.copy_preview)
 	}
 }
 
@@ -926,35 +999,35 @@ fn on_event(e &gg.Event, mut app App) {
 					&& mouse_y >= app.button_new_map_y
 					&& mouse_y < app.button_new_map_y + app.button_new_map_size {
 					if !os.exists('saved_maps/${app.text_input}') {
-					app.disable_all_ingame_modes()
-					app.solo_menu = false
-					app.map = []Chunk{}
-					app.map_name = app.text_input
-					app.text_input = ''
-					app.pause = false
-					app.nb_updates = 5
-					app.todo = []
-					app.selected_item = .not
-					app.selected_ori = north
-					app.copied = []
-					app.actual_state = 0
-					app.nots = []
-					app.n_next_rid = 1
-					app.n_states[0] = []
-					app.n_states[1] = []
-					app.diodes = []
-					app.d_next_rid = 1
-					app.d_states[0] = []
-					app.d_states[1] = []
-					app.wires = []
-					app.w_next_rid = 1
-					app.w_states[0] = []
-					app.w_states[1] = []
-					app.comp_running = true
-					println('starting computation!!!')
-					spawn app.computation_loop()
-					app.cam_x = default_camera_pos_x
-					app.cam_y = default_camera_pos_y
+						app.disable_all_ingame_modes()
+						app.solo_menu = false
+						app.map = []Chunk{}
+						app.map_name = app.text_input
+						app.text_input = ''
+						app.pause = false
+						app.nb_updates = 5
+						app.todo = []
+						app.selected_item = .not
+						app.selected_ori = north
+						app.copied = []
+						app.actual_state = 0
+						app.nots = []
+						app.n_next_rid = 1
+						app.n_states[0] = []
+						app.n_states[1] = []
+						app.diodes = []
+						app.d_next_rid = 1
+						app.d_states[0] = []
+						app.d_states[1] = []
+						app.wires = []
+						app.w_next_rid = 1
+						app.w_states[0] = []
+						app.w_states[1] = []
+						app.comp_running = true
+						println('starting computation!!!')
+						spawn app.computation_loop()
+						app.cam_x = default_camera_pos_x
+						app.cam_y = default_camera_pos_y
 					} else {
 						app.log('Map ${app.text_input} already exists')
 					}
@@ -1311,14 +1384,14 @@ fn on_event(e &gg.Event, mut app App) {
 							{
 								if app.text_input != '' && app.select_start_x != u32(-1)
 									&& app.select_end_x != u32(-1) {
-									if !os.exists('saved_gates/${app.text_input}'){
-									app.disable_all_ingame_modes()
-									// copies because save_gate saves the copied gate
-									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
-									app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, app.text_input}
-									app.text_input = ''
-									app.select_start_x = u32(-1)
-									app.select_end_x = u32(-1)
+									if !os.exists('saved_gates/${app.text_input}') {
+										app.disable_all_ingame_modes()
+										// copies because save_gate saves the copied gate
+										app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+										app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, app.text_input}
+										app.text_input = ''
+										app.select_start_x = u32(-1)
+										app.select_end_x = u32(-1)
 									} else {
 										app.log('Gate ${app.text_input} already exists')
 									}
@@ -1496,7 +1569,7 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 				}
 			}
-	
+
 			if app.solo_menu {
 				if e.key_code == .backspace {
 					app.text_input = app.text_input#[..-1]
@@ -1590,6 +1663,7 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 				}
 			} else if app.paste_mode {
+			} else if app.load_gate_mode {
 			} else {
 				if mouse_x <= app.ui_width {
 				} else {
@@ -2091,7 +2165,7 @@ fn (mut app App) rotate_copied() {
 				east >> 56 { north >> 56 }
 				south >> 56 { east >> 56 }
 				west >> 56 { south >> 56 }
-				else {app.log_quit('invalid orientation')}
+				else { app.log_quit('invalid orientation') }
 			})
 		}
 		for mut place in app.copied {
