@@ -925,6 +925,7 @@ fn on_event(e &gg.Event, mut app App) {
 					&& mouse_x < app.button_new_map_x + app.button_new_map_size
 					&& mouse_y >= app.button_new_map_y
 					&& mouse_y < app.button_new_map_y + app.button_new_map_size {
+					if !os.exists('saved_maps/${app.text_input}') {
 					app.disable_all_ingame_modes()
 					app.solo_menu = false
 					app.map = []Chunk{}
@@ -954,6 +955,9 @@ fn on_event(e &gg.Event, mut app App) {
 					spawn app.computation_loop()
 					app.cam_x = default_camera_pos_x
 					app.cam_y = default_camera_pos_y
+					} else {
+						app.log('Map ${app.text_input} already exists')
+					}
 				} else if mouse_x >= app.btn_back_x && mouse_x < app.btn_back_x + app.btn_back_s
 					&& mouse_y >= app.btn_back_y && mouse_y < app.btn_back_y + app.btn_back_s {
 					app.disable_all_ingame_modes()
@@ -1307,6 +1311,7 @@ fn on_event(e &gg.Event, mut app App) {
 							{
 								if app.text_input != '' && app.select_start_x != u32(-1)
 									&& app.select_end_x != u32(-1) {
+									if !os.exists('saved_gates/${app.text_input}'){
 									app.disable_all_ingame_modes()
 									// copies because save_gate saves the copied gate
 									app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
@@ -1314,6 +1319,9 @@ fn on_event(e &gg.Event, mut app App) {
 									app.text_input = ''
 									app.select_start_x = u32(-1)
 									app.select_end_x = u32(-1)
+									} else {
+										app.log('Gate ${app.text_input} already exists')
+									}
 								}
 							}
 						}
@@ -2073,6 +2081,13 @@ fn (mut app App) rotate_copied() {
 			if min_y > place.rel_y {
 				min_y = place.rel_y
 			}
+			place.orientation = u8(match u64(place.orientation) {
+				north >> 56 { west >> 56 }
+				east >> 56 { north >> 56 }
+				south >> 56 { east >> 56 }
+				west >> 56 { south >> 56 }
+				else {app.log_quit('invalid orientation')}
+			})
 		}
 		for mut place in app.copied {
 			place.rel_x -= min_x
