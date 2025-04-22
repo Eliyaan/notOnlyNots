@@ -4,15 +4,21 @@ import os
 import rand
 import time
 import gg
+import toml
 
-const font_path = 'fonts/0xProtoNerdFontMono-Regular.ttf'
+const game_data_path = 'game_data/'
+const player_data_path = 'player_data/'
+const sprites_path = game_data_path + 'sprites/'
+const logs_path = player_data_path + 'logs'
+const palette_path = player_data_path + 'palette.toml'
+const font_path = game_data_path + 'fonts/0xProtoNerdFontMono-Regular.ttf'
 const default_button_color = gg.Color{75, 108, 136, 255}
 const default_colorchip_color_on = gg.Color{197, 209, 227, 255}
 const default_colorchip_color_off = gg.Color{47, 49, 54, 255}
 const default_camera_pos_x = f64(2_000_000_000.0)
 const default_camera_pos_y = f64(2_000_000_000.0)
-const gates_path = 'saved_gates/'
-const maps_path = 'saved_maps/'
+const gates_path = player_data_path + 'saved_gates/'
+const maps_path = player_data_path + 'saved_maps/'
 const empty_id = u64(0)
 const on_bits = u64(0x2000_0000_0000_0000) // 0010_0000_000...
 const elem_not_bits = u64(0x0000_0000_0000_0000) // 0000_0000_000...
@@ -86,7 +92,7 @@ enum Buttons {
 }
 
 const selec_buttons = [Buttons.cancel_button, .copy_button, .save_gate, .create_color_chip,
-	.selection_delete]
+	.selection_delete, .paste]
 const no_mode_buttons = [Buttons.cancel_button, .selection_button, .load_gate, .item_nots,
 	.item_diode, .item_crossing, .item_on, .item_wire, .speed, .slow, .pause, .paste, .save_map,
 	.keyinput, .hide_colorchips, .quit_map]
@@ -104,6 +110,7 @@ mut:
 }
 
 struct Palette {
+mut:
 	junc            gg.Color = gg.Color{0, 0, 0, 255}
 	junc_v          gg.Color = gg.Color{255, 217, 46, 255} // vertical line
 	junc_h          gg.Color = gg.Color{190, 92, 247, 255} // horiz line
@@ -124,7 +131,6 @@ struct Palette {
 	grid            gg.Color = gg.Color{232, 217, 203, 255}
 }
 
-const palette_1 = Palette{}
 const palette_def = Palette{
 	wire_off:   gg.Color{239, 71, 111, 255}
 	wire_on:    gg.Color{6, 214, 160, 255}
@@ -136,29 +142,6 @@ const palette_def = Palette{
 	junc_v:     gg.Color{255, 220, 92, 255}
 	junc_h:     gg.Color{255, 132, 39, 255}
 	ui_bg:      gg.Color{234, 235, 235, 255}
-}
-const palette_3 = Palette{
-	wire_off:   gg.Color{239, 71, 111, 255}
-	wire_on:    gg.Color{6, 214, 160, 255}
-	background: gg.Color{252, 252, 252, 255}
-	diode:      gg.Color{44, 159, 201, 255}
-	not:        gg.Color{255, 209, 102, 255}
-	on:         gg.Color{37, 248, 157, 255}
-	junc:       gg.Color{0, 26, 35, 255}
-	junc_v:     gg.Color{251, 196, 171, 255}
-	junc_h:     gg.Color{135, 188, 222, 255}
-	ui_bg:      gg.Color{234, 235, 235, 255}
-}
-const palette_2 = Palette{
-	wire_off:   gg.Color{239, 71, 111, 255}
-	wire_on:    gg.Color{6, 214, 160, 255}
-	background: gg.Color{252, 252, 252, 255}
-	diode:      gg.Color{38, 84, 125, 255}
-	not:        gg.Color{255, 209, 102, 255}
-	junc:       gg.Color{0, 26, 35, 255}
-	junc_v:     gg.Color{236, 207, 195, 255}
-	junc_h:     gg.Color{135, 188, 222, 255}
-	ui_bg:      gg.Color{255, 235, 179, 255}
 }
 
 struct ColorChip { // TODO: save color chips and keyboard inputs too
@@ -251,7 +234,7 @@ const button_map = {
 		pos: 15
 	}
 	.selection_delete:     ButtonData{
-		pos: 10
+		pos: 7
 	}
 }
 
@@ -411,36 +394,74 @@ fn main() {
 	// lancement du programme/de la fenêtre
 	app.main_menu = true
 	unsafe {
-		app.buttons[.cancel_button].img = app.ctx.create_image('sprites/cancel_button.png')!
-		app.buttons[.confirm_save_gate].img = app.ctx.create_image('sprites/confirm_save_gate.png')!
-		app.buttons[.selection_button].img = app.ctx.create_image('sprites/selection_button.png')!
-		app.buttons[.rotate_copy].img = app.ctx.create_image('sprites/rotate_copy.png')!
-		app.buttons[.copy_button].img = app.ctx.create_image('sprites/copy_button.png')!
-		app.buttons[.choose_colorchip].img = app.ctx.create_image('sprites/choose_colorchip.png')!
-		app.buttons[.load_gate].img = app.ctx.create_image('sprites/load_gate.png')!
-		app.buttons[.save_gate].img = app.ctx.create_image('sprites/save_gate.png')!
-		app.buttons[.edit_color].img = app.ctx.create_image('sprites/edit_color.png')!
-		app.buttons[.item_nots].img = app.ctx.create_image('sprites/item_nots.png')!
-		app.buttons[.create_color_chip].img = app.ctx.create_image('sprites/create_color_chip.png')!
-		app.buttons[.add_input].img = app.ctx.create_image('sprites/add_input.png')!
-		app.buttons[.item_diode].img = app.ctx.create_image('sprites/item_diode.png')!
-		app.buttons[.steal_settings].img = app.ctx.create_image('sprites/steal_settings.png')!
-		app.buttons[.item_crossing].img = app.ctx.create_image('sprites/item_crossing.png')!
-		app.buttons[.delete_colorchip].img = app.ctx.create_image('sprites/delete_colorchip.png')!
-		app.buttons[.item_on].img = app.ctx.create_image('sprites/item_on.png')!
-		app.buttons[.item_wire].img = app.ctx.create_image('sprites/item_wire.png')!
-		app.buttons[.speed].img = app.ctx.create_image('sprites/speed.png')!
-		app.buttons[.slow].img = app.ctx.create_image('sprites/slow.png')!
-		app.buttons[.pause].img = app.ctx.create_image('sprites/pause.png')!
-		app.buttons[.paste].img = app.ctx.create_image('sprites/paste.png')!
-		app.buttons[.save_map].img = app.ctx.create_image('sprites/save_map.png')!
-		app.buttons[.keyinput].img = app.ctx.create_image('sprites/keyinput.png')!
-		app.buttons[.hide_colorchips].img = app.ctx.create_image('sprites/hide_colorchips.png')!
-		app.buttons[.quit_map].img = app.ctx.create_image('sprites/quit_map.png')!
-		app.buttons[.selection_delete].img = app.ctx.create_image('sprites/selection_delete.png')!
+		app.buttons[.cancel_button].img = app.ctx.create_image(sprites_path + 'cancel_button.png')!
+		app.buttons[.confirm_save_gate].img = app.ctx.create_image(sprites_path +
+			'confirm_save_gate.png')!
+		app.buttons[.selection_button].img = app.ctx.create_image(sprites_path +
+			'selection_button.png')!
+		app.buttons[.rotate_copy].img = app.ctx.create_image(sprites_path + 'rotate_copy.png')!
+		app.buttons[.copy_button].img = app.ctx.create_image(sprites_path + 'copy_button.png')!
+		app.buttons[.choose_colorchip].img = app.ctx.create_image(sprites_path +
+			'choose_colorchip.png')!
+		app.buttons[.load_gate].img = app.ctx.create_image(sprites_path + 'load_gate.png')!
+		app.buttons[.save_gate].img = app.ctx.create_image(sprites_path + 'save_gate.png')!
+		app.buttons[.edit_color].img = app.ctx.create_image(sprites_path + 'edit_color.png')!
+		app.buttons[.item_nots].img = app.ctx.create_image(sprites_path + 'item_nots.png')!
+		app.buttons[.create_color_chip].img = app.ctx.create_image(sprites_path +
+			'create_color_chip.png')!
+		app.buttons[.add_input].img = app.ctx.create_image(sprites_path + 'add_input.png')!
+		app.buttons[.item_diode].img = app.ctx.create_image(sprites_path + 'item_diode.png')!
+		app.buttons[.steal_settings].img = app.ctx.create_image(sprites_path + 'steal_settings.png')!
+		app.buttons[.item_crossing].img = app.ctx.create_image(sprites_path + 'item_crossing.png')!
+		app.buttons[.delete_colorchip].img = app.ctx.create_image(sprites_path +
+			'delete_colorchip.png')!
+		app.buttons[.item_on].img = app.ctx.create_image(sprites_path + 'item_on.png')!
+		app.buttons[.item_wire].img = app.ctx.create_image(sprites_path + 'item_wire.png')!
+		app.buttons[.speed].img = app.ctx.create_image(sprites_path + 'speed.png')!
+		app.buttons[.slow].img = app.ctx.create_image(sprites_path + 'slow.png')!
+		app.buttons[.pause].img = app.ctx.create_image(sprites_path + 'pause.png')!
+		app.buttons[.paste].img = app.ctx.create_image(sprites_path + 'paste.png')!
+		app.buttons[.save_map].img = app.ctx.create_image(sprites_path + 'save_map.png')!
+		app.buttons[.keyinput].img = app.ctx.create_image(sprites_path + 'keyinput.png')!
+		app.buttons[.hide_colorchips].img = app.ctx.create_image(sprites_path +
+			'hide_colorchips.png')!
+		app.buttons[.quit_map].img = app.ctx.create_image(sprites_path + 'quit_map.png')!
+		app.buttons[.selection_delete].img = app.ctx.create_image(sprites_path +
+			'selection_delete.png')!
 	}
-	app.solo_img = app.ctx.create_image('sprites/nots_icon.png')!
+	app.solo_img = app.ctx.create_image(sprites_path + 'nots_icon.png')!
+	app.load_palette()
 	app.ctx.run()
+}
+
+fn toml_palette_color(color string, doc toml.Doc) gg.Color {
+	a := doc.value(color).array()
+	return gg.Color{u8(a[0].u64()), u8(a[1].u64()), u8(a[2].u64()), u8(a[3].u64())}
+}
+
+fn (mut app App) load_palette() {
+	doc := toml.parse_file(palette_path) or {
+		app.log('Loading palette: ${err}')
+		return
+	}
+	app.palette.junc = toml_palette_color('junc', doc)
+	app.palette.junc_v = toml_palette_color('junc_v', doc)
+	app.palette.junc_h = toml_palette_color('junc_h', doc)
+	app.palette.wire_on = toml_palette_color('wire_on', doc)
+	app.palette.wire_off = toml_palette_color('wire_off', doc)
+	app.palette.on = toml_palette_color('on', doc)
+	app.palette.not = toml_palette_color('not', doc)
+	app.palette.diode = toml_palette_color('diode', doc)
+	app.palette.background = toml_palette_color('background', doc)
+	app.palette.place_preview = toml_palette_color('place_preview', doc)
+	app.palette.copy_preview = toml_palette_color('copy_preview', doc)
+	app.palette.selection_start = toml_palette_color('selection_start', doc)
+	app.palette.selection_end = toml_palette_color('selection_end', doc)
+	app.palette.selection_box = toml_palette_color('selection_box', doc)
+	app.palette.input_preview = toml_palette_color('input_preview', doc)
+	app.palette.selected_ui = toml_palette_color('selected_ui', doc)
+	app.palette.ui_bg = toml_palette_color('ui_bg', doc)
+	app.palette.grid = toml_palette_color('grid', doc)
 }
 
 fn (app App) scale_sprite(a [][]f32) [][]f32 {
@@ -454,6 +475,7 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 }
 
 fn on_frame(mut app App) {
+	dump('frame')
 	size := app.ctx.window_size()
 	// Draw
 	app.ctx.begin()
@@ -655,7 +677,6 @@ fn (mut app App) draw_placing_preview() {
 }
 
 fn (mut app App) draw_paste_preview() {
-	size := app.ctx.window_size()
 	// map rendering
 	not_poly := app.scale_sprite(not_poly_unscaled)
 	not_rect := app.scale_sprite(not_rect_unscaled)
@@ -914,6 +935,7 @@ fn (mut app App) disable_all_ingame_modes() {
 }
 
 fn on_event(e &gg.Event, mut app App) {
+	dump('event')
 	mouse_x := if e.mouse_x < 1.0 {
 		1.0
 	} else {
@@ -971,12 +993,11 @@ fn on_event(e &gg.Event, mut app App) {
 					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 						if e.mouse_button == .left {
 							if app.check_maps_button_click_y(i, mouse_y) {
+								/// server side
 								app.load_map(name) or {
 									app.log('Cannot load map ${name}, ${err}')
 									return
 								}
-								app.solo_menu = false
-								app.text_input = ''
 								app.map_name = name
 								app.pause = false
 								app.nb_updates = 5
@@ -986,6 +1007,9 @@ fn on_event(e &gg.Event, mut app App) {
 								app.copied = []
 								app.actual_state = 0
 								app.comp_running = true
+								///
+								app.solo_menu = false
+								app.text_input = ''
 								spawn app.computation_loop()
 								app.cam_x = default_camera_pos_x
 								app.cam_y = default_camera_pos_y
@@ -1001,6 +1025,7 @@ fn on_event(e &gg.Event, mut app App) {
 					if !os.exists('saved_maps/${app.text_input}') {
 						app.disable_all_ingame_modes()
 						app.solo_menu = false
+						/// serverside
 						app.map = []Chunk{}
 						app.map_name = app.text_input
 						app.text_input = ''
@@ -1024,6 +1049,7 @@ fn on_event(e &gg.Event, mut app App) {
 						app.w_states[0] = []
 						app.w_states[1] = []
 						app.comp_running = true
+						///
 						println('starting computation!!!')
 						spawn app.computation_loop()
 						app.cam_x = default_camera_pos_x
@@ -1287,7 +1313,7 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else if app.placement_mode {
-					if app.place_down { // TODO: make the UI disapear/fade out when doing a placement
+					if app.place_down { // TODO: make the UI disappear/fade out when doing a placement
 						app.place_down = false
 						app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
 						app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
@@ -1354,7 +1380,7 @@ fn on_event(e &gg.Event, mut app App) {
 									if e.modifiers & 1 == 1 { // shift: 1<<0
 										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
 									} else {
-										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''} // TODO: rotate_right
 										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
 										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
 									}
@@ -1414,6 +1440,9 @@ fn on_event(e &gg.Event, mut app App) {
 								}
 							} else if app.check_ui_button_click_y(.selection_delete, mouse_y) {
 								app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+							} else if app.check_ui_button_click_y(.paste, mouse_y) {
+								app.disable_all_ingame_modes()
+								app.paste_mode = true
 							} else if app.check_ui_button_click_y(.save_gate, mouse_y) {
 								app.disable_all_ingame_modes()
 								app.save_gate_mode = true
@@ -1494,9 +1523,11 @@ fn on_event(e &gg.Event, mut app App) {
 								app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
 							} else if app.check_ui_button_click_y(.quit_map, mouse_y) {
 								app.disable_all_ingame_modes()
-								app.main_menu = true
 								app.todo << TodoInfo{.quit, 0, 0, 0, 0, app.map_name}
+								dump('waiting for save')
 								for app.comp_running {} // wait for quitting
+								dump('finished save')
+								app.main_menu = true
 							} else if app.check_ui_button_click_y(.hide_colorchips, mouse_y) {
 								app.colorchips_hidden = !app.colorchips_hidden
 							}
@@ -1521,6 +1552,7 @@ fn on_event(e &gg.Event, mut app App) {
 			} else if app.selection_mode { // TODO: disable to not grief
 				if e.key_code == .f {
 					fuzz_cycles := 100
+					/// /!\· interacts with the backend directly, to change TODO
 					if app.select_start_x != u32(-1) && app.select_start_y != u32(-1)
 						&& app.select_end_x != u32(-1) && app.select_end_y != u32(-1) {
 						outer: for i in 0 .. 100 { // 100 gates
@@ -1692,7 +1724,7 @@ enum Elem as u8 {
 
 @[noreturn]
 fn (mut app App) log_quit(message string) {
-	mut f := os.open_append('logs') or {
+	mut f := os.open_append(logs_path) or {
 		eprintln('FATAL: ${message}')
 		panic(err)
 	}
@@ -1708,7 +1740,7 @@ fn (mut app App) log_quit(message string) {
 }
 
 fn (mut app App) log(message string) {
-	mut f := os.open_append('logs') or {
+	mut f := os.open_append(logs_path) or {
 		println('LOG: ${message}')
 		return
 	}
@@ -1765,7 +1797,7 @@ fn (mut app App) computation_loop() {
 				dump(todo)
 				match todo.task {
 					.save_map {
-						app.save_map(todo.name) or { app.log('save copied: ${err}') }
+						app.save_map(todo.name) or { app.log('save map: ${err}') }
 					}
 					.removal {
 						app.removal(todo.x, todo.y, todo.x_end, todo.y_end)
@@ -1791,8 +1823,10 @@ fn (mut app App) computation_loop() {
 						app.copy(todo.x, todo.y, todo.x_end, todo.y_end)
 					}
 					.quit {
+						dump('saving')
+						app.save_map(todo.name) or { app.log('save map: ${err}') }
+						dump('saved')
 						app.comp_running = false
-						app.save_map(todo.name) or { app.log('save copied: ${err}') }
 						return
 					}
 				}
@@ -1820,10 +1854,10 @@ fn (mut app App) computation_loop() {
 fn (mut app App) save_copied(name_ string) ! {
 	mut name := name_
 	if os.exists(gates_path) {
-		for os.exists('${gates_path}${name}') {
+		for os.exists(gates_path + name) {
 			name += 'New'
 		}
-		mut file := os.open_file('${gates_path}${name}', 'w')!
+		mut file := os.open_file(gates_path + name, 'w')!
 		unsafe { file.write_ptr(app.copied.data, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it -> successful or not?
 		file.close()
 	}
@@ -1891,7 +1925,7 @@ fn (mut app App) load_map(map_name string) ! {
 			f.read_struct(mut new_n)!
 			app.nots << new_n
 		}
-		app.n_states[app.actual_state + 1] = []bool{len: int(nots_len)} // to have an array in a good shape
+		app.n_states[app.actual_state] = []bool{len: int(nots_len)} // to have an array in a good shape
 		f.read_into_ptr(app.n_states[app.actual_state].data, int(nots_len))!
 		app.n_states[(app.actual_state + 1) / 2] = []bool{len: int(nots_len)}
 		dump('Nots')
@@ -1959,6 +1993,7 @@ fn (mut app App) load_map(map_name string) ! {
 			}
 		}
 		dump('Done!')
+		f.close()
 	}
 }
 
@@ -2003,18 +2038,38 @@ fn (mut app App) save_map(map_name string) ! {
 	//	i64(cc.inputs.len)
 	//	inputs [2]u32
 
-	mut file := os.open_file('saved_maps/${map_name}', 'w')!
+	mut file := os.open_file(maps_path + map_name, 'w') or {
+		app.log('${@LOCATION}: ${err}')
+		return
+	}
+	defer {
+		file.close()
+	}
+	dump('file opened')
 	mut offset := u64(0)
 	save_version := u32(0) // must be careful when V changes of int size, especially for array lenghts
-	file.write_raw_at(save_version, offset)!
+	file.write_raw_at(save_version, offset) or {
+		app.log('${@LOCATION}: ${err}')
+		return
+	}
+	dump('save version written')
 	offset += sizeof(save_version)
-	file.write_raw_at(i64(app.map.len), offset)!
+	file.write_raw_at(i64(app.map.len), offset) or {
+		app.log('${@LOCATION}: ${err}')
+		return
+	}
 	offset += sizeof(i64)
 	dump(offset)
 	for mut chunk in app.map {
-		file.write_raw_at(chunk.x, offset)!
+		file.write_raw_at(chunk.x, offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(chunk.x)
-		file.write_raw_at(chunk.y, offset)!
+		file.write_raw_at(chunk.y, offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(chunk.y)
 		unsafe {
 			file.write_ptr_at(chunk.id_map, chunk_size * chunk_size * int(sizeof(u64)),
@@ -2022,9 +2077,15 @@ fn (mut app App) save_map(map_name string) ! {
 		}
 		offset += chunk_size * chunk_size * sizeof(u64)
 	}
-	file.write_raw_at(app.actual_state, offset)!
+	file.write_raw_at(app.actual_state, offset) or {
+		app.log('${@LOCATION}: ${err}')
+		return
+	}
 	offset += sizeof(app.actual_state) // int
-	file.write_raw_at(i64(app.nots.len), offset)!
+	file.write_raw_at(i64(app.nots.len), offset) or {
+		app.log('${@LOCATION}: ${err}')
+		return
+	}
 	offset += sizeof(i64)
 	unsafe { file.write_ptr_at(app.nots, app.nots.len * int(sizeof(Nots)), offset) }
 	offset += u64(app.nots.len) * sizeof(Nots)
@@ -2035,7 +2096,10 @@ fn (mut app App) save_map(map_name string) ! {
 	offset += u64(app.diodes.len) * sizeof(bool)
 
 	dump(offset)
-	file.write_raw_at(i64(app.diodes.len), offset)!
+	file.write_raw_at(i64(app.diodes.len), offset) or {
+		app.log('${@LOCATION}: ${err}')
+		return
+	}
 	offset += sizeof(i64)
 	unsafe { file.write_ptr_at(app.diodes, app.diodes.len * int(sizeof(Diode)), offset) }
 	offset += u64(app.diodes.len) * sizeof(Diode)
@@ -2046,26 +2110,47 @@ fn (mut app App) save_map(map_name string) ! {
 	offset += u64(app.diodes.len) * sizeof(bool)
 
 	dump(offset)
-	file.write_raw_at(i64(app.wires.len), offset)!
+	file.write_raw_at(i64(app.wires.len), offset) or {
+		app.log('${@LOCATION}: ${err}')
+		return
+	}
 	offset += sizeof(i64)
 	for wire in app.wires {
-		file.write_raw_at(wire.rid, offset)!
+		file.write_raw_at(wire.rid, offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(u64)
 
-		file.write_raw_at(i64(wire.inps.len), offset)!
+		file.write_raw_at(i64(wire.inps.len), offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(i64)
 		unsafe { file.write_ptr_at(wire.inps.data, wire.inps.len * int(sizeof(u64)), offset) }
 
-		file.write_raw_at(i64(wire.outs.len), offset)!
+		file.write_raw_at(i64(wire.outs.len), offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(i64)
 		unsafe { file.write_ptr_at(wire.outs.data, wire.outs.len * int(sizeof(u64)), offset) }
 
-		file.write_raw_at(i64(wire.cable_coords.len), offset)!
+		file.write_raw_at(i64(wire.cable_coords.len), offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(i64)
 		for cable in wire.cable_coords {
-			file.write_raw_at(cable[0], offset)!
+			file.write_raw_at(cable[0], offset) or {
+				app.log('${@LOCATION}: ${err}')
+				return
+			}
 			offset += sizeof(u32)
-			file.write_raw_at(cable[1], offset)!
+			file.write_raw_at(cable[1], offset) or {
+				app.log('${@LOCATION}: ${err}')
+				return
+			}
 			offset += sizeof(u32)
 		}
 	}
@@ -2076,52 +2161,96 @@ fn (mut app App) save_map(map_name string) ! {
 	offset += u64(app.wires.len) * sizeof(bool)
 
 	dump(offset)
-	file.write_raw_at(i64(app.forced_states.len), offset)!
+	file.write_raw_at(i64(app.forced_states.len), offset) or {
+		app.log('${@LOCATION}: ${err}')
+		return
+	}
 	offset += sizeof(i64)
 	for pos in app.forced_states {
-		file.write_raw_at(pos[0], offset)!
+		file.write_raw_at(pos[0], offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(u32)
-		file.write_raw_at(pos[1], offset)!
+		file.write_raw_at(pos[1], offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(u32)
 	}
 
 	dump(offset)
-	file.write_raw_at(i64(app.colorchips.len), offset)!
+	file.write_raw_at(i64(app.colorchips.len), offset) or {
+		app.log('${@LOCATION}: ${err}')
+		return
+	}
 	offset += sizeof(i64)
 	for cc in app.colorchips {
-		file.write_raw_at(cc.x, offset)!
+		file.write_raw_at(cc.x, offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(u32)
-		file.write_raw_at(cc.y, offset)!
+		file.write_raw_at(cc.y, offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(u32)
-		file.write_raw_at(cc.w, offset)!
+		file.write_raw_at(cc.w, offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(u32)
-		file.write_raw_at(cc.h, offset)!
+		file.write_raw_at(cc.h, offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(u32)
 
 		dump(offset)
-		file.write_raw_at(i64(cc.colors.len), offset)!
+		file.write_raw_at(i64(cc.colors.len), offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(i64)
 		for color in cc.colors {
-			file.write_raw_at(color.r, offset)!
+			file.write_raw_at(color.r, offset) or {
+				app.log('${@LOCATION}: ${err}')
+				return
+			}
 			offset += sizeof(u8)
-			file.write_raw_at(color.g, offset)!
+			file.write_raw_at(color.g, offset) or {
+				app.log('${@LOCATION}: ${err}')
+				return
+			}
 			offset += sizeof(u8)
-			file.write_raw_at(color.b, offset)!
+			file.write_raw_at(color.b, offset) or {
+				app.log('${@LOCATION}: ${err}')
+				return
+			}
 			offset += sizeof(u8)
 		}
 
 		dump(offset)
-		file.write_raw_at(i64(cc.inputs.len), offset)!
+		file.write_raw_at(i64(cc.inputs.len), offset) or {
+			app.log('${@LOCATION}: ${err}')
+			return
+		}
 		offset += sizeof(i64)
 		for i in cc.inputs {
-			file.write_raw_at(i[0], offset)!
+			file.write_raw_at(i[0], offset) or {
+				app.log('${@LOCATION}: ${err}')
+				return
+			}
 			offset += sizeof(u32)
-			file.write_raw_at(i[1], offset)!
+			file.write_raw_at(i[1], offset) or {
+				app.log('${@LOCATION}: ${err}')
+				return
+			}
 			offset += sizeof(u32)
 		}
 	}
 	dump(offset)
-	file.close()
 }
 
 fn (mut app App) load_gate_to_copied(gate_name string) ! {
