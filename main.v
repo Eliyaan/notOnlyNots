@@ -934,31 +934,7 @@ fn (mut app App) disable_all_ingame_modes() {
 	app.scroll_pos = 0.0
 }
 
-fn on_event(e &gg.Event, mut app App) {
-	dump('event')
-	mouse_x := if e.mouse_x < 1.0 {
-		1.0
-	} else {
-		e.mouse_x
-	}
-	mouse_y := if e.mouse_y < 1.0 {
-		1.0
-	} else {
-		e.mouse_y
-	}
-	app.scroll_pos += e.scroll_y
-	if app.scroll_pos < 0 {
-		app.scroll_pos = 0
-	}
-	app.mouse_map_x = u32(app.cam_x + mouse_x / app.tile_size)
-	app.mouse_map_y = u32(app.cam_y + mouse_y / app.tile_size)
-	match e.typ {
-		.mouse_up {
-			app.mouse_down = false
-			if app.main_menu {
-				if mouse_x >= app.button_solo_x && mouse_x < app.button_solo_x + app.button_solo_w
-					&& mouse_y >= app.button_solo_y
-					&& mouse_y < app.button_solo_y + app.button_solo_h {
+fn (mut app App) go_map_menu() {
 					app.main_menu = false
 					app.solo_menu = true
 					app.text_input = ''
@@ -978,21 +954,10 @@ fn on_event(e &gg.Event, mut app App) {
 						app.log('Cannot list files in ${maps_path}, ${err}')
 						return
 					}
-				} else if mouse_x >= app.btn_quit_ofst
-					&& mouse_x < app.btn_quit_ofst + app.button_quit_size
-					&& mouse_y >= app.button_solo_h + app.btn_quit_ofst
-					&& mouse_y < app.button_solo_h + app.btn_quit_ofst + app.button_quit_size {
-					exit(0)
-				}
-			} else if app.solo_menu {
-				if mouse_x >= app.maps_x_offset && mouse_x < app.maps_x_offset + app.maps_w {
-					app.map_names_list = os.ls(maps_path) or {
-						app.log('Cannot list files in ${maps_path}, ${err}')
-						return
-					}
-					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
-						if e.mouse_button == .left {
-							if app.check_maps_button_click_y(i, mouse_y) {
+
+}
+
+fn (mut app App) load_saved_game(name string) {
 								/// server side
 								app.load_map(name) or {
 									app.log('Cannot load map ${name}, ${err}')
@@ -1013,15 +978,9 @@ fn on_event(e &gg.Event, mut app App) {
 								spawn app.computation_loop()
 								app.cam_x = default_camera_pos_x
 								app.cam_y = default_camera_pos_y
-								return
-							}
-						}
-					}
-				}
-				if app.text_input != '' && mouse_x >= app.button_new_map_x
-					&& mouse_x < app.button_new_map_x + app.button_new_map_size
-					&& mouse_y >= app.button_new_map_y
-					&& mouse_y < app.button_new_map_y + app.button_new_map_size {
+}
+
+fn (mut app App) create_game() {
 					if !os.exists('saved_maps/${app.text_input}') {
 						app.disable_all_ingame_modes()
 						app.solo_menu = false
@@ -1057,48 +1016,15 @@ fn on_event(e &gg.Event, mut app App) {
 					} else {
 						app.log('Map ${app.text_input} already exists')
 					}
-				} else if mouse_x >= app.btn_back_x && mouse_x < app.btn_back_x + app.btn_back_s
-					&& mouse_y >= app.btn_back_y && mouse_y < app.btn_back_y + app.btn_back_s {
+}
+
+fn (mut app App) back_to_main_menu() {
 					app.disable_all_ingame_modes()
 					app.solo_menu = false
 					app.main_menu = true
-				}
-			} else if app.comp_running {
-				if app.keyinput_mode {
-					if mouse_x < app.ui_width {
-						if mouse_x >= app.button_left_padding
-							&& mouse_x < app.button_size + app.button_left_padding { // button area
-							if app.check_ui_button_click_y(.cancel_button, mouse_y) {
-								app.disable_all_ingame_modes()
-								app.tmp_pos_x = u32(-1)
-								app.tmp_pos_y = u32(-1)
-							}
-						}
-					} else {
-						map_x := app.cam_x + (mouse_x / app.tile_size)
-						map_y := app.cam_y + (mouse_y / app.tile_size)
-						// right click -> delete the pos = click_pos encountered in the map
-						// left click -> waiting for input, when input, save pos & key in the map
-						if e.mouse_button == .right {
-							for key in app.key_pos.keys() {
-								i := app.key_pos[key].index([u32(map_x), u32(map_y)]!)
-								if i != -1 {
-									app.key_pos[key].delete(i) // it will delete all the "buttons" on this tile, but the multiple buttons are not intended anyways				
-								}
-							}
-						} else if e.mouse_button == .left {
-							app.tmp_pos_x = u32(map_x) // TODO: show these too
-							app.tmp_pos_y = u32(map_y)
-						} else {
-							app.tmp_pos_x = u32(-1)
-							app.tmp_pos_y = u32(-1)
-							// TODO: move, do this with other modes too, it's nice to move w/ middle click when having a mouse
-						}
-					}
-				} else if app.edit_mode {
-					if mouse_x < app.ui_width {
-						if mouse_x >= app.button_left_padding
-							&& mouse_x < app.button_size + app.button_left_padding { // button area
+}
+
+fn (mut app App) check_colorchip_ui_bar(mouse_y f32) {
 							if app.check_ui_button_click_y(.cancel_button, mouse_y) {
 								app.disable_all_ingame_modes()
 								app.create_colorchip_x = u32(-1)
@@ -1141,9 +1067,9 @@ fn on_event(e &gg.Event, mut app App) {
 								app.colorchips_hidden = false
 								app.delete_colorchip_submode = true
 							}
-						}
-					} else {
-						if app.edit_color_submode && app.selected_colorchip != -1 {
+}
+
+fn (mut app App) check_and_delete_colorchip_input(mouse_x f32, mouse_y f32) {
 							for i in 0 .. app.colorchips[app.selected_colorchip].inputs.len {
 								x := app.editmenu_offset_inputs_x +
 									i % app.editmenu_nb_inputs_by_row * app.editmenu_inputsize
@@ -1159,6 +1085,9 @@ fn on_event(e &gg.Event, mut app App) {
 									}
 								}
 							}
+}
+
+fn (mut app App) check_and_select_or_delete_color_cc(mouse_x f32, mouse_y f32, e &gg.Event) {
 							for i in 0 .. app.colorchips[app.selected_colorchip].colors.len {
 								x := app.editmenu_offset_x +
 									i % app.editmenu_nb_color_by_row * app.editmenu_colorsize
@@ -1169,7 +1098,7 @@ fn on_event(e &gg.Event, mut app App) {
 										if e.mouse_button == .left {
 											app.editmenu_selected_color = i
 										} else if e.mouse_button == .right {
-											app.colorchips.delete(i)
+											app.colorchips[app.selected_colorchip].colors.delete(i)
 											app.editmenu_selected_color -= 1
 											if app.editmenu_selected_color < 0 {
 												app.editmenu_selected_color = 0
@@ -1182,6 +1111,9 @@ fn on_event(e &gg.Event, mut app App) {
 									}
 								}
 							}
+}
+
+fn (mut app App) check_and_change_color_cc(mouse_x f32, mouse_y f32, e &gg.Event) {
 							if mouse_y >= app.editmenu_rgb_y
 								&& mouse_y < app.editmenu_rgb_y + app.editmenu_rgb_h {
 								if mouse_x >= app.editmenu_r_x
@@ -1209,6 +1141,107 @@ fn on_event(e &gg.Event, mut app App) {
 									}
 								}
 							}
+}
+
+fn on_event(e &gg.Event, mut app App) {
+	dump('event')
+	mouse_x := if e.mouse_x < 1.0 {
+		1.0
+	} else {
+		e.mouse_x
+	}
+	mouse_y := if e.mouse_y < 1.0 {
+		1.0
+	} else {
+		e.mouse_y
+	}
+	app.scroll_pos += e.scroll_y
+	if app.scroll_pos < 0 {
+		app.scroll_pos = 0
+	}
+	app.mouse_map_x = u32(app.cam_x + mouse_x / app.tile_size)
+	app.mouse_map_y = u32(app.cam_y + mouse_y / app.tile_size)
+	match e.typ {
+		.mouse_up {
+			app.mouse_down = false
+			if app.main_menu {
+				if mouse_x >= app.button_solo_x && mouse_x < app.button_solo_x + app.button_solo_w
+					&& mouse_y >= app.button_solo_y
+					&& mouse_y < app.button_solo_y + app.button_solo_h {
+					app.go_map_menu()
+				} else if mouse_x >= app.btn_quit_ofst
+					&& mouse_x < app.btn_quit_ofst + app.button_quit_size
+					&& mouse_y >= app.button_solo_h + app.btn_quit_ofst
+					&& mouse_y < app.button_solo_h + app.btn_quit_ofst + app.button_quit_size {
+					exit(0)
+				}
+			} else if app.solo_menu {
+				if mouse_x >= app.maps_x_offset && mouse_x < app.maps_x_offset + app.maps_w {
+					app.map_names_list = os.ls(maps_path) or {
+						app.log('Cannot list files in ${maps_path}, ${err}')
+						return
+					}
+					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
+						if e.mouse_button == .left {
+							if app.check_maps_button_click_y(i, mouse_y) {
+								app.load_saved_game(name)
+								return
+							}
+						}
+					}
+				}
+				if app.text_input != '' && mouse_x >= app.button_new_map_x
+					&& mouse_x < app.button_new_map_x + app.button_new_map_size
+					&& mouse_y >= app.button_new_map_y
+					&& mouse_y < app.button_new_map_y + app.button_new_map_size {
+					app.create_game()
+				} else if mouse_x >= app.btn_back_x && mouse_x < app.btn_back_x + app.btn_back_s
+					&& mouse_y >= app.btn_back_y && mouse_y < app.btn_back_y + app.btn_back_s {
+					app.back_to_main_menu()
+				}
+			} else if app.comp_running {
+				if app.keyinput_mode {
+					if mouse_x < app.ui_width {
+						if mouse_x >= app.button_left_padding
+							&& mouse_x < app.button_size + app.button_left_padding { // button area
+							if app.check_ui_button_click_y(.cancel_button, mouse_y) {
+								app.disable_all_ingame_modes()
+								app.tmp_pos_x = u32(-1)
+								app.tmp_pos_y = u32(-1)
+							}
+						}
+					} else {
+						map_x := app.cam_x + (mouse_x / app.tile_size)
+						map_y := app.cam_y + (mouse_y / app.tile_size)
+						// right click -> delete the pos = click_pos encountered in the map
+						// left click -> waiting for input, when input, save pos & key in the map
+						if e.mouse_button == .right {
+							for key in app.key_pos.keys() {
+								i := app.key_pos[key].index([u32(map_x), u32(map_y)]!)
+								if i != -1 {
+									app.key_pos[key].delete(i) // it will delete all the "buttons" on this tile, but the multiple buttons are not intended anyways				
+								}
+							}
+						} else if e.mouse_button == .left {
+							app.tmp_pos_x = u32(map_x) // TODO: show these too
+							app.tmp_pos_y = u32(map_y)
+						} else {
+							app.tmp_pos_x = u32(-1)
+							app.tmp_pos_y = u32(-1)
+							// TODO: move, do this with other modes too, it's nice to move w/ middle click when having a mouse
+						}
+					}
+				} else if app.edit_mode {
+					if mouse_x < app.ui_width {
+						if mouse_x >= app.button_left_padding
+							&& mouse_x < app.button_size + app.button_left_padding { // button area
+							app.check_colorchip_ui_bar(mouse_y)
+						}
+					} else {
+						if app.edit_color_submode && app.selected_colorchip != -1 {
+							app.check_and_delete_colorchip_input(mouse_x, mouse_y)
+							app.check_and_select_or_delete_color_cc(mouse_x, mouse_y, e)
+							app.check_and_change_color_cc(mouse_x, mouse_y, e)
 						} else if app.delete_colorchip_submode {
 							map_x := u32(app.cam_x + (mouse_x / app.tile_size))
 							map_y := u32(app.cam_y + (mouse_y / app.tile_size))
