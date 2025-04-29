@@ -1338,7 +1338,6 @@ fn (mut app App) check_selection_mode_ui_bar(mouse_x f32, mouse_y f32) {
 }
 
 fn on_event(e &gg.Event, mut app App) {
-	dump('event')
 	mouse_x := if e.mouse_x < 1.0 {
 		1.0
 	} else {
@@ -1689,7 +1688,6 @@ fn on_event(e &gg.Event, mut app App) {
 	if e.char_code != 0 {
 		if app.solo_menu {
 			app.text_input += u8(e.char_code).ascii_str()
-		} else if app.placement_mode {
 		} else if app.load_gate_mode {
 			app.text_input += u8(e.char_code).ascii_str()
 		} else if app.keyinput_mode {
@@ -1709,6 +1707,11 @@ fn on_event(e &gg.Event, mut app App) {
 		} else if app.save_gate_mode {
 			app.text_input += u8(e.char_code).ascii_str()
 		} else {
+			if e.char_code == `+` {
+				app.tile_size += 1
+			} else if e.char_code == `-` && app.tile_size > 1 {
+				app.tile_size -= 1
+			}
 		}
 	}
 	if app.mouse_down {
