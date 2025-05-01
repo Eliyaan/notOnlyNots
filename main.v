@@ -243,6 +243,7 @@ const button_map = {
 struct App {
 mut:
 	ctx               &gg.Context = unsafe { nil }
+	draw_count	  int = 1
 	tile_size         int         = 50
 	text_input        string // holds what the user typed
 	colorchips_hidden bool   // if colorchips are hidden
@@ -477,9 +478,11 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 }
 
 fn on_frame(mut app App) {
+	draw_count := 1
 	size := app.ctx.window_size()
 	// Draw
 	app.ctx.begin()
+	app.ctx.end() // to clear the screen
 	if app.comp_running {
 		app.draw_map()
 
@@ -578,7 +581,7 @@ mut:
 		app.ctx.draw_text_def(int(app.ui_width + 10), size.height - 20, app.log)
 		app.log_timer -= 1
 	}
-	app.ctx.end()
+	app.ctx.end(how: .passthru)
 }
 
 fn (mut app App) draw_ingame_ui_buttons() {
@@ -820,6 +823,11 @@ fn (mut app App) draw_map() {
 						}
 						if chunk_cam_y + y < size.height {
 							pos_y := f32((chunk_cam_y + y) * app.tile_size)
+							if app.draw_count >= 700 {
+								app.ctx.end(how: .passthru)
+								app.ctx.begin()
+							}
+							app.draw_count += 1
 							if id == elem_crossing_bits { // same bits as wires so need to be separated
 								app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
 									app.palette.junc)
