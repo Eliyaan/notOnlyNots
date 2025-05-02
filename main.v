@@ -930,6 +930,213 @@ fn (app App) check_ui_button_click_y(but Buttons, mouse_y f32) bool {
 		&& mouse_y < (pos + 1) * (app.button_top_padding + app.button_size) + app.button_top_padding
 }
 
+fn (app App) ingame_ui_button_click_to_nb(mouse_x f32, mouse_y f32) int {
+	if !(mouse_x >= app.button_left_padding && mouse_x < app.button_size + app.button_left_padding) { // button area
+		return -1
+	}
+	return int((mouse_y - app.button_top_padding) / (app.button_top_padding + app.button_size))
+}
+
+fn (mut app App) handle_ingame_ui_button_interrac(b Button) {
+		if b == .cancel_button {
+			app.disable_all_ingame_modes()
+			app.tmp_pos_x = u32(-1)
+			app.tmp_pos_y = u32(-1)
+			app.create_colorchip_x = u32(-1)
+			app.create_colorchip_endx = u32(-1)
+			app.place_start_x = u32(-1)
+			app.text_input = ''
+		} else if b == .edit_color {
+			if app.selected_colorchip == -1 {
+				app.log('No ColorChip selected')
+			} else {
+				app.disable_all_ingame_modes()
+				app.colorchips_hidden = false
+				app.edit_color_submode = true
+			}
+		} else if b == .choose_colorchip {
+			app.disable_all_ingame_modes()
+			app.choose_colorchip_submode = true
+		} else if b == .create_color_chip {
+			app.disable_all_ingame_modes()
+			app.colorchips_hidden = false
+			app.create_colorchip_submode = true
+		} else if b == .add_input {
+			if app.selected_colorchip == -1 {
+				app.log('No ColorChip selected')
+			} else {
+				app.disable_all_ingame_modes()
+				app.colorchips_hidden = true
+				app.add_input_submode = true
+			}
+		} else if b == .steal_settings {
+			if app.selected_colorchip == -1 {
+				app.log('No ColorChip selected')
+			} else {
+				app.disable_all_ingame_modes()
+				app.colorchips_hidden = false
+				app.steal_settings_submode = true
+			}
+		} else if b == .delete_colorchip {
+			app.disable_all_ingame_modes()
+			app.colorchips_hidden = false
+			app.delete_colorchip_submode = true
+		} else if b == .item_nots {
+			if !app.placement_mode {
+				app.disable_all_ingame_modes()
+				app.placement_mode = true
+			}
+			app.selected_item = .not
+		} else if b == .item_diode {
+			if !app.placement_mode {
+				app.disable_all_ingame_modes()
+				app.placement_mode = true
+			}
+			app.selected_item = .diode
+		} else if b == .item_crossing {
+			if !app.placement_mode {
+				app.disable_all_ingame_modes()
+				app.placement_mode = true
+			}
+			app.selected_item = .crossing
+		} else if b == .item_on {
+			if !app.placement_mode {
+				app.disable_all_ingame_modes()
+				app.placement_mode = true
+			}
+			app.selected_item = .on
+		} else if b == .item_wire {
+			if !app.placement_mode {
+				app.disable_all_ingame_modes()
+				app.placement_mode = true
+			}
+			app.selected_item = .wire
+		} else if b == .rotate_copy {
+			if e.modifiers & 1 == 1 { // shift: 1<<0
+				app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+			} else {
+				app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''} // TODO: rotate_right, maybe could use one of the fields
+				app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+				app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+			}
+		} else if b == .load_gate {
+			app.disable_all_ingame_modes()
+			app.load_gate_mode = true
+		} else if b == .flip_h {
+			app.todo << TodoInfo{.flip_h, 0, 0, 0, 0, ''}
+		} else if b == .flip_v {
+			app.todo << TodoInfo{.flip_v, 0, 0, 0, 0, ''}
+		} else if b == .confirm_save_gate {
+			if app.text_input != '' && app.select_start_x != u32(-1)
+				&& app.select_end_x != u32(-1) {
+				if !os.exists('saved_gates/${app.text_input}') {
+					app.disable_all_ingame_modes()
+					// copies because save_gate saves the copied gate
+					app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+					app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, app.text_input}
+					app.text_input = ''
+					app.select_start_x = u32(-1)
+					app.select_end_x = u32(-1)
+				} else {
+					app.log('Gate ${app.text_input} already exists')
+				}
+			}
+		} else if b == .copy_button {
+			if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
+				app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+				app.log('Copied selection')
+			}
+		} else if b == .selection_delete {
+			app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+		} else if b == .paste {
+			app.disable_all_ingame_modes()
+			app.paste_mode = true
+		} else if b == .save_gate {
+			app.disable_all_ingame_modes()
+			app.save_gate_mode = true
+			app.text_input = ''
+		} else if b == .create_color_chip {
+			if app.select_start_x != u32(-1) && app.select_start_y != u32(-1)
+				&& app.select_end_x != u32(-1) && app.select_end_y != u32(-1) {
+				app.disable_all_ingame_modes()
+				app.create_colorchip_submode = true
+				app.create_colorchip_x = u32(-1)
+				app.create_colorchip_y = u32(-1)
+				app.create_colorchip_endx = u32(-1)
+				app.create_colorchip_endy = u32(-1)
+			}
+		} else if b == .selection_button {
+			app.disable_all_ingame_modes()
+			app.selection_mode = true
+		} else if b == .speed {
+			app.nb_updates += 1
+		} else if b == .slow {
+			if app.nb_updates > 1 {
+				app.nb_updates -= 1
+			}
+		} else if b == .pause {
+			app.pause = !app.pause
+		} else if b == .save_map {
+			app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
+			for app.todo.len > 0 {} // wait
+		} else if b == .quit_map {
+			app.quit_map()
+		} else if b == .hide_colorchips {
+			app.colorchips_hidden = !app.colorchips_hidden
+		}
+}
+
+// 0 for the first button
+fn (mut app App) convert_button_nb_to_enum(nb int) Button? {
+	if nb == -1 {
+		return none
+	}
+	unsafe {
+		if app.selection_mode {
+			for button in selec_buttons {
+				if nb == app.buttons[button].pos {
+					return button
+				}
+			}
+		} else if app.load_gate_mode {
+			if nb == app.buttons[.cancel_button].pos {
+				return .cancel_button
+			}
+		} else if app.paste_mode {
+			for button in paste_buttons {
+				if nb == app.buttons[button].pos {
+					return button
+				}
+			}
+		} else if app.save_gate_mode {
+			for button in save_gate_buttons {
+				if nb == app.buttons[button].pos {
+					return button
+				}
+			}
+		} else if app.placement_mode {
+			for button in placement_buttons {
+				if nb == app.buttons[button].pos {
+					return button
+				}
+			}
+		} else if app.edit_mode {
+			for button in edit_buttons {
+				if nb == app.buttons[button].pos {
+					return button
+				}
+			}
+		} else { // no mode
+			for button in no_mode_buttons {
+				if nb == app.buttons[button].pos {
+					return button
+				}
+			}
+		}
+	}
+	return none
+}
+
 fn (app App) check_maps_button_click_y(pos int, mouse_y f32) bool {
 	return mouse_y >= pos * (app.maps_top_spacing + app.maps_h) + app.maps_y_offset
 		&& mouse_y < (pos + 1) * (app.maps_top_spacing + app.maps_h) + app.maps_y_offset
