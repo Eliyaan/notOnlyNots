@@ -91,6 +91,8 @@ enum Buttons {
 	hide_colorchips   // no
 	quit_map          // no
 	selection_delete  // selection
+	flip_h            // paste
+	flip_v            // paste
 }
 
 const selec_buttons = [Buttons.cancel_button, .copy_button, .save_gate, .create_color_chip,
@@ -99,7 +101,7 @@ const no_mode_buttons = [Buttons.cancel_button, .selection_button, .load_gate, .
 	.item_diode, .item_crossing, .item_on, .item_wire, .speed, .slow, .pause, .paste, .save_map,
 	.keyinput, .hide_colorchips, .quit_map]
 const save_gate_buttons = [Buttons.cancel_button, .confirm_save_gate]
-const paste_buttons = [Buttons.cancel_button, .rotate_copy, .load_gate]
+const paste_buttons = [Buttons.cancel_button, .rotate_copy, .load_gate, .flip_h, .flip_v]
 const placement_buttons = [Buttons.cancel_button, .item_nots, .item_diode, .item_crossing, .item_on,
 	.item_wire]
 const edit_buttons = [Buttons.cancel_button, .choose_colorchip, .edit_color, .add_input,
@@ -184,6 +186,9 @@ const button_map = {
 	.edit_color:           ButtonData{
 		pos: 2
 	}
+	.flip_h:               ButtonData{
+		pos: 3
+	}
 	.item_nots:            ButtonData{
 		pos: 3
 	}
@@ -192,6 +197,9 @@ const button_map = {
 	}
 	.add_input:            ButtonData{
 		pos: 3
+	}
+	.flip_v:               ButtonData{
+		pos: 4
 	}
 	.item_diode:           ButtonData{
 		pos: 4
@@ -243,7 +251,7 @@ const button_map = {
 struct App {
 mut:
 	ctx               &gg.Context = unsafe { nil }
-	draw_count	  int = 1
+	draw_count        int         = 1
 	tile_size         int         = 50
 	text_input        string // holds what the user typed
 	colorchips_hidden bool   // if colorchips are hidden
@@ -429,6 +437,8 @@ fn main() {
 		app.buttons[.hide_colorchips].img = app.ctx.create_image(sprites_path +
 			'hide_colorchips.png')!
 		app.buttons[.quit_map].img = app.ctx.create_image(sprites_path + 'quit_map.png')!
+		app.buttons[.flip_h].img = app.ctx.create_image(sprites_path + 'flip_h.png')!
+		app.buttons[.flip_v].img = app.ctx.create_image(sprites_path + 'flip_v.png')!
 		app.buttons[.selection_delete].img = app.ctx.create_image(sprites_path +
 			'selection_delete.png')!
 	}
@@ -970,7 +980,7 @@ fn (mut app App) go_map_menu() {
 }
 
 fn (mut app App) load_saved_game(name string) {
-dump('load_saved_game')
+	dump('load_saved_game')
 	/// server side
 	app.load_map(name) or {
 		app.log('Cannot load map ${name}, ${err}')
@@ -994,7 +1004,7 @@ dump('load_saved_game')
 }
 
 fn (mut app App) create_game() {
-dump('create_game')
+	dump('create_game')
 	if !os.exists('saved_maps/${app.text_input}') {
 		app.disable_all_ingame_modes()
 		app.solo_menu = false
@@ -1296,7 +1306,7 @@ fn (mut app App) check_no_mode_ui_bar(mouse_x f32, mouse_y f32) {
 			app.paste_mode = true
 		} else if app.check_ui_button_click_y(.save_map, mouse_y) {
 			app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
-			for app.todo.len > 0 {} // wait 
+			for app.todo.len > 0 {} // wait
 		} else if app.check_ui_button_click_y(.quit_map, mouse_y) {
 			app.quit_map()
 		} else if app.check_ui_button_click_y(.hide_colorchips, mouse_y) {
@@ -1306,13 +1316,13 @@ fn (mut app App) check_no_mode_ui_bar(mouse_x f32, mouse_y f32) {
 }
 
 fn (mut app App) quit_map() {
-dump('quit_map')
-			app.disable_all_ingame_modes()
-			app.todo << TodoInfo{.quit, 0, 0, 0, 0, app.map_name}
-			dump('waiting for save')
-			for app.comp_running {} // wait for quitting
-			dump('finished save')
-			app.main_menu = true
+	dump('quit_map')
+	app.disable_all_ingame_modes()
+	app.todo << TodoInfo{.quit, 0, 0, 0, 0, app.map_name}
+	dump('waiting for save')
+	for app.comp_running {} // wait for quitting
+	dump('finished save')
+	app.main_menu = true
 }
 
 fn (mut app App) check_selection_mode_ui_bar(mouse_x f32, mouse_y f32) {
@@ -1526,13 +1536,17 @@ fn on_event(e &gg.Event, mut app App) {
 									if e.modifiers & 1 == 1 { // shift: 1<<0
 										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
 									} else {
-										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''} // TODO: rotate_right
+										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''} // TODO: rotate_right, maybe could use one of the fields
 										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
 										app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
 									}
 								} else if app.check_ui_button_click_y(.load_gate, mouse_y) {
 									app.disable_all_ingame_modes()
 									app.load_gate_mode = true
+								} else if app.check_ui_button_click_y(.flip_h, mouse_y) {
+									app.todo << TodoInfo{.flip_h, 0, 0, 0, 0, ''}
+								} else if app.check_ui_button_click_y(.flip_v, mouse_y) {
+									app.todo << TodoInfo{.flip_v, 0, 0, 0, 0, ''}
 								}
 							}
 						}
@@ -1837,6 +1851,8 @@ enum Todos {
 	rotate
 	copy
 	quit
+	flip_h
+	flip_v
 }
 
 struct TodoInfo {
@@ -1884,6 +1900,12 @@ fn (mut app App) computation_loop() {
 					}
 					.rotate {
 						app.rotate_copied()
+					}
+					.flip_h {
+						app.flip_h()
+					}
+					.flip_v {
+						app.flip_v()
 					}
 					.copy {
 						app.copy(todo.x, todo.y, todo.x_end, todo.y_end)
@@ -2333,10 +2355,66 @@ fn (mut app App) load_gate_to_copied(gate_name string) ! {
 	f.close()
 }
 
-fn (mut app App) rotate_copied() {
+fn (mut app App) flip_v() {
 	// find size of the patern
 	if app.copied.len > 0 {
+		mut min_x := app.copied[0].rel_y
+		mut min_y := app.copied[0].rel_x
+		for mut place in app.copied {
+			place.rel_y = -place.rel_y
+			if min_x > place.rel_x {
+				min_x = place.rel_x
+			}
+			if min_y > place.rel_y {
+				min_y = place.rel_y
+			}
+			place.orientation = u8(match u64(place.orientation) {
+				north >> 56 { south >> 56 }
+				east >> 56 { east >> 56 }
+				south >> 56 { north >> 56 }
+				west >> 56 { west >> 56 }
+				else { app.log_quit('invalid orientation') }
+			})
+		}
+		for mut place in app.copied {
+			place.rel_x -= min_x
+			place.rel_y -= min_y
+		}
+	}
+}
+
+fn (mut app App) flip_h() {
+	// find size of the patern
+	if app.copied.len > 0 {
+		mut min_x := app.copied[0].rel_y
+		mut min_y := app.copied[0].rel_x
+		for mut place in app.copied {
+			place.rel_x = -place.rel_x
+			if min_x > place.rel_x {
+				min_x = place.rel_x
+			}
+			if min_y > place.rel_y {
+				min_y = place.rel_y
+			}
+			place.orientation = u8(match u64(place.orientation) {
+				north >> 56 { north >> 56 }
+				east >> 56 { west >> 56 }
+				south >> 56 { south >> 56 }
+				west >> 56 { east >> 56 }
+				else { app.log_quit('invalid orientation') }
+			})
+		}
+		for mut place in app.copied {
+			place.rel_x -= min_x
+			place.rel_y -= min_y
+		}
+	}
+}
+
+fn (mut app App) rotate_copied() {
+	if app.copied.len > 0 {
 		mut max_x := i32(0)
+		// find size of the patern
 		for place in app.copied {
 			if place.rel_x > max_x {
 				max_x = place.rel_x
