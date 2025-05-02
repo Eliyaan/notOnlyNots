@@ -478,7 +478,7 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 }
 
 fn on_frame(mut app App) {
-	draw_count := 1
+	app.draw_count = 1
 	size := app.ctx.window_size()
 	// Draw
 	app.ctx.begin()
@@ -694,6 +694,10 @@ fn (mut app App) draw_paste_preview() {
 		pos_x := f32((f64(pi.rel_x) + f64(app.mouse_map_x) - app.cam_x) * app.tile_size)
 		pos_y := f32((f64(pi.rel_y) + f64(app.mouse_map_y) - app.cam_y) * app.tile_size)
 		orient := u64(pi.orientation) << 56
+		if app.draw_count % 700 == 0 {
+			app.ctx.end(how: .passthru)
+			app.ctx.begin()
+		}
 		if pi.elem == .crossing { // same bits as wires so need to be separated
 			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.junc)
 			app.ctx.draw_rect_filled(pos_x, pos_y + app.tile_size / 3, app.tile_size,
@@ -823,7 +827,7 @@ fn (mut app App) draw_map() {
 						}
 						if chunk_cam_y + y < size.height {
 							pos_y := f32((chunk_cam_y + y) * app.tile_size)
-							if app.draw_count >= 700 {
+							if app.draw_count % 700 == 0 {
 								app.ctx.end(how: .passthru)
 								app.ctx.begin()
 							}
