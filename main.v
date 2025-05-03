@@ -1963,6 +1963,7 @@ fn (mut app App) computation_loop() {
 						app.save_map(todo.name) or { app.log('save map: ${err}') }
 						dump('saved')
 						app.comp_running = false
+						app.back_to_main_menu()
 					}
 				}
 				done << i
