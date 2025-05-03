@@ -1229,7 +1229,7 @@ fn (mut app App) load_saved_game(name string) {
 
 fn (mut app App) create_game() {
 	dump('create_game')
-	if !os.exists('saved_maps/${app.text_input}') {
+	if !os.exists(maps_path + app.text_input) || true { // TODO
 		app.disable_all_ingame_modes()
 		app.solo_menu = false
 		/// serverside
