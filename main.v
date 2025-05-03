@@ -1963,7 +1963,6 @@ fn (mut app App) computation_loop() {
 						app.save_map(todo.name) or { app.log('save map: ${err}') }
 						dump('saved')
 						app.comp_running = false
-						return
 					}
 				}
 				done << i
@@ -1980,7 +1979,7 @@ fn (mut app App) computation_loop() {
 		}
 
 		now = time.now().unix_nano()
-		if !app.pause {
+		if !app.pause && app.comp_running {
 			app.update_cycle()
 		}
 		app.avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * app.avg_update_time
