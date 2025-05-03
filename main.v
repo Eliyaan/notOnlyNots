@@ -251,8 +251,9 @@ const button_map = {
 struct App {
 mut:
 	ctx               &gg.Context = unsafe { nil }
-	e &gg.Event = &gg.Event{}
+	e                 &gg.Event   = &gg.Event{}
 	draw_count        int         = 1
+	draw_step         int         = 1000 // number of draw calls before .end( passthru
 	tile_size         int         = 50
 	text_input        string // holds what the user typed
 	colorchips_hidden bool   // if colorchips are hidden
@@ -687,6 +688,7 @@ fn (mut app App) draw_placing_preview() {
 			pos_x := f32((f64(x) - app.cam_x) * app.tile_size)
 			pos_y := f32((f64(y) - app.cam_y) * app.tile_size)
 			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.place_preview)
+			app.draw_count += 1
 		}
 	}
 }
@@ -705,9 +707,10 @@ fn (mut app App) draw_paste_preview() {
 		pos_x := f32((f64(pi.rel_x) + f64(app.mouse_map_x) - app.cam_x) * app.tile_size)
 		pos_y := f32((f64(pi.rel_y) + f64(app.mouse_map_y) - app.cam_y) * app.tile_size)
 		orient := u64(pi.orientation) << 56
-		if app.draw_count % 700 == 0 {
+		if app.draw_count >= app.draw_step {
 			app.ctx.end(how: .passthru)
 			app.ctx.begin()
+			app.draw_count = 1
 		}
 		if pi.elem == .crossing { // same bits as wires so need to be separated
 			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.junc)
@@ -715,6 +718,7 @@ fn (mut app App) draw_paste_preview() {
 				app.tile_size / 3, app.palette.junc_h)
 			app.ctx.draw_rect_filled(pos_x + app.tile_size / 3, pos_y, app.tile_size / 3,
 				app.tile_size, app.palette.junc_v)
+			app.draw_count += 3
 		} else {
 			state_color, not_state_color := app.palette.wire_off, app.palette.wire_on
 
@@ -737,6 +741,7 @@ fn (mut app App) draw_paste_preview() {
 					app.ctx.draw_convex_poly(not_poly_offset, not_state_color)
 					app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x, not_rect[ori][1] + pos_y,
 						not_rect[ori][2], not_rect[ori][3], state_color)
+					app.draw_count += 3
 				}
 				.diode {
 					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.diode)
@@ -749,6 +754,7 @@ fn (mut app App) draw_paste_preview() {
 					diode_poly_offset[6] = diode_poly[ori][6] + pos_x
 					diode_poly_offset[7] = diode_poly[ori][7] + pos_y
 					app.ctx.draw_convex_poly(diode_poly_offset, state_color)
+					app.draw_count += 2
 				}
 				.on {
 					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.on)
@@ -761,9 +767,11 @@ fn (mut app App) draw_paste_preview() {
 					on_poly_offset[6] = on_poly[ori][6] + pos_x
 					on_poly_offset[7] = on_poly[ori][7] + pos_y
 					app.ctx.draw_convex_poly(on_poly_offset, app.palette.wire_on)
+					app.draw_count += 2
 				}
 				.wire {
 					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, state_color)
+					app.draw_count += 1
 				}
 				else {
 					app.log_quit('${@LOCATION} should not get into this else')
@@ -771,6 +779,7 @@ fn (mut app App) draw_paste_preview() {
 			}
 		}
 		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.copy_preview)
+		app.draw_count += 1
 	}
 }
 
@@ -819,10 +828,12 @@ fn (mut app App) draw_map() {
 	for i in 0 .. (size.width) / app.tile_size + 1 {
 		pos_x := f32((int(virt_cam_x) - virt_cam_x + i) * app.tile_size)
 		app.ctx.draw_line(pos_x, 0, pos_x, size.height, app.palette.grid)
+		app.draw_count += 1
 	}
 	for i in 0 .. (size.height) / app.tile_size + 1 {
 		pos_y := f32((int(virt_cam_y) - virt_cam_y + i) * app.tile_size)
 		app.ctx.draw_line(0, pos_y, size.width, pos_y, app.palette.grid)
+		app.draw_count += 1
 	}
 	for chunk in app.map {
 		chunk_cam_x := chunk.x - virt_cam_x
@@ -838,9 +849,10 @@ fn (mut app App) draw_map() {
 						}
 						if chunk_cam_y + y < size.height {
 							pos_y := f32((chunk_cam_y + y) * app.tile_size)
-							if app.draw_count % 700 == 0 {
+							if app.draw_count >= app.draw_step {
 								app.ctx.end(how: .passthru)
 								app.ctx.begin()
+								app.draw_count = 1
 							}
 							app.draw_count += 1
 							if id == elem_crossing_bits { // same bits as wires so need to be separated
@@ -850,6 +862,7 @@ fn (mut app App) draw_map() {
 									app.tile_size, app.tile_size / 3, app.palette.junc_h)
 								app.ctx.draw_rect_filled(pos_x + app.tile_size / 3, pos_y,
 									app.tile_size / 3, app.tile_size, app.palette.junc_v)
+								app.draw_count += 3
 							} else {
 								state_color, not_state_color := if id & on_bits == 0 {
 									app.palette.wire_off, app.palette.wire_on
@@ -877,6 +890,7 @@ fn (mut app App) draw_map() {
 										app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x,
 											not_rect[ori][1] + pos_y, not_rect[ori][2],
 											not_rect[ori][3], state_color)
+										app.draw_count += 3
 									}
 									elem_diode_bits {
 										app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
@@ -890,6 +904,7 @@ fn (mut app App) draw_map() {
 										diode_poly_offset[6] = diode_poly[ori][6] + pos_x
 										diode_poly_offset[7] = diode_poly[ori][7] + pos_y
 										app.ctx.draw_convex_poly(diode_poly_offset, state_color)
+										app.draw_count += 2
 									}
 									elem_on_bits {
 										app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
@@ -903,10 +918,12 @@ fn (mut app App) draw_map() {
 										on_poly_offset[6] = on_poly[ori][6] + pos_x
 										on_poly_offset[7] = on_poly[ori][7] + pos_y
 										app.ctx.draw_convex_poly(on_poly_offset, app.palette.wire_on)
+										app.draw_count += 2
 									}
 									elem_wire_bits {
 										app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
 											state_color)
+										app.draw_count += 1
 									}
 									else {
 										app.log_quit('${@LOCATION} should not get into this else')
@@ -939,152 +956,151 @@ fn (app App) ingame_ui_button_click_to_nb(mouse_x f32, mouse_y f32) int {
 }
 
 fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
-		if b == .cancel_button {
-			app.disable_all_ingame_modes()
-			app.tmp_pos_x = u32(-1)
-			app.tmp_pos_y = u32(-1)
-			app.create_colorchip_x = u32(-1)
-			app.create_colorchip_endx = u32(-1)
-			app.place_start_x = u32(-1)
-			app.text_input = ''
-		} else if b == .edit_color {
-			if app.selected_colorchip == -1 {
-				app.log('No ColorChip selected')
-			} else {
-				app.disable_all_ingame_modes()
-				app.colorchips_hidden = false
-				app.edit_color_submode = true
-			}
-		} else if b == .choose_colorchip {
-			app.disable_all_ingame_modes()
-			app.choose_colorchip_submode = true
-		} else if b == .create_color_chip {
+	if b == .cancel_button {
+		app.disable_all_ingame_modes()
+		app.tmp_pos_x = u32(-1)
+		app.tmp_pos_y = u32(-1)
+		app.create_colorchip_x = u32(-1)
+		app.create_colorchip_endx = u32(-1)
+		app.place_start_x = u32(-1)
+		app.text_input = ''
+	} else if b == .edit_color {
+		if app.selected_colorchip == -1 {
+			app.log('No ColorChip selected')
+		} else {
 			app.disable_all_ingame_modes()
 			app.colorchips_hidden = false
-			app.create_colorchip_submode = true
-		} else if b == .add_input {
-			if app.selected_colorchip == -1 {
-				app.log('No ColorChip selected')
-			} else {
-				app.disable_all_ingame_modes()
-				app.colorchips_hidden = true
-				app.add_input_submode = true
-			}
-		} else if b == .steal_settings {
-			if app.selected_colorchip == -1 {
-				app.log('No ColorChip selected')
-			} else {
-				app.disable_all_ingame_modes()
-				app.colorchips_hidden = false
-				app.steal_settings_submode = true
-			}
-		} else if b == .delete_colorchip {
-			app.disable_all_ingame_modes()
-			app.colorchips_hidden = false
-			app.delete_colorchip_submode = true
-		} else if b == .item_nots {
-			if !app.placement_mode {
-				app.disable_all_ingame_modes()
-				app.placement_mode = true
-			}
-			app.selected_item = .not
-		} else if b == .item_diode {
-			if !app.placement_mode {
-				app.disable_all_ingame_modes()
-				app.placement_mode = true
-			}
-			app.selected_item = .diode
-		} else if b == .item_crossing {
-			if !app.placement_mode {
-				app.disable_all_ingame_modes()
-				app.placement_mode = true
-			}
-			app.selected_item = .crossing
-		} else if b == .item_on {
-			if !app.placement_mode {
-				app.disable_all_ingame_modes()
-				app.placement_mode = true
-			}
-			app.selected_item = .on
-		} else if b == .item_wire {
-			if !app.placement_mode {
-				app.disable_all_ingame_modes()
-				app.placement_mode = true
-			}
-			app.selected_item = .wire
-		} else if b == .rotate_copy {
-			if app.e.modifiers & 1 == 1 { // shift: 1<<0
-				app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
-			} else {
-				app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''} // TODO: rotate_right, maybe could use one of the fields
-				app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
-				app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
-			}
-		} else if b == .load_gate {
-			app.disable_all_ingame_modes()
-			app.load_gate_mode = true
-		} else if b == .flip_h {
-			app.todo << TodoInfo{.flip_h, 0, 0, 0, 0, ''}
-		} else if b == .flip_v {
-			app.todo << TodoInfo{.flip_v, 0, 0, 0, 0, ''}
-		} else if b == .confirm_save_gate {
-			if app.text_input != '' && app.select_start_x != u32(-1)
-				&& app.select_end_x != u32(-1) {
-				if !os.exists('saved_gates/${app.text_input}') {
-					app.disable_all_ingame_modes()
-					// copies because save_gate saves the copied gate
-					app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
-					app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, app.text_input}
-					app.text_input = ''
-					app.select_start_x = u32(-1)
-					app.select_end_x = u32(-1)
-				} else {
-					app.log('Gate ${app.text_input} already exists')
-				}
-			}
-		} else if b == .copy_button {
-			if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
-				app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
-				app.log('Copied selection')
-			}
-		} else if b == .selection_delete {
-			app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
-		} else if b == .paste {
-			app.disable_all_ingame_modes()
-			app.paste_mode = true
-		} else if b == .save_gate {
-			app.disable_all_ingame_modes()
-			app.save_gate_mode = true
-			app.text_input = ''
-		} else if b == .create_color_chip {
-			if app.select_start_x != u32(-1) && app.select_start_y != u32(-1)
-				&& app.select_end_x != u32(-1) && app.select_end_y != u32(-1) {
-				app.disable_all_ingame_modes()
-				app.create_colorchip_submode = true
-				app.create_colorchip_x = u32(-1)
-				app.create_colorchip_y = u32(-1)
-				app.create_colorchip_endx = u32(-1)
-				app.create_colorchip_endy = u32(-1)
-			}
-		} else if b == .selection_button {
-			app.disable_all_ingame_modes()
-			app.selection_mode = true
-		} else if b == .speed {
-			app.nb_updates += 1
-		} else if b == .slow {
-			if app.nb_updates > 1 {
-				app.nb_updates -= 1
-			}
-		} else if b == .pause {
-			app.pause = !app.pause
-		} else if b == .save_map {
-			app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
-			for app.todo.len > 0 {} // wait
-		} else if b == .quit_map {
-			app.quit_map()
-		} else if b == .hide_colorchips {
-			app.colorchips_hidden = !app.colorchips_hidden
+			app.edit_color_submode = true
 		}
+	} else if b == .choose_colorchip {
+		app.disable_all_ingame_modes()
+		app.choose_colorchip_submode = true
+	} else if b == .create_color_chip {
+		app.disable_all_ingame_modes()
+		app.colorchips_hidden = false
+		app.create_colorchip_submode = true
+	} else if b == .add_input {
+		if app.selected_colorchip == -1 {
+			app.log('No ColorChip selected')
+		} else {
+			app.disable_all_ingame_modes()
+			app.colorchips_hidden = true
+			app.add_input_submode = true
+		}
+	} else if b == .steal_settings {
+		if app.selected_colorchip == -1 {
+			app.log('No ColorChip selected')
+		} else {
+			app.disable_all_ingame_modes()
+			app.colorchips_hidden = false
+			app.steal_settings_submode = true
+		}
+	} else if b == .delete_colorchip {
+		app.disable_all_ingame_modes()
+		app.colorchips_hidden = false
+		app.delete_colorchip_submode = true
+	} else if b == .item_nots {
+		if !app.placement_mode {
+			app.disable_all_ingame_modes()
+			app.placement_mode = true
+		}
+		app.selected_item = .not
+	} else if b == .item_diode {
+		if !app.placement_mode {
+			app.disable_all_ingame_modes()
+			app.placement_mode = true
+		}
+		app.selected_item = .diode
+	} else if b == .item_crossing {
+		if !app.placement_mode {
+			app.disable_all_ingame_modes()
+			app.placement_mode = true
+		}
+		app.selected_item = .crossing
+	} else if b == .item_on {
+		if !app.placement_mode {
+			app.disable_all_ingame_modes()
+			app.placement_mode = true
+		}
+		app.selected_item = .on
+	} else if b == .item_wire {
+		if !app.placement_mode {
+			app.disable_all_ingame_modes()
+			app.placement_mode = true
+		}
+		app.selected_item = .wire
+	} else if b == .rotate_copy {
+		if app.e.modifiers & 1 == 1 { // shift: 1<<0
+			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+		} else {
+			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''} // TODO: rotate_right, maybe could use one of the fields
+			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+		}
+	} else if b == .load_gate {
+		app.disable_all_ingame_modes()
+		app.load_gate_mode = true
+	} else if b == .flip_h {
+		app.todo << TodoInfo{.flip_h, 0, 0, 0, 0, ''}
+	} else if b == .flip_v {
+		app.todo << TodoInfo{.flip_v, 0, 0, 0, 0, ''}
+	} else if b == .confirm_save_gate {
+		if app.text_input != '' && app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
+			if !os.exists('saved_gates/${app.text_input}') {
+				app.disable_all_ingame_modes()
+				// copies because save_gate saves the copied gate
+				app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+				app.todo << TodoInfo{.save_gate, 0, 0, 0, 0, app.text_input}
+				app.text_input = ''
+				app.select_start_x = u32(-1)
+				app.select_end_x = u32(-1)
+			} else {
+				app.log('Gate ${app.text_input} already exists')
+			}
+		}
+	} else if b == .copy_button {
+		if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
+			app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+			app.log('Copied selection')
+		}
+	} else if b == .selection_delete {
+		app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
+	} else if b == .paste {
+		app.disable_all_ingame_modes()
+		app.paste_mode = true
+	} else if b == .save_gate {
+		app.disable_all_ingame_modes()
+		app.save_gate_mode = true
+		app.text_input = ''
+	} else if b == .create_color_chip {
+		if app.select_start_x != u32(-1) && app.select_start_y != u32(-1)
+			&& app.select_end_x != u32(-1) && app.select_end_y != u32(-1) {
+			app.disable_all_ingame_modes()
+			app.create_colorchip_submode = true
+			app.create_colorchip_x = u32(-1)
+			app.create_colorchip_y = u32(-1)
+			app.create_colorchip_endx = u32(-1)
+			app.create_colorchip_endy = u32(-1)
+		}
+	} else if b == .selection_button {
+		app.disable_all_ingame_modes()
+		app.selection_mode = true
+	} else if b == .speed {
+		app.nb_updates += 1
+	} else if b == .slow {
+		if app.nb_updates > 1 {
+			app.nb_updates -= 1
+		}
+	} else if b == .pause {
+		app.pause = !app.pause
+	} else if b == .save_map {
+		app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
+		for app.todo.len > 0 {} // wait
+	} else if b == .quit_map {
+		app.quit_map()
+	} else if b == .hide_colorchips {
+		app.colorchips_hidden = !app.colorchips_hidden
+	}
 }
 
 // 0 for the first button
@@ -1431,7 +1447,9 @@ fn (mut app App) handle_ingame_ui_button_keybind(nb int) {
 }
 
 fn on_event(e &gg.Event, mut app App) {
-	unsafe { app.e = e }
+	unsafe {
+		app.e = e
+	}
 	mouse_x := if e.mouse_x < 1.0 {
 		1.0
 	} else {
