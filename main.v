@@ -52,17 +52,7 @@ fn (mut app App) log(message string) {
 }
 
 enum Todos {
-	save_map
-	removal
-	paste
-	load_gate
-	save_gate
-	place
-	rotate
-	copy
 	quit
-	flip_h
-	flip_v
 }
 
 struct TodoInfo {
@@ -82,16 +72,6 @@ fn (mut app App) computation_loop() {
 		for i, todo in app.todo {
 			if now < cycle_end {
 				match todo.task {
-					.save_map {}
-					.removal {}
-					.paste {}
-					.load_gate {}
-					.save_gate {}
-					.place {}
-					.rotate {}
-					.flip_h {}
-					.flip_v {}
-					.copy {}
 					.quit {
 						app.save_map(todo.name) or {}
 						app.comp_running = false
