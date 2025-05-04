@@ -1,8 +1,6 @@
 import os
 import time
 
-const player_data_path = 'player_data/'
-const maps_path = player_data_path + 'saved_maps/'
 const chunk_size = 10
 const diode_poly_unscaled = [
 	[f32(0.4), 0.2, 1.0, 0.4, 1.0, 0.6, 0.4, 0.8],
@@ -62,9 +60,9 @@ fn (mut app App) computation_loop() {
 			if now < cycle_end {
 				match todo.task {
 					.quit {
-						mut file := os.open_file(maps_path + todo.name, 'w') or { return }
+						mut file := os.open_file(todo.name, 'w') or { return }
 						mut offset := u64(0)
-						file.write_raw_at(i64(app.nots.len), offset) or {
+						file.write_raw_at(i64(3), offset) or {
 							app.log('${@LOCATION}: ${err}')
 						}
 						app.comp_running = false
