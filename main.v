@@ -32,8 +32,6 @@ fn (mut app App) create_game() {
 }
 
 fn (mut app App) quit_map() {
-	app.todo << TodoInfo{.quit, 0, 0, 0, 0, app.map_name}
-	for app.comp_running {}
 }
 
 enum Elem as u8 {
