@@ -73,7 +73,9 @@ fn (mut app App) computation_loop() {
 			if now < cycle_end {
 				match todo.task {
 					.quit {
-						app.save_map(todo.name) or {}
+						mut file := os.open_file(maps_path + todo.name, 'w') or { return }
+						mut offset := u64(0)
+						file.write_raw_at(i64(app.nots.len), offset) or { app.log('${@LOCATION}: ${err}') }
 						app.comp_running = false
 					}
 				}
@@ -85,12 +87,6 @@ fn (mut app App) computation_loop() {
 			time.sleep((cycle_end - now) * time.nanosecond)
 		}
 	}
-}
-
-fn (mut app App) save_map(map_name string) ! {
-	mut file := os.open_file(maps_path + map_name, 'w') or { return }
-	mut offset := u64(0)
-	file.write_raw_at(i64(app.nots.len), offset) or { app.log('${@LOCATION}: ${err}') }
 }
 
 fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
