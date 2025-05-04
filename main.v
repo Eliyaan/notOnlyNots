@@ -26,12 +26,9 @@ mut:
 }
 
 fn (mut app App) create_game() {
-	if !os.exists('saved_maps/${app.text_input}') {
 		app.map_name = app.text_input
 		app.comp_running = true
 		spawn app.computation_loop()
-	} else {
-	}
 }
 
 fn (mut app App) quit_map() {
