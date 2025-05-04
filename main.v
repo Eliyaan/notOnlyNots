@@ -20,7 +20,6 @@ mut:
 	avg_update_time f64
 	todo            []TodoInfo
 	selected_item   Elem
-	nots            []Nots
 }
 
 fn (mut app App) create_game() {
@@ -62,9 +61,7 @@ fn (mut app App) computation_loop() {
 					.quit {
 						mut file := os.open_file(todo.name, 'w') or { return }
 						mut offset := u64(0)
-						file.write_raw_at(i64(3), offset) or {
-							app.log('${@LOCATION}: ${err}')
-						}
+						file.write_raw_at(i64(3), offset) or { app.log('${@LOCATION}: ${err}') }
 						app.comp_running = false
 					}
 				}
@@ -106,5 +103,3 @@ struct Chunk {
 	y      u32
 	id_map [chunk_size][chunk_size]u64
 }
-
-struct Nots {}
