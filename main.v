@@ -85,28 +85,23 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 	match app.selected_item {
 		.not {
 			for x in x_start .. x_end + 1 {
-				for y in y_start .. y_end + 1 {
-					chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+				yl: for y in y_start .. y_end + 1 {
+					for i, chunk in app.map {
+						if x >= chunk.x && y >= chunk.y {
+							if x < chunk.x + chunk_size && y < chunk.y + chunk_size {
+								continue yl
+							}
+						}
+					}
+					app.map << Chunk{
+						x: (x / chunk_size) * chunk_size
+						y: (y / chunk_size) * chunk_size
+					}
 				}
 			}
 		}
 		else {}
 	}
-}
-
-fn (mut app App) get_chunkmap_idx_at_coords(x u32, y u32) int {
-	for i, chunk in app.map {
-		if x >= chunk.x && y >= chunk.y {
-			if x < chunk.x + chunk_size && y < chunk.y + chunk_size {
-				return i
-			}
-		}
-	}
-	app.map << Chunk{
-		x: (x / chunk_size) * chunk_size
-		y: (y / chunk_size) * chunk_size
-	}
-	return app.map.len - 1
 }
 
 struct Chunk {
