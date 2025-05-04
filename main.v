@@ -86,17 +86,7 @@ fn (mut app App) computation_loop() {
 	}
 }
 
-fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
-	x_start, x_end := if _x_start > _x_end {
-		_x_end, _x_start
-	} else {
-		_x_start, _x_end
-	}
-	y_start, y_end := if _y_start > _y_end {
-		_y_end, _y_start
-	} else {
-		_y_start, _y_end
-	}
+fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 	match app.selected_item {
 		.not {
 			for x in x_start .. x_end + 1 {
