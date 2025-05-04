@@ -31,9 +31,6 @@ fn (mut app App) create_game() {
 		spawn app.computation_loop()
 }
 
-fn (mut app App) quit_map() {
-}
-
 enum Elem as u8 {
 	not
 	diode
