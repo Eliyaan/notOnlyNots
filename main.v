@@ -3,7 +3,7 @@ import time
 
 const player_data_path = 'player_data/'
 const maps_path = player_data_path + 'saved_maps/'
-const chunk_size = 100
+const chunk_size = 10
 const diode_poly_unscaled = [
 	[f32(0.4), 0.2, 1.0, 0.4, 1.0, 0.6, 0.4, 0.8],
 ]
