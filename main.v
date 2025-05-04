@@ -26,17 +26,14 @@ mut:
 }
 
 fn (mut app App) create_game() {
-		app.map_name = app.text_input
-		app.comp_running = true
-		spawn app.computation_loop()
+	app.map_name = app.text_input
+	app.comp_running = true
+	spawn app.computation_loop()
 }
 
 enum Elem as u8 {
 	not
 	diode
-	on
-	wire
-	crossing
 }
 
 fn (mut app App) log(message string) {
@@ -67,7 +64,9 @@ fn (mut app App) computation_loop() {
 					.quit {
 						mut file := os.open_file(maps_path + todo.name, 'w') or { return }
 						mut offset := u64(0)
-						file.write_raw_at(i64(app.nots.len), offset) or { app.log('${@LOCATION}: ${err}') }
+						file.write_raw_at(i64(app.nots.len), offset) or {
+							app.log('${@LOCATION}: ${err}')
+						}
 						app.comp_running = false
 					}
 				}
