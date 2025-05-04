@@ -105,10 +105,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				}
 			}
 		}
-		.diode {}
-		.on {}
-		.wire {}
-		.crossing {}
+		else {}
 	}
 }
 
