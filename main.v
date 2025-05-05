@@ -26,8 +26,6 @@ struct TodoInfo {
 }
 
 fn (mut app App) computation_loop() {
-	mut cycle_end := i64(0)
-	mut now := i64(0)
 	for app.comp_running {
 		for i, todo in app.todo {
 						mut file := os.open_file(todo.name, 'w') or { return }
@@ -35,7 +33,7 @@ fn (mut app App) computation_loop() {
 						file.write_raw_at(i64(3), offset) or { println('${@LOCATION}: ${err}') }
 						app.comp_running = false
 		}
-			time.sleep((cycle_end - now) * time.nanosecond)
+			time.sleep(0)
 	}
 }
 
