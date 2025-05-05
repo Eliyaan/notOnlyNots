@@ -52,7 +52,6 @@ fn (mut app App) computation_loop() {
 	for app.comp_running {
 		cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(app.avg_update_time)
 		for i, todo in app.todo {
-			if now < cycle_end {
 				match todo.task {
 					.quit {
 						mut file := os.open_file(todo.name, 'w') or { return }
@@ -61,8 +60,6 @@ fn (mut app App) computation_loop() {
 						app.comp_running = false
 					}
 				}
-			} else {
-			}
 		}
 		now = time.now().unix_nano()
 		if app.todo.len == 0 && cycle_end - now >= 10000 {
