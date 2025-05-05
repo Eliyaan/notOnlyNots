@@ -16,18 +16,12 @@ mut:
 	nb_updates      int = 5
 	avg_update_time f64
 	todo            []TodoInfo
-	selected_item   Elem
 }
 
 fn (mut app App) create_game() {
 	app.map_name = app.text_input
 	app.comp_running = true
 	spawn app.computation_loop()
-}
-
-enum Elem as u8 {
-	not
-	diode
 }
 
 
@@ -50,8 +44,6 @@ fn (mut app App) computation_loop() {
 }
 
 fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
-	match app.selected_item {
-		.not {
 			for x in x_start .. x_end + 1 {
 				yl: for y in y_start .. y_end + 1 {
 					for i, chunk in app.map {
@@ -67,9 +59,6 @@ fn (mut app App) placement(x_start u32, y_start u32, x_end u32, y_end u32) {
 					}
 				}
 			}
-		}
-		else {}
-	}
 }
 
 struct Chunk {
