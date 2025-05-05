@@ -39,7 +39,7 @@ fn (mut app App) computation_loop() {
 	}
 }
 
-fn (mut app App) placement(x_start_ u32, y_start_ u32, x_end_ u32, y_end_ u32) {
+fn (mut app App) placement() {
 	x_start := u32(2_000_000_000)
 	y_start := x_start
 	x_end := x_start + 100
