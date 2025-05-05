@@ -33,10 +33,6 @@ enum Elem as u8 {
 	diode
 }
 
-fn (mut app App) log(message string) {
-	println(message)
-}
-
 enum Todos {
 	quit
 }
@@ -61,7 +57,7 @@ fn (mut app App) computation_loop() {
 					.quit {
 						mut file := os.open_file(todo.name, 'w') or { return }
 						mut offset := u64(0)
-						file.write_raw_at(i64(3), offset) or { app.log('${@LOCATION}: ${err}') }
+						file.write_raw_at(i64(3), offset) or { println('${@LOCATION}: ${err}') }
 						app.comp_running = false
 					}
 				}
