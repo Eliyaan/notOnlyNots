@@ -36,10 +36,6 @@ enum Todos {
 
 struct TodoInfo {
 	task  Todos
-	x     u32
-	y     u32
-	x_end u32
-	y_end u32
 	name  string
 }
 
