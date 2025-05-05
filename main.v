@@ -52,14 +52,10 @@ fn (mut app App) computation_loop() {
 	for app.comp_running {
 		cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(app.avg_update_time)
 		for i, todo in app.todo {
-				match todo.task {
-					.quit {
 						mut file := os.open_file(todo.name, 'w') or { return }
 						mut offset := u64(0)
 						file.write_raw_at(i64(3), offset) or { println('${@LOCATION}: ${err}') }
 						app.comp_running = false
-					}
-				}
 		}
 		now = time.now().unix_nano()
 		if app.todo.len == 0 && cycle_end - now >= 10000 {
