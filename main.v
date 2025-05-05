@@ -3,10 +3,6 @@ import time
 
 const chunk_size = 10
 
-enum Buttons {
-	cancel_button
-}
-
 struct App {
 mut:
 	text_input      string
