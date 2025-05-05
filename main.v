@@ -30,12 +30,8 @@ enum Elem as u8 {
 	diode
 }
 
-enum Todos {
-	quit
-}
 
 struct TodoInfo {
-	task  Todos
 	name  string
 }
 
