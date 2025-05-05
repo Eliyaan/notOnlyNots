@@ -5,7 +5,6 @@ const chunk_size = 10
 
 struct App {
 mut:
-	text_input   string
 	map          []Chunk
 	comp_running bool
 	todo         []TodoInfo
