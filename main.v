@@ -5,12 +5,10 @@ const chunk_size = 10
 
 struct App {
 mut:
-	text_input      string
-	map             []Chunk
-	comp_running    bool
-	nb_updates      int = 5
-	avg_update_time f64
-	todo            []TodoInfo
+	text_input   string
+	map          []Chunk
+	comp_running bool
+	todo         []TodoInfo
 }
 
 fn (mut app App) create_game() {
