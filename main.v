@@ -2,9 +2,6 @@ import os
 import time
 
 const chunk_size = 10
-const diode_poly_unscaled = [
-	[f32(0.4), 0.2, 1.0, 0.4, 1.0, 0.6, 0.4, 0.8],
-]
 
 enum Buttons {
 	cancel_button
