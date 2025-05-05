@@ -7,7 +7,6 @@ struct App {
 mut:
 	text_input      string
 	map             []Chunk
-	map_name        string
 	comp_running    bool
 	nb_updates      int = 5
 	avg_update_time f64
@@ -15,7 +14,6 @@ mut:
 }
 
 fn (mut app App) create_game() {
-	app.map_name = app.text_input
 	app.comp_running = true
 	spawn app.computation_loop()
 }

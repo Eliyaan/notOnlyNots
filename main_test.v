@@ -7,6 +7,6 @@ fn test_save() {
 	app.create_game()
 	pos := u32(2_000_000_000)
 	app.placement()
-	app.todo << TodoInfo{app.map_name}
+	app.todo << TodoInfo{app.text_input}
 	for app.comp_running {}
 }
