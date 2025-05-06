@@ -3911,13 +3911,13 @@ fn (mut app App) update_cycle() {
 		mut chunkmap := &app.map[chunk_i].id_map
 		xmap := not.x % chunk_size
 		ymap := not.y % chunk_size
-		if !old_inp_state {
+		if old_inp_state {
 			unsafe {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
 			}
 		} else {
 			unsafe {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
+				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
 			}
 		}
 	}

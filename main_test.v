@@ -15,75 +15,91 @@ fn test_save() {
 	app.quit_map()
 }
 */
-/*
+
 fn test_placement_removal_big() {
 	mut app := App{}
-	defer {
-		app.comp_running = false
-		for app.comp_alive {}
-	}
 	name := 'test'
 	app.text_input = name
 	app.create_game()
+	app.comp_running = false
+	for app.comp_alive {}
 	mut pos := u32(2_000)
 
 	app.selected_item = .not
-	app.todo << TodoInfo{.place, pos, pos, pos + 1000, pos + 1000, ''}
+	app.placement(pos, pos, pos + 1000, pos + 1000)
+	println('placed nots')
 	// test if they are nots, with the right orientation
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 1000, pos + 1000)
+	println('tested nots')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
-	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
+	app.removal(pos, pos, pos + 1000, pos + 1000)
+	println('removed nots')
 
 	app.selected_item = .diode
-	app.todo << TodoInfo{.place, pos, pos, pos + 1000, pos + 1000, ''}
-	// test if they are nots, with the right orientation
+	app.placement(pos, pos, pos + 1000, pos + 1000)
+	println('placed diodes')
+	// test if they are diodes, with the right orientation
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000)
+	println('tested diodes')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
-	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
+	app.removal(pos, pos, pos + 1000, pos + 1000)
+	println('removed diodes')
 
 	app.selected_item = .crossing
-	app.todo << TodoInfo{.place, pos, pos, pos + 1000, pos + 1000, ''}
-	// test if they are nots, with the right orientation
+	app.placement(pos, pos, pos + 1000, pos + 1000)
+	println('placed crossings')
+	// test if they are crossings, with the right orientation
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000)
+	println('tested crossings')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
-	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
+	app.removal(pos, pos, pos + 1000, pos + 1000)
+	println('removed crossings')
 
 	app.selected_item = .on
-	app.todo << TodoInfo{.place, pos, pos, pos + 1000, pos + 1000, ''}
-	// test if they are nots, with the right orientation
+	app.placement(pos, pos, pos + 1000, pos + 1000)
+	println('placed ons')
+	// test if they are ons, with the right orientation
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000)
+	println('tested ons')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
-	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
+	app.removal(pos, pos, pos + 1000, pos + 1000)
+	println('removed ons')
 
 	app.selected_item = .wire
-	app.todo << TodoInfo{.place, pos, pos, pos + 1000, pos + 1000, ''}
-	// test if they are nots, with the right orientation
+	app.placement(pos, pos, pos + 1000, pos + 1000)
+	println('placed wires')
+	// test if they are wires, with the right orientation
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000)
+	println('tested wires')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
-	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
-	for app.todo.len > 0 {}
+	app.removal(pos, pos, pos + 1000, pos + 1000)
+	println('removed wires')
 }
-*/
 
 fn test_seeded_fuzz() {
 	mut app := App{}
@@ -115,57 +131,57 @@ fn test_seeded_fuzz() {
 
 fn test_placement_small() {
 	mut app := App{}
-	defer {
-		app.comp_running = false
-		for app.comp_alive {}
-	}
 	name := 'test'
 	app.text_input = name
 	app.create_game()
+	app.comp_running = false
+	for app.comp_alive {}
 	app.nb_updates = 10_000_000
 	mut pos := u32(2_000_000_000)
 
 	app.selected_item = .not
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// test if they are nots, with the right orientation
 
 	pos += 1
 	app.selected_item = .diode
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// todo: check if well placed
 
 	pos += 1
 	app.selected_item = .crossing
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// todo: check if well placed
 
 	pos += 1
 	app.selected_item = .wire
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// todo: check if well placed
 
 	pos += 1
 	app.selected_item = .on
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// todo: check if well placed
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 
 	pos += 1
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// todo: check if well placed
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -173,11 +189,12 @@ fn test_placement_small() {
 
 	pos += 1
 	app.selected_item = .diode
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// todo: check if well placed
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -185,11 +202,12 @@ fn test_placement_small() {
 
 	pos += 1
 	app.selected_item = .crossing
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// todo: check if well placed
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -197,11 +215,12 @@ fn test_placement_small() {
 
 	pos += 1
 	app.selected_item = .wire
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// todo: check if well placed
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -209,11 +228,12 @@ fn test_placement_small() {
 
 	pos += 1
 	app.selected_item = .on
-	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
-	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
+	app.placement(pos, pos, pos, pos + 100)
+	app.placement(pos, pos, pos + 100, pos)
 	// todo: check if well placed
 
-	for app.todo.len > 0 {}
+	app.update_cycle()
+	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
