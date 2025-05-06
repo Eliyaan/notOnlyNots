@@ -1976,7 +1976,9 @@ fn (mut app App) computation_loop() {
 		}
 		now = time.now().unix_nano()
 		if app.todo.len == 0 && cycle_end - now >= 10000 { // 10micro sec
+			gc_disable()
 			time.sleep((cycle_end - now) * time.nanosecond)
+			gc_enable()
 		}
 
 		now = time.now().unix_nano()
