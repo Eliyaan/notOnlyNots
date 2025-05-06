@@ -1676,6 +1676,8 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 				}
 			} else if app.selection_mode { // TODO: disable to not grief
+				// TODO: pause the backend
+				/*
 				if e.key_code == .f {
 					fuzz_cycles := 100
 					/// /!\· interacts with the backend directly, to change TODO
@@ -1703,6 +1705,7 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				}
+				*/
 			}
 			if !(app.solo_menu || app.load_gate_mode || app.keyinput_mode || app.save_gate_mode) {
 				match e.key_code {
@@ -2616,17 +2619,17 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					if inp_id & id_mask != app.get_input(id) & id_mask {
 						return x, y, 'problem: Not/Diode input is not the preceding gate ${inp_id & id_mask:b} != ${app.get_input(id) & id_mask:b}'
 					}
-					inp_old_state, _ := app.get_elem_state_idx_by_id(inp_id, (app.actual_state + 1) % 2)
+					inp_old_state, _ := app.get_elem_state_idx_by_id(inp_id, 1)
 					if id & elem_type_mask == elem_not_bits {
-						state, _ := app.get_elem_state_idx_by_id(id, app.actual_state)
+						state, _ := app.get_elem_state_idx_by_id(id, 0)
 						if state == inp_old_state {
-							return x, y, 'problem: NOT did not inverse the input state'
+							return x, y, 'problem: NOT did not inverse the input state ${state} ${inp_old_state}'
 						}
 						if (id & on_bits != 0) == inp_old_state {
 							return x, y, 'problem: NOT(map state) did not inverse the input state'
 						}
 					} else { // diode
-						state, _ := app.get_elem_state_idx_by_id(id, app.actual_state)
+						state, _ := app.get_elem_state_idx_by_id(id, 0)
 						if state != inp_old_state {
 							return x, y, 'problem: Diode did not match the input state'
 						}
@@ -2641,9 +2644,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
 					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1,
-						0)
-					wire_state, wire_idx := app.get_elem_state_idx_by_id(id, app.actual_state)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
+					wire_state, wire_idx := app.get_elem_state_idx_by_id(id, 0)
 					if (id & on_bits != 0) != wire_state {
 						return x, y, "problem: cable(map state)'s state is not the same as the wire"
 					}
@@ -2657,10 +2659,10 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								if s_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s input"
 								}
-								s_old_state, _ := app.get_elem_state_idx_by_id(s_adj_id,
-									(app.actual_state + 1) % 2)
+								s_old_state, idx := app.get_elem_state_idx_by_id(s_adj_id, 1)
 								if s_old_state && !wire_state {
 									return x, y, 'problem: wire did not match south On state'
+									return x, y, 'problem: wire ${id & rid_mask} did not match south On state'
 								}
 							} else {
 								if s_adj_id & id_mask !in app.wires[wire_idx].outs.map(it & id_mask) {
@@ -2679,8 +2681,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								if n_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: north(${n_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
-								n_old_state, _ := app.get_elem_state_idx_by_id(n_adj_id,
-									(app.actual_state + 1) % 2)
+								n_old_state, _ := app.get_elem_state_idx_by_id(n_adj_id, 1)
 								if n_old_state && !wire_state {
 									return x, y, 'problem: wire did not match north On state'
 								}
@@ -2701,8 +2702,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								if e_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: east(${e_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
-								e_old_state, _ := app.get_elem_state_idx_by_id(e_adj_id,
-									(app.actual_state + 1) % 2)
+								e_old_state, _ := app.get_elem_state_idx_by_id(e_adj_id, 1)
 								if e_old_state && !wire_state {
 									return x, y, 'problem: wire did not match east On state'
 								}
@@ -2723,8 +2723,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								if w_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: west(${w_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
-								w_old_state, _ := app.get_elem_state_idx_by_id(w_adj_id,
-									(app.actual_state + 1) % 2)
+								w_old_state, _ := app.get_elem_state_idx_by_id(w_adj_id, 1)
 								if w_old_state && !wire_state {
 									return x, y, 'problem: wire did not match west On state'
 								}
@@ -2745,8 +2744,9 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	return 0, 0, ''
 }
 
-fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
+fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, seed []u32) {
 	// place random elems in a rectangle
+	rand.seed(seed)
 
 	x_start, x_end := if _x_start > _x_end {
 		_x_end, _x_start
@@ -3931,7 +3931,7 @@ fn (mut app App) update_cycle() {
 		// 3. done
 		mut old_or_inp_state := false // will be all the inputs of the wire ORed
 		for inp in wire.inps {
-			inp_state, _ := app.get_elem_state_idx_by_id(inp, 1)
+			inp_state, _ := app.get_elem_state_idx_by_id(inp, 0)
 			if inp_state {
 				old_or_inp_state = true // only one is needed for the OR to be true
 				break
