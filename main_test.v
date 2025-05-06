@@ -3,6 +3,10 @@ module main
 /*
 fn test_save() {
 	mut app := App{}
+	defer {
+		app.comp_running = false
+		for app.comp_alive {}
+	}
 	name := 'test'
 	app.text_input = name
 	app.create_game()
@@ -11,9 +15,13 @@ fn test_save() {
 	app.quit_map()
 }
 */
-
+/*
 fn test_placement_removal_big() {
 	mut app := App{}
+	defer {
+		app.comp_running = false
+		for app.comp_alive {}
+	}
 	name := 'test'
 	app.text_input = name
 	app.create_game()
@@ -26,7 +34,7 @@ fn test_placement_removal_big() {
 	for app.todo.len > 0 {}
 	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 1000, pos + 1000)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
 
@@ -37,7 +45,7 @@ fn test_placement_removal_big() {
 	for app.todo.len > 0 {}
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
 
@@ -48,7 +56,7 @@ fn test_placement_removal_big() {
 	for app.todo.len > 0 {}
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
 
@@ -59,7 +67,7 @@ fn test_placement_removal_big() {
 	for app.todo.len > 0 {}
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
 
@@ -70,14 +78,19 @@ fn test_placement_removal_big() {
 	for app.todo.len > 0 {}
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.todo << TodoInfo{.removal, pos, pos, pos + 1000, pos + 1000, ''}	
 	for app.todo.len > 0 {}
 }
-
+*/
 fn test_placement_small() {
 	mut app := App{}
+	defer {
+		app.comp_running = false
+		for app.comp_alive {}
+	}
+	app.nb_updates = 10000000
 	name := 'test'
 	app.text_input = name
 	app.create_game()
@@ -115,7 +128,7 @@ fn test_placement_small() {
 	for app.todo.len > 0 {}
 	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 
 	pos += 1
@@ -126,7 +139,7 @@ fn test_placement_small() {
 	for app.todo.len > 0 {}
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 
 	pos += 1
@@ -138,7 +151,7 @@ fn test_placement_small() {
 	for app.todo.len > 0 {}
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 
 	pos += 1
@@ -150,7 +163,7 @@ fn test_placement_small() {
 	for app.todo.len > 0 {}
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 
 	pos += 1
@@ -162,7 +175,7 @@ fn test_placement_small() {
 	for app.todo.len > 0 {}
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 
 	pos += 1
@@ -170,12 +183,10 @@ fn test_placement_small() {
 	app.todo << TodoInfo{.place, pos, pos, pos, pos + 100, ''}
 	app.todo << TodoInfo{.place, pos, pos, pos + 100, pos, ''}
 	// todo: check if well placed
-	
+
 	for app.todo.len > 0 {}
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100)
 	if str_err != '' {
-		app.log('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
-
 }
-

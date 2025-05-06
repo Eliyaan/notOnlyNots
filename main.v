@@ -387,6 +387,7 @@ mut:
 	forced_states   [][2]u32    // forced to ON state by a keyboard input
 	colorchips      []ColorChip // screens
 	palette         Palette = palette_def // TODO: edit palette and save palette
+	comp_alive bool
 }
 
 // graphics
@@ -1913,6 +1914,7 @@ struct TodoInfo {
 }
 
 fn (mut app App) computation_loop() {
+	app.comp_alive = true
 	mut cycle_end := i64(0)
 	mut now := i64(0)
 	for app.comp_running {
@@ -1987,6 +1989,7 @@ fn (mut app App) computation_loop() {
 		}
 		app.avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * app.avg_update_time
 	}
+	app.comp_alive = false
 }
 
 fn (mut app App) save_copied(name_ string) ! {
@@ -2557,8 +2560,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	} else {
 		_y_start, _y_end
 	}
-	for x in x_start .. x_end {
-		for y in y_start .. y_end {
+	for x in x_start .. x_end + 1 {
+		for y in y_start .. y_end + 1 {
 			chunk_i := app.get_chunkmap_idx_at_coords(x, y)
 			mut chunkmap := &app.map[chunk_i].id_map
 			x_map := x % chunk_size
@@ -2573,16 +2576,16 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			ori := id & ori_mask
 			step := match ori {
 				north {
-					[0, 1]!
-				}
-				south {
 					[0, -1]!
 				}
+				south {
+					[0, 1]!
+				}
 				west {
-					[1, 0]!
+					[-1, 0]!
 				}
 				east {
-					[-1, 0]!
+					[1, 0]!
 				}
 				else {
 					app.log_quit('${@LOCATION} not a valid orientation')
@@ -2593,7 +2596,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 				elem_not_bits, elem_diode_bits {
 					inp_id := app.next_gate_id(x, y, -step[0], -step[1], ori)
 					if inp_id & id_mask != app.get_input(id) & id_mask {
-						return x, y, 'problem: input is not the preceding gate'
+						return x, y, 'problem: Not/Diode input is not the preceding gate ${inp_id & id_mask:b} != ${app.get_input(id) & id_mask:b}'
 					}
 					inp_old_state, _ := app.get_elem_state_idx_by_id(inp_id, (app.actual_state + 1) % 2)
 					if id & elem_type_mask == elem_not_bits {
@@ -3588,14 +3591,14 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 // get the input of the elem (empty_id for wires & ons)
 fn (mut app App) get_input(elem_id u64) u64 {
 	if elem_id != empty_id && elem_id != elem_crossing_bits {
-		if elem_id & elem_type_mask == 0b00 { // not
+		if elem_id & elem_type_mask == elem_not_bits { // not
 			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
 			return app.nots[idx].inp
-		} else if elem_id & elem_type_mask == 0b01 { // diode
+		} else if elem_id & elem_type_mask == elem_diode_bits { // diode
 			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
 			return app.diodes[idx].inp
-		} else if elem_id & elem_type_mask == 0b10 { // on -> does not have inputs
-		} else if elem_id & elem_type_mask == 0b11 { // wire
+		} else if elem_id & elem_type_mask == elem_on_bits { // on -> does not have inputs
+		} else if elem_id & elem_type_mask == elem_wire_bits { // wire
 		}
 	}
 	return empty_id
