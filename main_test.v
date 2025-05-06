@@ -90,10 +90,10 @@ fn test_placement_small() {
 		app.comp_running = false
 		for app.comp_alive {}
 	}
-	app.nb_updates = 10000000
 	name := 'test'
 	app.text_input = name
 	app.create_game()
+	app.nb_updates = 10_000_000
 	mut pos := u32(2_000_000_000)
 
 	app.selected_item = .not

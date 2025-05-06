@@ -1431,7 +1431,7 @@ fn (mut app App) quit_map() {
 	app.disable_all_ingame_modes()
 	app.todo << TodoInfo{.quit, 0, 0, 0, 0, app.map_name}
 	dump('waiting for save')
-	for app.comp_running {} // wait for quitting
+	for app.comp_alive {} // wait for quitting
 	dump('finished save')
 	app.main_menu = true
 }
@@ -1925,7 +1925,7 @@ fn (mut app App) computation_loop() {
 		mut done := []int{}
 		for i, todo in app.todo {
 			now = time.now().unix_nano()
-			if now < cycle_end {
+			if now < cycle_end || i == 0 {
 				dump(todo)
 				match todo.task {
 					.save_map {
