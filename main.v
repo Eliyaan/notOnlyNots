@@ -388,6 +388,7 @@ mut:
 	colorchips      []ColorChip // screens
 	palette         Palette = palette_def // TODO: edit palette and save palette
 	comp_alive      bool
+	chunk_cache     map[u64]int // x u32 y u32 -> index of app.map
 }
 
 // graphics
@@ -2586,8 +2587,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	mut last_cm_y := y_start
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
-			if app.check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
 				chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+			if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
 				last_cm_x = x
 				last_cm_y = y
 			}
@@ -2666,7 +2667,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								if s_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s input"
 								}
-								s_old_state, idx := app.get_elem_state_idx_by_id(s_adj_id, 1)
+								s_old_state, _ := app.get_elem_state_idx_by_id(s_adj_id, 1)
 								if s_old_state && !wire_state {
 									return x, y, 'problem: wire ${id & rid_mask} did not match south On state'
 								}
@@ -3704,8 +3705,8 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			y_off += y_dir
 			x_conv := u32(i64(x) + x_off)
 			y_conv := u32(i64(y) + y_off)
-			if app.check_change_chunkmap(last_cm_x, last_cm_y, x_conv, y_conv) {
 				chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
+			if check_change_chunkmap(last_cm_x, last_cm_y, x_conv, y_conv) {
 				last_cm_x = x_conv
 				last_cm_y = y_conv
 			}
@@ -3970,22 +3971,29 @@ fn (mut app App) update_cycle() {
 }
 
 @[inline]
-fn (mut app App) check_change_chunkmap(x u32, y u32, x1 u32, y1 u32) bool {
+fn check_change_chunkmap(x u32, y u32, x1 u32, y1 u32) bool {
 	return (x / chunk_size) * chunk_size != (x1 / chunk_size) * chunk_size || (y / chunk_size) * chunk_size != (y1 / chunk_size) * chunk_size
 }
 
 fn (mut app App) get_chunkmap_idx_at_coords(x u32, y u32) int {
-	for i, chunk in app.map {
-		if x >= chunk.x && y >= chunk.y && x < chunk.x + chunk_size && y < chunk.y + chunk_size {
-			return i	
+	x_ := (x / chunk_size) * chunk_size
+	y_ := (y / chunk_size) * chunk_size
+	coo := (u64(x_) << 32) | u64(y_)
+	return app.chunk_cache[coo] or {
+		for i, chunk in app.map {
+			if x_ == chunk.x && y == chunk.y {
+				app.chunk_cache[coo] = i
+				i
+			}
 		}
+		// chunk not found, create it
+		app.map << Chunk{
+			x: x_
+			y: y_
+		}
+		app.chunk_cache[coo] = app.map.len - 1
+		app.map.len - 1
 	}
-	// chunk not found, create it
-	app.map << Chunk{
-		x: (x / chunk_size) * chunk_size
-		y: (y / chunk_size) * chunk_size
-	}
-	return app.map.len - 1
 }
 
 // previous: 0 for actual state, 1 for the previous state
