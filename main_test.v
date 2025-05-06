@@ -99,9 +99,9 @@ fn test_seeded_fuzz() {
 	end := pos + 100
 	nb_cycles := 100
 	outer: for i in 0 .. 100 { 
-		println(i)
+		eprintln(i)
 		app.removal(pos, pos, end, end)
-		app.fuzz(pos, pos, end, end, [u32(0), 0])
+		app.fuzz(pos, pos, end, end, [u32(0), i])
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()

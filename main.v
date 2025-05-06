@@ -2581,9 +2581,16 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	} else {
 		_y_start, _y_end
 	}
+	mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
+	mut last_cm_x := x_start
+	mut last_cm_y := y_start
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
-			chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+			if app.check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
+				chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+				last_cm_x = x
+				last_cm_y = y
+			}
 			mut chunkmap := &app.map[chunk_i].id_map
 			x_map := x % chunk_size
 			y_map := y % chunk_size
@@ -2661,7 +2668,6 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								}
 								s_old_state, idx := app.get_elem_state_idx_by_id(s_adj_id, 1)
 								if s_old_state && !wire_state {
-									return x, y, 'problem: wire did not match south On state'
 									return x, y, 'problem: wire ${id & rid_mask} did not match south On state'
 								}
 							} else {
@@ -3683,6 +3689,8 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 	conv_x := u32(int(x) + x_dir)
 	conv_y := u32(int(y) + y_dir)
 	mut chunk_i := app.get_chunkmap_idx_at_coords(conv_x, conv_y)
+	mut last_cm_x := conv_x
+	mut last_cm_y := conv_y
 	mut next_chunkmap := &app.map[chunk_i].id_map
 	mut next_id := unsafe { next_chunkmap[conv_x % chunk_size][conv_y % chunk_size] }
 	mut input := false
@@ -3696,7 +3704,11 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			y_off += y_dir
 			x_conv := u32(i64(x) + x_off)
 			y_conv := u32(i64(y) + y_off)
-			chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
+			if app.check_change_chunkmap(last_cm_x, last_cm_y, x_conv, y_conv) {
+				chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
+				last_cm_x = x_conv
+				last_cm_y = y_conv
+			}
 			next_chunkmap = &app.map[chunk_i].id_map
 			next_id = unsafe { next_chunkmap[x_conv % chunk_size][y_conv % chunk_size] }
 		}
@@ -3931,8 +3943,8 @@ fn (mut app App) update_cycle() {
 		// 3. done
 		mut old_or_inp_state := false // will be all the inputs of the wire ORed
 		for inp in wire.inps {
-			inp_state, _ := app.get_elem_state_idx_by_id(inp, 0)
-			if inp_state {
+			old_inp_state, _ := app.get_elem_state_idx_by_id(inp, 1)
+			if old_inp_state {
 				old_or_inp_state = true // only one is needed for the OR to be true
 				break
 			}
@@ -3957,12 +3969,15 @@ fn (mut app App) update_cycle() {
 	}
 }
 
+@[inline]
+fn (mut app App) check_change_chunkmap(x u32, y u32, x1 u32, y1 u32) bool {
+	return (x / chunk_size) * chunk_size != (x1 / chunk_size) * chunk_size || (y / chunk_size) * chunk_size != (y1 / chunk_size) * chunk_size
+}
+
 fn (mut app App) get_chunkmap_idx_at_coords(x u32, y u32) int {
 	for i, chunk in app.map {
-		if x >= chunk.x && y >= chunk.y {
-			if x < chunk.x + chunk_size && y < chunk.y + chunk_size {
-				return i
-			}
+		if x >= chunk.x && y >= chunk.y && x < chunk.x + chunk_size && y < chunk.y + chunk_size {
+			return i	
 		}
 	}
 	// chunk not found, create it
