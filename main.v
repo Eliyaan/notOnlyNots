@@ -2,6 +2,7 @@ module main
 
 // TODO: add tests for the backend
 import math { pow }
+import arrays
 import os
 import rand
 import time
@@ -38,6 +39,7 @@ const elem_type_mask = u64(0xC000_0000_0000_0000) // 1100_0000...
 const id_mask = rid_mask | elem_type_mask // unique
 const ori_mask = u64(0x1800_0000_0000_0000) // 0001_1000...
 const chunk_size = 100
+const invalid_coo = u32(-1)
 const diode_poly_unscaled = [
 	[f32(0.2), 1.0, 0.4, 0.0, 0.6, 0.0, 0.8, 1.0], // north
 	[f32(0.2), 0.0, 0.8, 0.0, 0.6, 1.0, 0.4, 1.0], // south
@@ -2876,6 +2878,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	} else {
 		_y_start, _y_end
 	}
+	mut need_delete_nots := false
+	mut need_delete_diodes := false
 
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
@@ -2991,9 +2995,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
-					app.nots.delete(idx)
-					app.n_states[0].delete(idx)
-					app.n_states[1].delete(idx)
+					app.nots[idx].x = u32(-1) // will get deleted at the end
+					need_delete_nots = true
 
 					// 3. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
@@ -3008,9 +3011,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
-					app.diodes.delete(idx)
-					app.d_states[0].delete(idx)
-					app.d_states[1].delete(idx)
+					app.diodes[idx].x = u32(-1) // will get deleted at the end
+					need_delete_diodes = true
 
 					// 3. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
@@ -3091,6 +3093,22 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				}
 			}
 		}
+	}
+	if need_delete_nots {
+		state_filter_fn := fn [app] (idx int, elem bool) bool {
+			return app.nots[idx].x != invalid_coo
+		}
+		app.n_states[0] = arrays.filter_indexed(app.n_states[0], state_filter_fn)
+		app.n_states[1] = arrays.filter_indexed(app.n_states[1], state_filter_fn)
+		app.nots = app.nots.filter(it.x != invalid_coo)
+	}
+	if need_delete_diodes {
+		state_filter_fn := fn [app] (idx int, elem bool) bool {
+			return app.diodes[idx].x != invalid_coo
+		}
+		app.d_states[0] = arrays.filter_indexed(app.d_states[0], state_filter_fn)
+		app.d_states[1] = arrays.filter_indexed(app.d_states[1], state_filter_fn)
+		app.diodes = app.diodes.filter(it.x != invalid_coo)
 	}
 }
 
