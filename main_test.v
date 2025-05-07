@@ -141,7 +141,7 @@ fn test_seeded_fuzz() {
 	pos := u32(2_000_000)
 	end := pos + 100
 	nb_cycles := 100
-	outer: for i in 0 .. 100 { 
+	outer: for i in 0 .. 100 {
 		eprintln(i)
 		app.removal(pos, pos, end, end)
 		app.fuzz(pos, pos, end, end, [u32(0), i])

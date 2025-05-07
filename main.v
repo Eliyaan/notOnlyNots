@@ -2590,7 +2590,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	mut last_cm_y := y_start
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
-				chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+			chunk_i = app.get_chunkmap_idx_at_coords(x, y)
 			if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
 				last_cm_x = x
 				last_cm_y = y
@@ -2655,7 +2655,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
 					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1, 0)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1,
+						0)
 					wire_state, wire_idx := app.get_elem_state_idx_by_id(id, 0)
 					if (id & on_bits != 0) != wire_state {
 						return x, y, "problem: cable(map state)'s state is not the same as the wire"
@@ -2670,7 +2671,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								if s_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s input"
 								}
-								s_old_state, _ := app.get_elem_state_idx_by_id(s_adj_id, 1)
+								s_old_state, _ := app.get_elem_state_idx_by_id(s_adj_id,
+									1)
 								if s_old_state && !wire_state {
 									return x, y, 'problem: wire ${id & rid_mask} did not match south On state'
 								}
@@ -2691,7 +2693,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								if n_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: north(${n_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
-								n_old_state, _ := app.get_elem_state_idx_by_id(n_adj_id, 1)
+								n_old_state, _ := app.get_elem_state_idx_by_id(n_adj_id,
+									1)
 								if n_old_state && !wire_state {
 									return x, y, 'problem: wire did not match north On state'
 								}
@@ -2712,7 +2715,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								if e_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: east(${e_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
-								e_old_state, _ := app.get_elem_state_idx_by_id(e_adj_id, 1)
+								e_old_state, _ := app.get_elem_state_idx_by_id(e_adj_id,
+									1)
 								if e_old_state && !wire_state {
 									return x, y, 'problem: wire did not match east On state'
 								}
@@ -2733,7 +2737,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 								if w_adj_id & id_mask !in app.wires[wire_idx].inps.map(it & id_mask) {
 									return x, y, "problem: west(${w_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
-								w_old_state, _ := app.get_elem_state_idx_by_id(w_adj_id, 1)
+								w_old_state, _ := app.get_elem_state_idx_by_id(w_adj_id,
+									1)
 								if w_old_state && !wire_state {
 									return x, y, 'problem: wire did not match west On state'
 								}
@@ -3732,7 +3737,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			y_off += y_dir
 			x_conv := u32(i64(x) + x_off)
 			y_conv := u32(i64(y) + y_off)
-				chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
+			chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
 			if check_change_chunkmap(last_cm_x, last_cm_y, x_conv, y_conv) {
 				last_cm_x = x_conv
 				last_cm_y = y_conv
@@ -3999,7 +4004,8 @@ fn (mut app App) update_cycle() {
 
 @[inline]
 fn check_change_chunkmap(x u32, y u32, x1 u32, y1 u32) bool {
-	return (x / chunk_size) * chunk_size != (x1 / chunk_size) * chunk_size || (y / chunk_size) * chunk_size != (y1 / chunk_size) * chunk_size
+	return (x / chunk_size) * chunk_size != (x1 / chunk_size) * chunk_size
+		|| (y / chunk_size) * chunk_size != (y1 / chunk_size) * chunk_size
 }
 
 fn (mut app App) get_chunkmap_idx_at_coords(x u32, y u32) int {
