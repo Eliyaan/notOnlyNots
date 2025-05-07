@@ -128,6 +128,35 @@ fn test_placement_small() {
 	println('Finished test_placement_small')
 }
 
+fn test_seeded_fuzz_small() {
+	mut app := App{}
+	name := 'test'
+	app.text_input = name
+	app.create_game()
+	// kill the thread to have control
+	app.comp_running = false
+	for app.comp_alive {}
+
+	app.nb_updates = 10_000_000
+	pos := u32(2_000_000)
+	end := pos + 10
+	nb_cycles := 10000
+	outer: for i in 0 .. 100 {
+		eprintln(i)
+		app.removal(pos, pos, end, end)
+		app.fuzz(pos, pos, end, end, [u32(0), i])
+		app.update_cycle()
+		for _ in 0 .. nb_cycles {
+			app.update_cycle()
+			x_err, y_err, str_err := app.test_validity(pos, pos, end, end)
+			if str_err != '' {
+				panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+			}
+		}
+	}
+	println('Finished test_seeded_fuzz_small')
+}
+
 fn test_seeded_fuzz() {
 	mut app := App{}
 	name := 'test'
