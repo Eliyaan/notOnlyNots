@@ -2,7 +2,6 @@ module main
 
 // TODO: add tests for the backend
 import math { pow }
-import arrays
 import os
 import rand
 import time
@@ -378,13 +377,13 @@ mut:
 	copied          []PlaceInstruction
 	actual_state    int // indicate which list is the old state list and which is the actual one, 0 for the first, 1 for the second
 	nots            []Nots
-	n_next_rid      u64 = 1
+	n_next_rid      u64
 	n_states        [2][]bool // the old state and the actual state list
 	diodes          []Diode
-	d_next_rid      u64 = 1
+	d_next_rid      u64
 	d_states        [2][]bool
 	wires           []Wire
-	w_next_rid      u64 = 1
+	w_next_rid      u64
 	w_states        [2][]bool
 	forced_states   [][2]u32    // forced to ON state by a keyboard input
 	colorchips      []ColorChip // screens
@@ -1266,15 +1265,15 @@ fn (mut app App) create_game() {
 		app.copied = []
 		app.actual_state = 0
 		app.nots = []
-		app.n_next_rid = 1
+		app.n_next_rid = 0
 		app.n_states[0] = []
 		app.n_states[1] = []
 		app.diodes = []
-		app.d_next_rid = 1
+		app.d_next_rid = 0
 		app.d_states[0] = []
 		app.d_states[1] = []
 		app.wires = []
-		app.w_next_rid = 1
+		app.w_next_rid = 0
 		app.w_states[0] = []
 		app.w_states[1] = []
 		app.comp_running = true
@@ -2599,11 +2598,31 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			x_map := x % chunk_size
 			y_map := y % chunk_size
 			id := unsafe { chunkmap[x_map][y_map] }
+			rid := id & rid_mask
 			if id == 0x0 { // map empty
 				continue
 			}
 			if id == elem_crossing_bits { // same bits as wires so need to be separated
 				continue // do not have any state to check
+			}
+			// check if not dead
+			match id & elem_type_mask {
+				elem_not_bits {
+					if app.nots[rid].x == invalid_coo {
+						continue
+					}
+				}
+				elem_diode_bits {
+					if app.diodes[rid].x == invalid_coo {
+						continue
+					}
+				}
+				elem_wire_bits {
+					if app.wires[rid].cable_coords[0][0] == invalid_coo {
+						continue
+					}
+				}
+				else {}
 			}
 			ori := id & ori_mask
 			step := match ori {
@@ -2883,9 +2902,6 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	} else {
 		_y_start, _y_end
 	}
-	mut need_delete_nots := false
-	mut need_delete_diodes := false
-	mut need_delete_wires := false
 
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
@@ -3001,8 +3017,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
-					app.nots[idx].x = invalid_coo // will get deleted at the end
-					need_delete_nots = true
+					app.nots[idx].x = invalid_coo // now invalid
 
 					// 3. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
@@ -3018,7 +3033,6 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
 					app.diodes[idx].x = invalid_coo // will get deleted at the end
-					need_delete_diodes = true
 
 					// 3. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
@@ -3070,7 +3084,6 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					} else if coo_adj_wire.len == 0 {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
 						app.wires[idx].cable_coords[0][0] = invalid_coo
-						need_delete_wires = true
 					} else { // if only 1 adjacent wire: remove the cable from the wire
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
 						i := app.wires[idx].cable_coords.index([x, y]!)
@@ -3098,30 +3111,6 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				}
 			}
 		}
-	}
-	if need_delete_nots {
-		state_filter_fn := fn [app] (idx int, elem bool) bool {
-			return app.nots[idx].x != invalid_coo
-		}
-		app.n_states[0] = arrays.filter_indexed(app.n_states[0], state_filter_fn)
-		app.n_states[1] = arrays.filter_indexed(app.n_states[1], state_filter_fn)
-		app.nots = app.nots.filter(it.x != invalid_coo)
-	}
-	if need_delete_diodes {
-		state_filter_fn := fn [app] (idx int, elem bool) bool {
-			return app.diodes[idx].x != invalid_coo
-		}
-		app.d_states[0] = arrays.filter_indexed(app.d_states[0], state_filter_fn)
-		app.d_states[1] = arrays.filter_indexed(app.d_states[1], state_filter_fn)
-		app.diodes = app.diodes.filter(it.x != invalid_coo)
-	}
-	if need_delete_wires {		
-		state_filter_fn := fn [app] (idx int, elem bool) bool {
-			return app.wires[idx].cable_coords[0][0] != invalid_coo
-		}
-		app.w_states[0] = arrays.filter_indexed(app.w_states[0], state_filter_fn)
-		app.w_states[1] = arrays.filter_indexed(app.w_states[1], state_filter_fn)
-		app.wires = app.wires.filter(it.cable_coords[0][0] != invalid_coo)
 	}
 }
 
@@ -3421,7 +3410,9 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 							coo[1])
 						if adj_id == empty_id {
 						} else if adj_id & elem_type_mask == elem_wire_bits {
-							adjacent_wires << adj_id & id_mask
+							if app.wires[adj_id & rid_mask].cable_coords[0][0] != invalid_coo {
+								adjacent_wires << adj_id & id_mask
+							}
 						} else {
 							if is_input {
 								adjacent_inps << adj_id & id_mask // for the new inps
@@ -3594,7 +3585,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 }
 
 fn (mut app App) join_wires(mut adjacent_wires []u64) {
-	adjacent_wires.sort() // the id order is the same as the idx order so no problem for deletion
+	//	adjacent_wires.sort() // the id order is the same as the idx order so no problem for deletion
 	_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
 	for wire in adjacent_wires[1..] { // find the state
 		_, i := app.get_elem_state_idx_by_id(wire, 0)
@@ -3639,9 +3630,7 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 		app.wires[first_i].inps << app.wires[i].inps
 		app.wires[first_i].outs << app.wires[i].outs
 		// delete the old wires
-		app.wires.delete(i)
-		app.w_states[0].delete(i)
-		app.w_states[1].delete(i)
+		app.wires[i].cable_coords[0][0] = invalid_coo
 	}
 }
 
@@ -3775,6 +3764,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			input = true
 		}
 	} else if next_id & elem_type_mask == elem_wire_bits {
+		if app.wires[next_id & rid_mask].cable_coords[0][0] == invalid_coo {
+			next_id = empty_id
+		}
 	} else if next_id & elem_type_mask == elem_not_bits {
 		// Need to find the ori of the step and do the check
 		ori, opposite_ori := match [x_dir, y_dir]! {
@@ -3802,6 +3794,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 		} else {
 			next_id = empty_id
 		}
+		if app.nots[next_id & rid_mask].x == invalid_coo {
+			next_id = empty_id
+		}
 	} else if next_id & elem_type_mask == elem_diode_bits {
 		ori, opposite_ori := match [x_dir, y_dir]! {
 			[0, 1]! {
@@ -3826,6 +3821,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 		} else if next_id & ori_mask == opposite_ori {
 			input = true
 		} else {
+			next_id = empty_id
+		}
+		if app.diodes[next_id & rid_mask].x == invalid_coo {
 			next_id = empty_id
 		}
 	}
@@ -3883,12 +3881,21 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 			next_id = empty_id
 		}
 	} else if next_id & elem_type_mask == elem_wire_bits {
+		if app.wires[next_id & rid_mask].cable_coords[0][0] == invalid_coo {
+			next_id = empty_id
+		}
 	} else if next_id & elem_type_mask == elem_not_bits {
 		if next_id & ori_mask != gate_ori {
 			next_id = empty_id
 		}
+		if app.nots[next_id & rid_mask].x == invalid_coo {
+			next_id = empty_id
+		}
 	} else if next_id & elem_type_mask == elem_diode_bits {
 		if next_id & ori_mask != gate_ori {
+			next_id = empty_id
+		}
+		if app.diodes[next_id & rid_mask].x == invalid_coo {
 			next_id = empty_id
 		}
 	}
@@ -3935,67 +3942,73 @@ fn (mut app App) update_cycle() {
 	app.actual_state = (app.actual_state + 1) % 2
 	// 2. done
 	for i, not in app.nots {
-		// 3. done
-		old_inp_state, _ := app.get_elem_state_idx_by_id(not.inp, 1)
-		// 4. done
-		app.n_states[app.actual_state][i] = !old_inp_state
-		chunk_i := app.get_chunkmap_idx_at_coords(not.x, not.y)
-		mut chunkmap := &app.map[chunk_i].id_map
-		xmap := not.x % chunk_size
-		ymap := not.y % chunk_size
-		if old_inp_state {
-			unsafe {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
-			}
-		} else {
-			unsafe {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+		if not.x != invalid_coo {
+			// 3. done
+			old_inp_state, _ := app.get_elem_state_idx_by_id(not.inp, 1)
+			// 4. done
+			app.n_states[app.actual_state][i] = !old_inp_state
+			chunk_i := app.get_chunkmap_idx_at_coords(not.x, not.y)
+			mut chunkmap := &app.map[chunk_i].id_map
+			xmap := not.x % chunk_size
+			ymap := not.y % chunk_size
+			if old_inp_state {
+				unsafe {
+					chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
+				}
+			} else {
+				unsafe {
+					chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+				}
 			}
 		}
 	}
 	for i, diode in app.diodes {
-		// 3. done
-		old_inp_state, _ := app.get_elem_state_idx_by_id(diode.inp, 1)
-		// 4. done
-		app.d_states[app.actual_state][i] = old_inp_state
-		chunk_i := app.get_chunkmap_idx_at_coords(diode.x, diode.y)
-		mut chunkmap := &app.map[chunk_i].id_map
-		xmap := diode.x % chunk_size
-		ymap := diode.y % chunk_size
-		if old_inp_state {
-			unsafe {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
-			}
-		} else {
-			unsafe {
-				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
-			}
-		}
-	}
-	for i, wire in app.wires {
-		// 3. done
-		mut old_or_inp_state := false // will be all the inputs of the wire ORed
-		for inp in wire.inps {
-			old_inp_state, _ := app.get_elem_state_idx_by_id(inp, 1)
-			if old_inp_state {
-				old_or_inp_state = true // only one is needed for the OR to be true
-				break
-			}
-		}
-		// 4. done
-		app.w_states[app.actual_state][i] = old_or_inp_state
-		for cable_coo in wire.cable_coords {
-			chunk_i := app.get_chunkmap_idx_at_coords(cable_coo[0], cable_coo[1])
+		if diode.x != invalid_coo {
+			// 3. done
+			old_inp_state, _ := app.get_elem_state_idx_by_id(diode.inp, 1)
+			// 4. done
+			app.d_states[app.actual_state][i] = old_inp_state
+			chunk_i := app.get_chunkmap_idx_at_coords(diode.x, diode.y)
 			mut chunkmap := &app.map[chunk_i].id_map
-			xmap := cable_coo[0] % chunk_size
-			ymap := cable_coo[1] % chunk_size
-			if old_or_inp_state {
+			xmap := diode.x % chunk_size
+			ymap := diode.y % chunk_size
+			if old_inp_state {
 				unsafe {
 					chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
 				}
 			} else {
 				unsafe {
 					chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
+				}
+			}
+		}
+	}
+	for i, wire in app.wires {
+		if wire.cable_coords[0][0] != invalid_coo {
+			// 3. done
+			mut old_or_inp_state := false // will be all the inputs of the wire ORed
+			for inp in wire.inps {
+				old_inp_state, _ := app.get_elem_state_idx_by_id(inp, 1)
+				if old_inp_state {
+					old_or_inp_state = true // only one is needed for the OR to be true
+					break
+				}
+			}
+			// 4. done
+			app.w_states[app.actual_state][i] = old_or_inp_state
+			for cable_coo in wire.cable_coords {
+				chunk_i := app.get_chunkmap_idx_at_coords(cable_coo[0], cable_coo[1])
+				mut chunkmap := &app.map[chunk_i].id_map
+				xmap := cable_coo[0] % chunk_size
+				ymap := cable_coo[1] % chunk_size
+				if old_or_inp_state {
+					unsafe {
+						chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+					}
+				} else {
+					unsafe {
+						chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
+					}
 				}
 			}
 		}
@@ -4042,55 +4055,11 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 	if id & elem_type_mask == elem_on_bits { // on
 		return true, -1
 	} else if id & elem_type_mask == elem_not_bits { // not
-		mut low := 0
-		mut high := app.nots.len - 1
-		mut mid := 0 // tmp value
-		for low <= high {
-			mid = low + ((high - low) >> 1) // low + half
-			// If x is smaller, ignore left half
-			if app.nots[mid].rid < rid {
-				low = mid + 1
-			}
-			// If x greater, ignore right half
-			else if app.nots[mid].rid > rid {
-				high = mid - 1
-			}
-			// Check if x is present at mid
-			else {
-				return app.n_states[concerned_state][mid], mid
-			}
-		}
-		dump(app.nots)
+		return app.n_states[concerned_state][rid], int(rid)
 	} else if id & elem_type_mask == elem_diode_bits { // diode
-		mut low := 0
-		mut high := app.diodes.len - 1
-		mut mid := 0 // tmp value
-		for low <= high {
-			mid = low + ((high - low) >> 1) // low + half
-			if app.diodes[mid].rid < rid {
-				low = mid + 1
-			} else if app.diodes[mid].rid > rid {
-				high = mid - 1
-			} else {
-				return app.d_states[concerned_state][mid], mid
-			}
-		}
-		dump(app.diodes)
+		return app.d_states[concerned_state][rid], int(rid)
 	} else if id & elem_type_mask == elem_wire_bits { // wire
-		mut low := 0
-		mut high := app.wires.len - 1
-		mut mid := 0 // tmp value
-		for low <= high {
-			mid = low + ((high - low) >> 1) // low + half
-			if app.wires[mid].rid < rid {
-				low = mid + 1
-			} else if app.wires[mid].rid > rid {
-				high = mid - 1
-			} else {
-				return app.w_states[concerned_state][mid], mid
-			}
-		}
-		dump(app.wires)
+		return app.w_states[concerned_state][rid], int(rid)
 	}
 	app.log_quit('${@LOCATION} id not found in get_elem_state_idx_by_id: ${id & rid_mask}')
 }
