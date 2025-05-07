@@ -1453,6 +1453,7 @@ fn (mut app App) quit_map() {
 	for app.comp_alive {} // wait for quitting
 	dump('finished save')
 	app.main_menu = true
+	app.chunk_cache = {}
 }
 
 fn (mut app App) handle_ingame_ui_button_click(mouse_x f32, mouse_y f32) {
