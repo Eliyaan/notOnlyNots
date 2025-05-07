@@ -2880,6 +2880,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	}
 	mut need_delete_nots := false
 	mut need_delete_diodes := false
+	mut need_delete_wires := false
 
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
@@ -2995,7 +2996,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
-					app.nots[idx].x = u32(-1) // will get deleted at the end
+					app.nots[idx].x = invalid_coo // will get deleted at the end
 					need_delete_nots = true
 
 					// 3. done
@@ -3011,7 +3012,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
-					app.diodes[idx].x = u32(-1) // will get deleted at the end
+					app.diodes[idx].x = invalid_coo // will get deleted at the end
 					need_delete_diodes = true
 
 					// 3. done
@@ -3063,9 +3064,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						app.separate_wires(coo_adj_wire, id)
 					} else if coo_adj_wire.len == 0 {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
-						app.wires.delete(idx)
-						app.w_states[0].delete(idx)
-						app.w_states[1].delete(idx)
+						app.wires[idx].cable_coords[0][0] = invalid_coo
+						need_delete_wires = true
 					} else { // if only 1 adjacent wire: remove the cable from the wire
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
 						i := app.wires[idx].cable_coords.index([x, y]!)
@@ -3109,6 +3109,14 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		app.d_states[0] = arrays.filter_indexed(app.d_states[0], state_filter_fn)
 		app.d_states[1] = arrays.filter_indexed(app.d_states[1], state_filter_fn)
 		app.diodes = app.diodes.filter(it.x != invalid_coo)
+	}
+	if need_delete_wires {		
+		state_filter_fn := fn [app] (idx int, elem bool) bool {
+			return app.wires[idx].cable_coords[0][0] != invalid_coo
+		}
+		app.w_states[0] = arrays.filter_indexed(app.w_states[0], state_filter_fn)
+		app.w_states[1] = arrays.filter_indexed(app.w_states[1], state_filter_fn)
+		app.wires = app.wires.filter(it.cable_coords[0][0] != invalid_coo)
 	}
 }
 
