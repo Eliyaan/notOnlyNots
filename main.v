@@ -2827,6 +2827,11 @@ fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, seed [
 			}
 		}
 	}
+	for _ in x_start .. x_end {
+		x := rand.u32_in_range(x_start, x_end + 1) or {2}
+		y := rand.u32_in_range(y_start, y_end + 1) or {2}
+		app.removal(x, y, x, y)
+	}
 }
 
 fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
