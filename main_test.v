@@ -139,12 +139,13 @@ fn test_seeded_fuzz_small() {
 
 	app.nb_updates = 10_000_000
 	pos := u32(2_000_000)
-	end := pos + 10
+	size := 10
+	end := pos + size
 	nb_cycles := 10000
 	outer: for i in 0 .. 100 {
 		eprintln(i)
 		app.removal(pos, pos, end, end)
-		app.fuzz(pos, pos, end, end, [u32(0), i])
+		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(0), i])
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()
@@ -168,12 +169,13 @@ fn test_seeded_fuzz() {
 
 	app.nb_updates = 10_000_000
 	pos := u32(2_000_000)
-	end := pos + 100
+	size := 100
+	end := pos + size
 	nb_cycles := 100
 	outer: for i in 0 .. 100 {
 		eprintln(i)
 		app.removal(pos, pos, end, end)
-		app.fuzz(pos, pos, end, end, [u32(0), i])
+		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(0), i])
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()

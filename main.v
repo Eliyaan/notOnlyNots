@@ -2780,7 +2780,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	return 0, 0, ''
 }
 
-fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, seed []u32) {
+fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_tries int, d_tries int, seed []u32) {
 	// place random elems in a rectangle
 	rand.seed(seed)
 
@@ -2794,42 +2794,42 @@ fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, seed [
 	} else {
 		_y_start, _y_end
 	}
-	for x in x_start .. x_end {
-		for y in y_start .. y_end {
-			app.selected_ori = match rand.int_in_range(0, 4) or { 0 } {
-				1 { north }
-				2 { south }
-				3 { east }
-				else { west }
+	for _ in 0 .. p_tries {
+		x := rand.u32_in_range(x_start, x_end + 1) or { 2 }
+		y := rand.u32_in_range(y_start, y_end + 1) or { 2 }
+		app.selected_ori = match rand.int_in_range(0, 4) or { 0 } {
+			1 { north }
+			2 { south }
+			3 { east }
+			else { west }
+		}
+		match rand.int_in_range(0, 6) or { 0 } {
+			1 {
+				app.selected_item = .not
+				app.placement(x, y, x, y)
 			}
-			match rand.int_in_range(0, 6) or { 0 } {
-				1 {
-					app.selected_item = .not
-					app.placement(x, y, x, y)
-				}
-				2 {
-					app.selected_item = .diode
-					app.placement(x, y, x, y)
-				}
-				3 {
-					app.selected_item = .on
-					app.placement(x, y, x, y)
-				}
-				4 {
-					app.selected_item = .wire
-					app.placement(x, y, x, y)
-				}
-				5 {
-					app.selected_item = .crossing
-					app.placement(x, y, x, y)
-				}
-				else {}
+			2 {
+				app.selected_item = .diode
+				app.placement(x, y, x, y)
 			}
+			3 {
+				app.selected_item = .on
+				app.placement(x, y, x, y)
+			}
+			4 {
+				app.selected_item = .wire
+				app.placement(x, y, x, y)
+			}
+			5 {
+				app.selected_item = .crossing
+				app.placement(x, y, x, y)
+			}
+			else {}
 		}
 	}
-	for _ in x_start .. x_end {
-		x := rand.u32_in_range(x_start, x_end + 1) or {2}
-		y := rand.u32_in_range(y_start, y_end + 1) or {2}
+	for _ in 0 .. d_tries {
+		x := rand.u32_in_range(x_start, x_end + 1) or { 2 }
+		y := rand.u32_in_range(y_start, y_end + 1) or { 2 }
 		app.removal(x, y, x, y)
 	}
 }
@@ -3153,9 +3153,11 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	//			add adj_cable in the stack (with it's wire id on the id_stack)
 	//		else: do nothing
 	mut new_wires := []Wire{len: coo_adj_wires.len, init: Wire{
-		rid:          u64(index)
-		cable_coords: [[coo_adj_wires[index][0], coo_adj_wires[index][1]]!]
-		cable_chunk_i: [i64(app.get_chunkmap_idx_at_coords(coo_adj_wires[index][0], coo_adj_wires[index][1]))]
+		rid:           u64(index)
+		cable_coords:  [[coo_adj_wires[index][0], coo_adj_wires[index][1]]!]
+		cable_chunk_i: [
+			i64(app.get_chunkmap_idx_at_coords(coo_adj_wires[index][0], coo_adj_wires[index][1])),
+		]
 	}}
 	mut c_stack := [][2]u32{len: coo_adj_wires.len, init: coo_adj_wires[index]}
 	mut id_stack := []u64{len: coo_adj_wires.len, init: u64(index)}
@@ -4143,9 +4145,9 @@ mut:
 // A gate that outputs the opposite of the input signal
 struct Nots {
 mut:
-	rid u64 // real id
+	rid     u64 // real id
 	chunk_i i64
-	inp u64 // id of the input element of the not gate
+	inp     u64 // id of the input element of the not gate
 	// Map coordinates
 	x u32
 	y u32
@@ -4154,9 +4156,9 @@ mut:
 // A gate that transmit the input signal to the output element (unidirectionnal) and adds 1 tick delay (1 update cycle to update)
 struct Diode {
 mut:
-	rid u64 // real id
+	rid     u64 // real id
 	chunk_i i64
-	inp u64 // id of the input element of the not gate
+	inp     u64 // id of the input element of the not gate
 	// Map coordinates
 	x u32
 	y u32
@@ -4172,9 +4174,9 @@ mut:
 // It outputs the OR of all it's inputs
 struct Wire {
 mut:
-	rid          u64      // real id
-	inps         []u64    // id of the input elements outputing to the wire
-	outs         []u64    // id of the output elements whose inputs are the wire
-	cable_coords [][2]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
-	cable_chunk_i []i64 // chunk index for each cable 
+	rid           u64      // real id
+	inps          []u64    // id of the input elements outputing to the wire
+	outs          []u64    // id of the output elements whose inputs are the wire
+	cable_coords  [][2]u32 // all the x y coordinates of the induvidual cables (elements) the wire is made of
+	cable_chunk_i []i64    // chunk index for each cable
 }
