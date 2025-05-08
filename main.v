@@ -3162,6 +3162,12 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	mut c_stack := [][2]u32{len: coo_adj_wires.len, init: coo_adj_wires[index]}
 	mut id_stack := []u64{len: coo_adj_wires.len, init: u64(index)}
 
+	mut which_wire := map[u64]u64 // rid of the above 
+	for i, w in coo_adj_wires {
+		m_coo := (u64(w[0]) << 32) | u64(w[1])
+		which_wire[m_coo] = u64(i)
+	}
+
 	cable_stack: for c_stack.len > 0 { // for each wire in the stack
 		cable := c_stack.pop()
 		cable_id := id_stack.pop()
@@ -3185,13 +3191,15 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 				assert adj_id == unsafe { adj_chunkmap[adj_x_map][adj_y_map] }
 				if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
 					adj_coo := [total_x, total_y]!
-					mut wid_adj := which_wire(new_wires, adj_coo) // will be the id of the wire in which the actual adj cable is
+					m_coo := (u64(total_x) << 32) | u64(total_y)
+					mut wid_adj := which_wire[m_coo] or {u64(-1)} // will be the id of the wire in which the actual adj cable is
 					if wid_adj == u64(-1) { // if the coord is not already in a wire list
 						for mut wire in new_wires { // find the wire where cable is
 							if wire.rid == cable_id {
 								wid_adj = cable_id
 								wire.cable_coords << adj_coo // the rest of this wire will get processed
 								wire.cable_chunk_i << chunk_i
+								which_wire[m_coo] = wire.rid
 								// no need remove it from it's actual wire because it is already done in the modifications in the end
 							}
 						}
@@ -3213,6 +3221,10 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 							}
 							wid_adj = cable_id
 							// merge
+							for cc in new_wires[i_sec].cable_coords {
+								cc_m_coo := (u64(cc[0]) << 32) | u64(cc[1])
+								which_wire[cc_m_coo] = cable_id
+							}
 							new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
 							new_wires[i_first].cable_chunk_i << new_wires[i_sec].cable_chunk_i
 							new_wires[i_first].inps << new_wires[i_sec].inps
@@ -3279,16 +3291,6 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 			app.add_input(out, wire.rid | elem_wire_bits)
 		}
 	}
-}
-
-fn which_wire(new_wires []Wire, coo [2]u32) u64 {
-	for wire in new_wires {
-		i := wire.cable_coords.index(coo)
-		if i != -1 {
-			return wire.rid
-		}
-	}
-	return u64(-1)
 }
 
 fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
