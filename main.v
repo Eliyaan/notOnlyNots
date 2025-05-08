@@ -2846,9 +2846,16 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 
 	app.copied = []
 
+	mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
+	mut last_cm_x := x_start
+	mut last_cm_y := y_start
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
-			chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+			if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
+				last_cm_x = x
+				last_cm_y = y
+				chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+			}
 			mut chunkmap := &app.map[chunk_i].id_map
 			x_map := x % chunk_size
 			y_map := y % chunk_size
@@ -3311,9 +3318,16 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	}
 	match app.selected_item {
 		.not {
+			mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
+			mut last_cm_x := x_start
+			mut last_cm_y := y_start
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+					if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
+						last_cm_x = x
+						last_cm_y = y
+						chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+					}
 					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -3340,9 +3354,16 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			}
 		}
 		.diode {
+			mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
+			mut last_cm_x := x_start
+			mut last_cm_y := y_start
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+					if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
+						last_cm_x = x
+						last_cm_y = y
+						chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+					}
 					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -3369,9 +3390,16 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			}
 		}
 		.on {
+			mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
+			mut last_cm_x := x_start
+			mut last_cm_y := y_start
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+					if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
+						last_cm_x = x
+						last_cm_y = y
+						chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+					}
 					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -3394,9 +3422,16 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			}
 		}
 		.wire {
+			mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
+			mut last_cm_x := x_start
+			mut last_cm_y := y_start
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+					if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
+						last_cm_x = x
+						last_cm_y = y
+						chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+					}
 					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -3470,9 +3505,16 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 			}
 		}
 		.crossing {
+			mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
+			mut last_cm_x := x_start
+			mut last_cm_y := y_start
 			for x in x_start .. x_end + 1 {
 				for y in y_start .. y_end + 1 {
-					chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+					if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
+						last_cm_x = x
+						last_cm_y = y
+						chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+					}
 					mut chunkmap := &app.map[chunk_i].id_map
 					x_map := x % chunk_size
 					y_map := y % chunk_size
@@ -3732,10 +3774,10 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			y_off += y_dir
 			x_conv := u32(i64(x) + x_off)
 			y_conv := u32(i64(y) + y_off)
-			chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
 			if check_change_chunkmap(last_cm_x, last_cm_y, x_conv, y_conv) {
 				last_cm_x = x_conv
 				last_cm_y = y_conv
+				chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
 			}
 			next_chunkmap = &app.map[chunk_i].id_map
 			next_id = unsafe { next_chunkmap[x_conv % chunk_size][y_conv % chunk_size] }
@@ -3844,6 +3886,8 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 	conv_x := u32(int(x) + x_dir)
 	conv_y := u32(int(y) + y_dir)
 	mut chunk_i := app.get_chunkmap_idx_at_coords(conv_x, conv_y)
+	mut last_cm_x := conv_x
+	mut last_cm_y := conv_y
 	mut next_chunkmap := &app.map[chunk_i].id_map
 	mut next_id := unsafe { next_chunkmap[conv_x % chunk_size][conv_y % chunk_size] }
 	// Check if next gate's orientation is matching and not orthogonal
@@ -3856,7 +3900,11 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 			y_off += y_dir
 			x_conv := u32(i64(x) + x_off)
 			y_conv := u32(i64(y) + y_off)
-			chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
+			if check_change_chunkmap(last_cm_x, last_cm_y, x_conv, y_conv) {
+				last_cm_x = x_conv
+				last_cm_y = y_conv
+				chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
+			}
 			next_chunkmap = &app.map[chunk_i].id_map
 			next_id = unsafe { next_chunkmap[x_conv % chunk_size][y_conv % chunk_size] }
 		}
