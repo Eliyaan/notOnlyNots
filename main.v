@@ -2780,7 +2780,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	return 0, 0, ''
 }
 
-fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_tries int, d_tries int, seed []u32) {
+fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_tries u32, d_tries u32, seed []u32) {
 	// place random elems in a rectangle
 	rand.seed(seed)
 

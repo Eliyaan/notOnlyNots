@@ -139,7 +139,7 @@ fn test_seeded_fuzz_small() {
 
 	app.nb_updates = 10_000_000
 	pos := u32(2_000_000)
-	size := 10
+	size := u32(10)
 	end := pos + size
 	nb_cycles := 10000
 	outer: for i in 0 .. 100 {
@@ -169,7 +169,7 @@ fn test_seeded_fuzz() {
 
 	app.nb_updates = 10_000_000
 	pos := u32(2_000_000)
-	size := 100
+	size := u32(100)
 	end := pos + size
 	nb_cycles := 100
 	outer: for i in 0 .. 100 {
