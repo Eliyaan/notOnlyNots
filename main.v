@@ -2905,9 +2905,16 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 		_y_start, _y_end
 	}
 
+	mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
+	mut last_cm_x := x_start
+	mut last_cm_y := y_start
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
-			chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+			if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
+				last_cm_x = x
+				last_cm_y = y
+				chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+			}
 			mut chunkmap := &app.map[chunk_i].id_map
 			x_map := x % chunk_size
 			y_map := y % chunk_size
