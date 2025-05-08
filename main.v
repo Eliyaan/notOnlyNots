@@ -3638,11 +3638,15 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 fn (mut app App) get_input(elem_id u64) u64 {
 	if elem_id != empty_id && elem_id != elem_crossing_bits {
 		if elem_id & elem_type_mask == elem_not_bits { // not
-			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
-			return app.nots[idx].inp
+			if app.nots[elem_id & rid_mask].x != invalid_coo {
+				_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
+				return app.nots[idx].inp
+			}
 		} else if elem_id & elem_type_mask == elem_diode_bits { // diode
-			_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
-			return app.diodes[idx].inp
+			if app.diodes[elem_id & rid_mask].x != invalid_coo {
+				_, idx := app.get_elem_state_idx_by_id(elem_id, 0) // do not want the state
+				return app.diodes[idx].inp
+			}
 		} else if elem_id & elem_type_mask == elem_on_bits { // on -> does not have inputs
 		} else if elem_id & elem_type_mask == elem_wire_bits { // wire
 		}
