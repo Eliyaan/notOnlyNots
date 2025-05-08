@@ -63,6 +63,17 @@ const on_poly_unscaled = [
 	[f32(0.6), 0.2, 0.6, 0.8, 0.0, 0.6, 0.0, 0.4], // west
 	[f32(0.4), 0.2, 1.0, 0.4, 1.0, 0.6, 0.4, 0.8], // east
 ]
+const nots_array_default = [Nots{
+	x: invalid_coo
+}]
+
+const diode_array_default = [Diode{
+	x: invalid_coo
+}]
+
+const wire_array_default = [Wire{
+	cable_coords: [[invalid_coo, 0]!]
+}]
 
 enum Buttons {
 	cancel_button     // escapes modes
@@ -376,15 +387,12 @@ mut:
 	selected_ori    u64 = north
 	copied          []PlaceInstruction
 	actual_state    int // indicate which list is the old state list and which is the actual one, 0 for the first, 1 for the second
-	nots            []Nots
-	n_next_rid      u64
-	n_states        [2][]bool // the old state and the actual state list
-	diodes          []Diode
-	d_next_rid      u64
-	d_states        [2][]bool
-	wires           []Wire
-	w_next_rid      u64
-	w_states        [2][]bool
+	nots            []Nots    = nots_array_default.clone() // to start the rid at 1
+	n_states        [2][]bool = [[false], [false]]! // the old state and the actual state list
+	diodes          []Diode   = diode_array_default.clone()
+	d_states        [2][]bool = [[false], [false]]!
+	wires           []Wire    = wire_array_default.clone()
+	w_states        [2][]bool = [[false], [false]]!
 	forced_states   [][2]u32    // forced to ON state by a keyboard input
 	colorchips      []ColorChip // screens
 	palette         Palette = palette_def // TODO: edit palette and save palette
@@ -1264,18 +1272,12 @@ fn (mut app App) create_game() {
 		app.selected_ori = north
 		app.copied = []
 		app.actual_state = 0
-		app.nots = []
-		app.n_next_rid = 0
-		app.n_states[0] = []
-		app.n_states[1] = []
-		app.diodes = []
-		app.d_next_rid = 0
-		app.d_states[0] = []
-		app.d_states[1] = []
-		app.wires = []
-		app.w_next_rid = 0
-		app.w_states[0] = []
-		app.w_states[1] = []
+		app.nots = nots_array_default.clone() // to start the rid at 1
+		app.n_states = [[false], [false]]! // the old state and the actual state list
+		app.diodes = diode_array_default.clone()
+		app.d_states = [[false], [false]]!
+		app.wires = wire_array_default.clone()
+		app.w_states = [[false], [false]]!
 		app.comp_running = true
 		///
 		println('starting computation!!!')
@@ -3226,11 +3228,10 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	state0 := app.w_states[0][idx]
 	state1 := app.w_states[1][idx]
 	for mut wire in new_wires[1..] {
-		wire.rid = app.w_next_rid
+		wire.rid = u64(app.wires.len)
 		app.wires << wire
 		app.w_states[0] << state0
 		app.w_states[1] << state1
-		app.w_next_rid++
 	}
 
 	// change the ids of the cables on the map and the I/O's i/o (actual I/O of the new wires)
@@ -3277,8 +3278,6 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// add the state to the arrays (there are 2 state arrays to fill /!\)
 	// 3.
 	// update the output/inputs fields of the adjacent elements
-	// 4.
-	// add one to the rid of the type
 
 	x_start, x_end := if _x_start > _x_end {
 		_x_end, _x_start
@@ -3312,7 +3311,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 
 					// 1. done
-					id := elem_not_bits | app.n_next_rid | app.selected_ori
+					id := elem_not_bits | u64(app.nots.len) | app.selected_ori
 					unsafe {
 						chunkmap[x_map][y_map] = id
 					}
@@ -3326,9 +3325,6 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.add_input(out_id, id)
 					app.add_output(inp_id, id)
-
-					// 4. done
-					app.n_next_rid++
 				}
 			}
 		}
@@ -3344,7 +3340,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 
 					// 1. done
-					id := elem_diode_bits | app.d_next_rid | app.selected_ori
+					id := elem_diode_bits | u64(app.diodes.len) | app.selected_ori
 					unsafe {
 						chunkmap[x_map][y_map] = id
 					}
@@ -3358,9 +3354,6 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.add_input(out_id, id)
 					app.add_output(inp_id, id)
-
-					// 4. done
-					app.d_next_rid++
 				}
 			}
 		}
@@ -3386,8 +3379,6 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 3. done; only an input for other elements
 					out_id := app.next_gate_id(x, y, x_ori, y_ori, id & ori_mask)
 					app.add_input(out_id, id)
-
-					// 4. done, no need
 				}
 			}
 		}
@@ -3433,14 +3424,12 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					if adjacent_wires.len > 1 { // if only one wire, there is no need to join it
 						app.join_wires(mut adjacent_wires)
 					} else if adjacent_wires.len == 0 {
+						adjacent_wires << u64(app.wires.len) | elem_wire_bits
 						app.wires << Wire{
-							rid: app.w_next_rid
+							rid: u64(app.wires.len)
 						}
-						adjacent_wires << app.w_next_rid | elem_wire_bits
 						app.w_states[0] << false
 						app.w_states[1] << false
-						// 4. done /!\ only if creating a new wire
-						app.w_next_rid++
 					}
 					_, first_i := app.get_elem_state_idx_by_id(adjacent_wires[0], 0)
 
