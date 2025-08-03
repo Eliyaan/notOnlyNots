@@ -666,10 +666,10 @@ fn (mut app App) draw_ingame_ui_buttons() {
 	}
 }
 
-// inputs for colorchips
+// keyboard inputs locations
 fn (mut app App) draw_input_buttons() {
-	for key in app.key_pos.keys() {
-		for pos in app.key_pos[key] {
+	for _, positions in app.key_pos {
+		for pos in positions {
 			pos_x := f32(f64(pos[0] * u32(app.tile_size)) - app.cam_x)
 			pos_y := f32(f64(pos[1] * u32(app.tile_size)) - app.cam_y)
 			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.input_preview)
@@ -1538,6 +1538,8 @@ fn on_event(e &gg.Event, mut app App) {
 						// right click -> delete the pos = click_pos encountered in the map
 						// left click -> waiting for input, when input, save pos & key in the map
 						if e.mouse_button == .right {
+							app.tmp_pos_x = u32(-1)
+							app.tmp_pos_y = u32(-1)
 							for key in app.key_pos.keys() {
 								i := app.key_pos[key].index([u32(map_x), u32(map_y)]!)
 								if i != -1 {
@@ -1548,8 +1550,6 @@ fn on_event(e &gg.Event, mut app App) {
 							app.tmp_pos_x = u32(map_x) // TODO: show these too
 							app.tmp_pos_y = u32(map_y)
 						} else {
-							app.tmp_pos_x = u32(-1)
-							app.tmp_pos_y = u32(-1)
 							// TODO: move, do this with other modes too, it's nice to move w/ middle click when having a mouse
 						}
 					}
@@ -1680,37 +1680,6 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				}
-			} else if app.selection_mode { // TODO: disable to not grief
-				// TODO: pause the backend
-				/*
-				if e.key_code == .f {
-					fuzz_cycles := 100
-					/// /!\· interacts with the backend directly, to change TODO
-					if app.select_start_x != u32(-1) && app.select_start_y != u32(-1)
-						&& app.select_end_x != u32(-1) && app.select_end_y != u32(-1) {
-						outer: for i in 0 .. 100 { // 100 gates
-							println(i)
-							app.removal(app.select_start_x, app.select_start_y, app.select_end_x,
-								app.select_end_y)
-							app.fuzz(app.select_start_x, app.select_start_y, app.select_end_x,
-								app.select_end_y)
-							for _ in 0 .. fuzz_cycles {
-								app.update_cycle()
-								x_err, y_err, str_err := app.test_validity(app.select_start_x,
-									app.select_start_y, app.select_end_x, app.select_end_y)
-								if str_err != '' {
-									app.log('FAIL: (validity) ${str_err}')
-									println('TODO:')
-									println(x_err)
-									println(y_err)
-									// TODO: show the coords on screen (tp to the right place & color the square)
-									break outer
-								}
-							}
-						}
-					}
-				}
-				*/
 			}
 			if !(app.solo_menu || app.load_gate_mode || app.keyinput_mode || app.save_gate_mode) {
 				match e.key_code {
