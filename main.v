@@ -1863,6 +1863,57 @@ fn (mut app App) log_quit(message string) {
 	exit(1)
 }
 
+fn (mut app App) nice_print(id u64) {
+	rid := id & rid_mask
+	print('id: ${id:064b} rid: ${rid} ')
+	if id == elem_crossing_bits {
+		println('Crossing')
+	} else {
+		match id & elem_type_mask {
+			elem_wire_bits {
+				w := app.wires[rid]
+				println('inps: ${w.inps.map('${it:064b}')} outs: ${w.outs.map('${it:064b}')} cable_coords: ${w.cable_coords} cable_chunk_i: ${w.cable_chunk_i}')
+			}
+			elem_not_bits {
+				n := app.nots[rid]
+				x_c := n.x % chunk_size
+				y_c := n.y % chunk_size
+				chunk_i := app.get_chunkmap_idx_at_coords(n.x, n.y)
+				chunkmap := &app.map[chunk_i].id_map
+				match unsafe{chunkmap[x_c][y_c]} & ori_mask {
+					north { print('north ') }
+					south { print('south ') }
+					east { print('east ') }
+					west { print('west ') }
+					else {}
+				}
+				println('x: ${n.x} y: ${n.y} inp: ${n.inp:064b}')
+			}
+			elem_diode_bits {
+				d := app.diodes[rid]
+				x_c := d.x % chunk_size
+				y_c := d.y % chunk_size
+				chunk_i := app.get_chunkmap_idx_at_coords(d.x, d.y)
+				chunkmap := &app.map[chunk_i].id_map
+				match unsafe{chunkmap[x_c][y_c]} & ori_mask {
+					north { print('north ') }
+					south { print('south ') }
+					east { print('east ') }
+					west { print('west ') }
+					else {}
+				}
+				println('x: ${d.x} y: ${d.y} inp: ${d.inp:064b}')
+			}
+			elem_on_bits {
+				println('On')
+			}
+			else {
+				app.log_quit('${@LOCATION} should not get into this else')
+			}
+		}
+	}
+}
+
 fn (mut app App) log(message string) {
 	mut f := os.open_append(logs_path) or {
 		println('LOG: ${message}')
@@ -3651,7 +3702,7 @@ fn (mut app App) join_wires(mut adjacent_wires []u64) {
 		app.wires[first_i].cable_chunk_i << app.wires[i].cable_chunk_i
 		app.wires[first_i].inps << app.wires[i].inps
 		app.wires[first_i].outs << app.wires[i].outs
-		// delete the old wires
+		// delete the old wires, the map does not need update as the same cables are now in the new one
 		app.wires[i].cable_coords[0][0] = invalid_coo
 	}
 }
@@ -3820,9 +3871,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 		} else {
 			next_id = empty_id
 		}
-		if app.nots[next_id & rid_mask].x == invalid_coo {
-			next_id = empty_id
-		}
+		//if app.nots[next_id & rid_mask].x == invalid_coo { Next id should be empty_id in this case
+		//	next_id = empty_id
+		//}
 	} else if next_id & elem_type_mask == elem_diode_bits {
 		ori, opposite_ori := match [x_dir, y_dir]! {
 			[0, 1]! {
@@ -3849,9 +3900,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 		} else {
 			next_id = empty_id
 		}
-		if app.diodes[next_id & rid_mask].x == invalid_coo {
-			next_id = empty_id
-		}
+		//if app.diodes[next_id & rid_mask].x == invalid_coo {
+		//	next_id = empty_id
+		//}
 	}
 	return next_id, input, x_dir, y_dir
 }
