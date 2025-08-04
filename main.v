@@ -7,6 +7,7 @@ import rand
 import time
 import gg
 import toml
+import gx
 
 const game_data_path = 'game_data/'
 const player_data_path = 'player_data/'
@@ -74,6 +75,7 @@ const diode_array_default = [Diode{
 const wire_array_default = [Wire{
 	cable_coords: [[invalid_coo, 0]!]
 }]
+const log_width = 200
 
 enum Buttons {
 	cancel_button     // escapes modes
@@ -372,7 +374,12 @@ mut:
 	button_left_padding f32                    = 5.0
 	button_top_padding  f32                    = 5.0
 	buttons             map[Buttons]ButtonData = button_map.clone()
-	log                 string
+	log                 []string
+	log_cfg             gx.TextCfg = gx.TextCfg{
+		size:  16
+		color: gx.black
+	}
+	log_border          gg.Color
 	log_timer           int
 
 	// logic
@@ -414,7 +421,7 @@ fn main() {
 		bg_color:      app.palette.background
 		font_path:     font_path
 	)
-	app.log('Start: ${time.now()}')
+	app.log('Start: ${time.now()}', .info)
 	// lancement du programme/de la fenêtre
 	app.main_menu = true
 	unsafe {
@@ -467,7 +474,7 @@ fn toml_palette_color(color string, doc toml.Doc) gg.Color {
 
 fn (mut app App) load_palette() {
 	doc := toml.parse_file(palette_path) or {
-		app.log('Loading palette: ${err}')
+		app.log('Loading palette: ${err}', .err)
 		return
 	}
 	app.palette.junc = toml_palette_color('junc', doc)
@@ -562,7 +569,7 @@ mut:
 			// search results
 
 			app.gate_name_list = os.ls(gates_path) or {
-				app.log('cannot list files in ${gates_path}, ${err}')
+				app.log('cannot list files in ${gates_path}, ${err}', .err)
 				[]string{}
 			}
 			x := app.ui_width + app.gate_x_ofst
@@ -598,10 +605,26 @@ mut:
 	} else {
 		app.disable_all_ingame_modes()
 		app.ctx.draw_square_filled(0, 0, 10, gg.Color{255, 0, 0, 255})
-		app.log('Not implemented on_frame UI')
+		app.log('Not implemented on_frame UI', .err)
 	}
 	if app.log_timer > 0 {
-		app.ctx.draw_text_def(int(app.ui_width + 10), size.height - 20, app.log)
+		interline_spacing := 4
+		border := 5
+		h := app.log.len * (app.log_cfg.size + interline_spacing)
+		rect_x := size.width - log_width - border
+		rect_y := size.height - h - border
+		bor_x := rect_x - border
+		bor_y := rect_y - border
+		bor_w := log_width + 2 * border
+		bor_h := h + 2 * border
+		// colored border rect
+		app.ctx.draw_rect_filled(bor_x, bor_y, bor_w, bor_h, app.log_border)
+
+		app.ctx.draw_rect_filled(rect_x, rect_y, log_width, h, gx.white)
+		for i, l in app.log {
+			ly := rect_y + i * (interline_spacing + app.log_cfg.size)
+			app.ctx.draw_text(rect_x, ly, l, app.log_cfg)
+		}
 		app.log_timer -= 1
 	}
 	app.ctx.end(how: .passthru)
@@ -995,7 +1018,7 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		app.text_input = ''
 	} else if b == .edit_color {
 		if app.selected_colorchip == -1 {
-			app.log('No ColorChip selected')
+			app.log('No ColorChip selected', .warn)
 		} else {
 			app.disable_all_ingame_modes()
 			app.colorchips_hidden = false
@@ -1010,7 +1033,7 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		app.create_colorchip_submode = true
 	} else if b == .add_input {
 		if app.selected_colorchip == -1 {
-			app.log('No ColorChip selected')
+			app.log('No ColorChip selected', .warn)
 		} else {
 			app.disable_all_ingame_modes()
 			app.colorchips_hidden = true
@@ -1018,7 +1041,7 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		}
 	} else if b == .steal_settings {
 		if app.selected_colorchip == -1 {
-			app.log('No ColorChip selected')
+			app.log('No ColorChip selected', .warn)
 		} else {
 			app.disable_all_ingame_modes()
 			app.colorchips_hidden = false
@@ -1084,13 +1107,13 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 				app.select_start_x = u32(-1)
 				app.select_end_x = u32(-1)
 			} else {
-				app.log('Gate ${app.text_input} already exists')
+				app.log('Gate ${app.text_input} already exists', .warn)
 			}
 		}
 	} else if b == .copy_button {
 		if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
 			app.todo << TodoInfo{.copy, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
-			app.log('Copied selection')
+			app.log('Copied selection', .info)
 		}
 	} else if b == .selection_delete {
 		app.todo << TodoInfo{.removal, app.select_start_x, app.select_start_y, app.select_end_x, app.select_end_y, ''}
@@ -1216,18 +1239,18 @@ fn (mut app App) go_map_menu() {
 	app.text_input = ''
 	if !os.exists(maps_path) {
 		os.mkdir(maps_path) or {
-			app.log('Cannot create ${maps_path}, ${err}')
+			app.log('Cannot create ${maps_path}, ${err}', .err)
 			return
 		}
 	}
 	if !os.exists(gates_path) { // this one too in case
 		os.mkdir(gates_path) or {
-			app.log('Cannot create ${maps_path}, ${err}')
+			app.log('Cannot create ${maps_path}, ${err}', .err)
 			return
 		}
 	}
 	app.map_names_list = os.ls(maps_path) or {
-		app.log('Cannot list files in ${maps_path}, ${err}')
+		app.log('Cannot list files in ${maps_path}, ${err}', .err)
 		return
 	}
 }
@@ -1236,7 +1259,7 @@ fn (mut app App) load_saved_game(name string) {
 	dump('load_saved_game')
 	/// server side
 	app.load_map(name) or {
-		app.log('Cannot load map ${name}, ${err}')
+		app.log('Cannot load map ${name}, ${err}', .err)
 		return
 	}
 	app.map_name = name
@@ -1258,7 +1281,7 @@ fn (mut app App) load_saved_game(name string) {
 
 fn (mut app App) create_game() {
 	dump('create_game')
-	if !os.exists(maps_path + app.text_input) || true { // TODO
+	if !os.exists(maps_path + app.text_input) {
 		app.disable_all_ingame_modes()
 		app.solo_menu = false
 		/// serverside
@@ -1285,7 +1308,7 @@ fn (mut app App) create_game() {
 		app.cam_x = default_camera_pos_x
 		app.cam_y = default_camera_pos_y
 	} else {
-		app.log('Map ${app.text_input} already exists')
+		app.log('Map ${app.text_input} already exists', .warn)
 	}
 }
 
@@ -1507,7 +1530,7 @@ fn on_event(e &gg.Event, mut app App) {
 			} else if app.solo_menu {
 				if mouse_x >= app.maps_x_offset && mouse_x < app.maps_x_offset + app.maps_w {
 					app.map_names_list = os.ls(maps_path) or {
-						app.log('Cannot list files in ${maps_path}, ${err}')
+						app.log('Cannot list files in ${maps_path}, ${err}', .err)
 						return
 					}
 					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
@@ -1607,7 +1630,7 @@ fn on_event(e &gg.Event, mut app App) {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						app.gate_name_list = os.ls(gates_path) or {
-							app.log('cannot list files in ${gates_path}, ${err}')
+							app.log('cannot list files in ${gates_path}, ${err}', .err)
 							return
 						}
 						if mouse_x >= app.ui_width + app.gate_x_ofst
@@ -1880,7 +1903,7 @@ fn (mut app App) nice_print(id u64) {
 				y_c := n.y % chunk_size
 				chunk_i := app.get_chunkmap_idx_at_coords(n.x, n.y)
 				chunkmap := &app.map[chunk_i].id_map
-				match unsafe{chunkmap[x_c][y_c]} & ori_mask {
+				match unsafe { chunkmap[x_c][y_c] } & ori_mask {
 					north { print('north ') }
 					south { print('south ') }
 					east { print('east ') }
@@ -1895,7 +1918,7 @@ fn (mut app App) nice_print(id u64) {
 				y_c := d.y % chunk_size
 				chunk_i := app.get_chunkmap_idx_at_coords(d.x, d.y)
 				chunkmap := &app.map[chunk_i].id_map
-				match unsafe{chunkmap[x_c][y_c]} & ori_mask {
+				match unsafe { chunkmap[x_c][y_c] } & ori_mask {
 					north { print('north ') }
 					south { print('south ') }
 					east { print('east ') }
@@ -1914,15 +1937,29 @@ fn (mut app App) nice_print(id u64) {
 	}
 }
 
-fn (mut app App) log(message string) {
-	mut f := os.open_append(logs_path) or {
-		println('LOG: ${message}')
+enum Log {
+	warn
+	err
+	info
+}
+
+fn (mut app App) log(message string, log_type Log) {
+	mut f := os.open_append(logs_path) or { // TODO: too slow for the main thread?
+		println('LOG: ${log_type} ${message}\n${err}')
 		return
 	}
-	f.write_string('LOG: ${message}\n') or { println(message) }
+	f.write_string('LOG: ${log_type} ${message}\n') or {
+		println('LOG: ${log_type} ${message}\n${err}')
+	}
 	f.close()
 	println(message)
-	app.log = message
+	// x2 because size is the height of the char and the width of the char is size/2
+	app.log = message.wrap(width: 2 * log_width / app.log_cfg.size).split('\n')
+	app.log_border = match log_type {
+		.warn { gg.Color{200, 200, 0, 255} }
+		.err { gg.Color{200, 0, 0, 255} }
+		.info { gg.Color{0, 200, 0, 255} }
+	}
 	app.log_timer = 180
 	// TODO: show on screen
 }
@@ -1975,7 +2012,7 @@ fn (mut app App) computation_loop() {
 				dump(todo)
 				match todo.task {
 					.save_map {
-						app.save_map(todo.name) or { app.log('save map: ${err}') }
+						app.save_map(todo.name) or { app.log('save map: ${err}', .err) }
 					}
 					.removal {
 						app.removal(todo.x, todo.y, todo.x_end, todo.y_end)
@@ -1985,11 +2022,11 @@ fn (mut app App) computation_loop() {
 					}
 					.load_gate {
 						app.load_gate_to_copied(todo.name) or {
-							app.log('load gate to copied: ${err}')
+							app.log('load gate to copied: ${err}', .err)
 						}
 					}
 					.save_gate {
-						app.save_copied(todo.name) or { app.log('save copied: ${err}') }
+						app.save_copied(todo.name) or { app.log('save copied: ${err}', .err) }
 					}
 					.place {
 						app.placement(todo.x, todo.y, todo.x_end, todo.y_end)
@@ -2008,7 +2045,7 @@ fn (mut app App) computation_loop() {
 					}
 					.quit {
 						dump('saving')
-						app.save_map(todo.name) or { app.log('save map: ${err}') }
+						app.save_map(todo.name) or { app.log('save map: ${err}', .err) }
 						dump('saved')
 						app.comp_running = false
 						app.back_to_main_menu()
@@ -2226,7 +2263,7 @@ fn (mut app App) save_map(map_name string) ! {
 	//	inputs [2]u32
 
 	mut file := os.open_file(maps_path + map_name, 'w') or {
-		app.log('${@LOCATION}: ${err}')
+		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	defer {
@@ -2236,25 +2273,25 @@ fn (mut app App) save_map(map_name string) ! {
 	mut offset := u64(0)
 	save_version := u32(0) // must be careful when V changes of int size, especially for array lenghts
 	file.write_raw_at(save_version, offset) or {
-		app.log('${@LOCATION}: ${err}')
+		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	dump('save version written')
 	offset += sizeof(save_version)
 	file.write_raw_at(i64(app.map.len), offset) or {
-		app.log('${@LOCATION}: ${err}')
+		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
 	dump(offset)
 	for mut chunk in app.map {
 		file.write_raw_at(chunk.x, offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(chunk.x)
 		file.write_raw_at(chunk.y, offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(chunk.y)
@@ -2265,12 +2302,12 @@ fn (mut app App) save_map(map_name string) ! {
 		offset += chunk_size * chunk_size * sizeof(u64)
 	}
 	file.write_raw_at(app.actual_state, offset) or {
-		app.log('${@LOCATION}: ${err}')
+		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(app.actual_state) // int
 	file.write_raw_at(i64(app.nots.len), offset) or {
-		app.log('${@LOCATION}: ${err}')
+		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
@@ -2284,7 +2321,7 @@ fn (mut app App) save_map(map_name string) ! {
 
 	dump(offset)
 	file.write_raw_at(i64(app.diodes.len), offset) or {
-		app.log('${@LOCATION}: ${err}')
+		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
@@ -2298,44 +2335,44 @@ fn (mut app App) save_map(map_name string) ! {
 
 	dump(offset)
 	file.write_raw_at(i64(app.wires.len), offset) or {
-		app.log('${@LOCATION}: ${err}')
+		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
 	for wire in app.wires {
 		file.write_raw_at(wire.rid, offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(u64)
 
 		file.write_raw_at(i64(wire.inps.len), offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(i64)
 		unsafe { file.write_ptr_at(wire.inps.data, wire.inps.len * int(sizeof(u64)), offset) }
 
 		file.write_raw_at(i64(wire.outs.len), offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(i64)
 		unsafe { file.write_ptr_at(wire.outs.data, wire.outs.len * int(sizeof(u64)), offset) }
 
 		file.write_raw_at(i64(wire.cable_coords.len), offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(i64)
 		for cable in wire.cable_coords {
 			file.write_raw_at(cable[0], offset) or {
-				app.log('${@LOCATION}: ${err}')
+				app.log('${@LOCATION}: ${err}', .err)
 				return
 			}
 			offset += sizeof(u32)
 			file.write_raw_at(cable[1], offset) or {
-				app.log('${@LOCATION}: ${err}')
+				app.log('${@LOCATION}: ${err}', .err)
 				return
 			}
 			offset += sizeof(u32)
@@ -2349,18 +2386,18 @@ fn (mut app App) save_map(map_name string) ! {
 
 	dump(offset)
 	file.write_raw_at(i64(app.forced_states.len), offset) or {
-		app.log('${@LOCATION}: ${err}')
+		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
 	for pos in app.forced_states {
 		file.write_raw_at(pos[0], offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(u32)
 		file.write_raw_at(pos[1], offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(u32)
@@ -2368,51 +2405,51 @@ fn (mut app App) save_map(map_name string) ! {
 
 	dump(offset)
 	file.write_raw_at(i64(app.colorchips.len), offset) or {
-		app.log('${@LOCATION}: ${err}')
+		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
 	for cc in app.colorchips {
 		file.write_raw_at(cc.x, offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(u32)
 		file.write_raw_at(cc.y, offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(u32)
 		file.write_raw_at(cc.w, offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(u32)
 		file.write_raw_at(cc.h, offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(u32)
 
 		dump(offset)
 		file.write_raw_at(i64(cc.colors.len), offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(i64)
 		for color in cc.colors {
 			file.write_raw_at(color.r, offset) or {
-				app.log('${@LOCATION}: ${err}')
+				app.log('${@LOCATION}: ${err}', .err)
 				return
 			}
 			offset += sizeof(u8)
 			file.write_raw_at(color.g, offset) or {
-				app.log('${@LOCATION}: ${err}')
+				app.log('${@LOCATION}: ${err}', .err)
 				return
 			}
 			offset += sizeof(u8)
 			file.write_raw_at(color.b, offset) or {
-				app.log('${@LOCATION}: ${err}')
+				app.log('${@LOCATION}: ${err}', .err)
 				return
 			}
 			offset += sizeof(u8)
@@ -2420,18 +2457,18 @@ fn (mut app App) save_map(map_name string) ! {
 
 		dump(offset)
 		file.write_raw_at(i64(cc.inputs.len), offset) or {
-			app.log('${@LOCATION}: ${err}')
+			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(i64)
 		for i in cc.inputs {
 			file.write_raw_at(i[0], offset) or {
-				app.log('${@LOCATION}: ${err}')
+				app.log('${@LOCATION}: ${err}', .err)
 				return
 			}
 			offset += sizeof(u32)
 			file.write_raw_at(i[1], offset) or {
-				app.log('${@LOCATION}: ${err}')
+				app.log('${@LOCATION}: ${err}', .err)
 				return
 			}
 			offset += sizeof(u32)
@@ -2553,11 +2590,11 @@ fn (mut app App) gate_unit_tests(x u32, y u32, square_size int) {
 	cycles := square_size // we dont know in how much cycles the bug will happen, needs to match the amount in the fuzz testing because the unit tests will come from there
 	app.removal(x, y, x + size, y + size)
 	gates: for gate_path in os.ls('test_gates/') or {
-		app.log('Listing the test gates: ${err}')
+		app.log('Listing the test gates: ${err}', .err)
 		return
 	} {
 		app.load_gate_to_copied('test_gates/' + gate_path) or {
-			app.log('FAIL: cant load the gate: test_gates/${gate_path}, ${err}')
+			app.log('FAIL: cant load the gate: test_gates/${gate_path}, ${err}', .err)
 			continue
 		}
 		app.paste(x, y)
@@ -2565,7 +2602,7 @@ fn (mut app App) gate_unit_tests(x u32, y u32, square_size int) {
 			app.update_cycle()
 			x_err, y_err, str_err := app.test_validity(x, y, x + size, y + size)
 			if str_err != '' {
-				app.log('FAIL: (validity) ${str_err}')
+				app.log('FAIL: (validity) ${str_err}', .err)
 				println('TODO:')
 				println(x_err)
 				println(y_err)
@@ -3182,7 +3219,7 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 	mut c_stack := [][2]u32{len: coo_adj_wires.len, init: coo_adj_wires[index]}
 	mut id_stack := []u64{len: coo_adj_wires.len, init: u64(index)}
 
-	mut which_wire := map[u64]u64 // rid of the above 
+	mut which_wire := map[u64]u64{} // rid of the above
 	for i, w in coo_adj_wires {
 		m_coo := (u64(w[0]) << 32) | u64(w[1])
 		which_wire[m_coo] = u64(i)
@@ -3212,7 +3249,7 @@ fn (mut app App) separate_wires(coo_adj_wires [][2]u32, id u64) {
 				if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
 					adj_coo := [total_x, total_y]!
 					m_coo := (u64(total_x) << 32) | u64(total_y)
-					mut wid_adj := which_wire[m_coo] or {u64(-1)} // will be the id of the wire in which the actual adj cable is
+					mut wid_adj := which_wire[m_coo] or { u64(-1) } // will be the id of the wire in which the actual adj cable is
 					if wid_adj == u64(-1) { // if the coord is not already in a wire list
 						for mut wire in new_wires { // find the wire where cable is
 							if wire.rid == cable_id {
@@ -3871,7 +3908,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 		} else {
 			next_id = empty_id
 		}
-		//if app.nots[next_id & rid_mask].x == invalid_coo { Next id should be empty_id in this case
+		// if app.nots[next_id & rid_mask].x == invalid_coo { Next id should be empty_id in this case
 		//	next_id = empty_id
 		//}
 	} else if next_id & elem_type_mask == elem_diode_bits {
@@ -3900,7 +3937,7 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 		} else {
 			next_id = empty_id
 		}
-		//if app.diodes[next_id & rid_mask].x == invalid_coo {
+		// if app.diodes[next_id & rid_mask].x == invalid_coo {
 		//	next_id = empty_id
 		//}
 	}
