@@ -746,70 +746,80 @@ fn (mut app App) draw_paste_preview() {
 			app.ctx.begin()
 			app.draw_count = 1
 		}
-		if pi.elem == .crossing { // same bits as wires so need to be separated
-			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.junc)
-			app.ctx.draw_rect_filled(pos_x, pos_y + app.tile_size / 3, app.tile_size,
-				app.tile_size / 3, app.palette.junc_h)
-			app.ctx.draw_rect_filled(pos_x + app.tile_size / 3, pos_y, app.tile_size / 3,
-				app.tile_size, app.palette.junc_v)
-			app.draw_count += 3
-		} else {
-			state_color, not_state_color := app.palette.wire_off, app.palette.wire_on
+		state_color, not_state_color := app.palette.wire_off, app.palette.wire_on
 
-			ori := match orient {
-				north { 0 }
-				south { 1 }
-				west { 2 }
-				east { 3 }
-				else { app.log_quit('${@LOCATION} should not get into this else') }
+		match pi.elem {
+			.not {
+				ori := match orient {
+					north { 0 }
+					south { 1 }
+					west { 2 }
+					east { 3 }
+					else { app.log_quit('${@LOCATION} should not get into this else') }
+				}
+				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.not)
+				not_poly_offset[0] = not_poly[ori][0] + pos_x
+				not_poly_offset[1] = not_poly[ori][1] + pos_y
+				not_poly_offset[2] = not_poly[ori][2] + pos_x
+				not_poly_offset[3] = not_poly[ori][3] + pos_y
+				not_poly_offset[4] = not_poly[ori][4] + pos_x
+				not_poly_offset[5] = not_poly[ori][5] + pos_y
+				app.ctx.draw_convex_poly(not_poly_offset, not_state_color)
+				app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x, not_rect[ori][1] + pos_y,
+					not_rect[ori][2], not_rect[ori][3], state_color)
+				app.draw_count += 3
 			}
-			match pi.elem {
-				.not {
-					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.not)
-					not_poly_offset[0] = not_poly[ori][0] + pos_x
-					not_poly_offset[1] = not_poly[ori][1] + pos_y
-					not_poly_offset[2] = not_poly[ori][2] + pos_x
-					not_poly_offset[3] = not_poly[ori][3] + pos_y
-					not_poly_offset[4] = not_poly[ori][4] + pos_x
-					not_poly_offset[5] = not_poly[ori][5] + pos_y
-					app.ctx.draw_convex_poly(not_poly_offset, not_state_color)
-					app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x, not_rect[ori][1] + pos_y,
-						not_rect[ori][2], not_rect[ori][3], state_color)
-					app.draw_count += 3
+			.diode {
+				ori := match orient {
+					north { 0 }
+					south { 1 }
+					west { 2 }
+					east { 3 }
+					else { app.log_quit('${@LOCATION} should not get into this else') }
 				}
-				.diode {
-					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.diode)
-					diode_poly_offset[0] = diode_poly[ori][0] + pos_x
-					diode_poly_offset[1] = diode_poly[ori][1] + pos_y
-					diode_poly_offset[2] = diode_poly[ori][2] + pos_x
-					diode_poly_offset[3] = diode_poly[ori][3] + pos_y
-					diode_poly_offset[4] = diode_poly[ori][4] + pos_x
-					diode_poly_offset[5] = diode_poly[ori][5] + pos_y
-					diode_poly_offset[6] = diode_poly[ori][6] + pos_x
-					diode_poly_offset[7] = diode_poly[ori][7] + pos_y
-					app.ctx.draw_convex_poly(diode_poly_offset, state_color)
-					app.draw_count += 2
+				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.diode)
+				diode_poly_offset[0] = diode_poly[ori][0] + pos_x
+				diode_poly_offset[1] = diode_poly[ori][1] + pos_y
+				diode_poly_offset[2] = diode_poly[ori][2] + pos_x
+				diode_poly_offset[3] = diode_poly[ori][3] + pos_y
+				diode_poly_offset[4] = diode_poly[ori][4] + pos_x
+				diode_poly_offset[5] = diode_poly[ori][5] + pos_y
+				diode_poly_offset[6] = diode_poly[ori][6] + pos_x
+				diode_poly_offset[7] = diode_poly[ori][7] + pos_y
+				app.ctx.draw_convex_poly(diode_poly_offset, state_color)
+				app.draw_count += 2
+			}
+			.on {
+				ori := match orient {
+					north { 0 }
+					south { 1 }
+					west { 2 }
+					east { 3 }
+					else { app.log_quit('${@LOCATION} should not get into this else') }
 				}
-				.on {
-					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.on)
-					on_poly_offset[0] = on_poly[ori][0] + pos_x
-					on_poly_offset[1] = on_poly[ori][1] + pos_y
-					on_poly_offset[2] = on_poly[ori][2] + pos_x
-					on_poly_offset[3] = on_poly[ori][3] + pos_y
-					on_poly_offset[4] = on_poly[ori][4] + pos_x
-					on_poly_offset[5] = on_poly[ori][5] + pos_y
-					on_poly_offset[6] = on_poly[ori][6] + pos_x
-					on_poly_offset[7] = on_poly[ori][7] + pos_y
-					app.ctx.draw_convex_poly(on_poly_offset, app.palette.wire_on)
-					app.draw_count += 2
-				}
-				.wire {
-					app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, state_color)
-					app.draw_count += 1
-				}
-				else {
-					app.log_quit('${@LOCATION} should not get into this else')
-				}
+				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.on)
+				on_poly_offset[0] = on_poly[ori][0] + pos_x
+				on_poly_offset[1] = on_poly[ori][1] + pos_y
+				on_poly_offset[2] = on_poly[ori][2] + pos_x
+				on_poly_offset[3] = on_poly[ori][3] + pos_y
+				on_poly_offset[4] = on_poly[ori][4] + pos_x
+				on_poly_offset[5] = on_poly[ori][5] + pos_y
+				on_poly_offset[6] = on_poly[ori][6] + pos_x
+				on_poly_offset[7] = on_poly[ori][7] + pos_y
+				app.ctx.draw_convex_poly(on_poly_offset, app.palette.wire_on)
+				app.draw_count += 2
+			}
+			.wire {
+				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, state_color)
+				app.draw_count += 1
+			}
+			.crossing {
+				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.junc)
+				app.ctx.draw_rect_filled(pos_x, pos_y + app.tile_size / 3, app.tile_size,
+					app.tile_size / 3, app.palette.junc_h)
+				app.ctx.draw_rect_filled(pos_x + app.tile_size / 3, pos_y, app.tile_size / 3,
+					app.tile_size, app.palette.junc_v)
+				app.draw_count += 3
 			}
 		}
 		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.copy_preview)
@@ -2082,7 +2092,18 @@ fn (mut app App) save_copied(name_ string) ! {
 			name += 'New'
 		}
 		mut file := os.open_file(gates_path + name, 'w')!
-		unsafe { file.write_ptr(app.copied.data, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it -> successful or not?
+		$if tinyc { // TODO: change back when tcc understands enum sizes
+			mut place := LoadPlaceInstruction{}
+			for p in app.copied {
+				place.elem = u8(p.elem)
+				place.orientation = p.orientation
+				place.rel_x = p.rel_x
+				place.rel_y = p.rel_y
+				file.write_struct(&place)!
+			}
+		} $else {
+			unsafe { file.write_ptr(app.copied.data, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it -> successful or not?
+		}
 		file.close()
 	}
 }
@@ -2477,18 +2498,63 @@ fn (mut app App) save_map(map_name string) ! {
 	dump(offset)
 }
 
-fn (mut app App) load_gate_to_copied(gate_name string) ! {
+struct OldPlaceInstruction {
+mut:
+	elem        u32
+	orientation u8
+	rel_x       i32
+	rel_y       i32
+}
+
+fn (mut app App) old_load_gate_to_copied(gate_name string) ! {
 	mut f := os.open(gates_path + gate_name)!
 	mut read_n := u32(0)
 	size := os.inode(gates_path + gate_name).size
 	app.copied = []
+	mut oplace := OldPlaceInstruction{}
 	mut place := PlaceInstruction{}
-	for read_n * sizeof(PlaceInstruction) < size {
-		f.read_struct_at(mut place, read_n * sizeof(PlaceInstruction))!
+	for read_n * sizeof(OldPlaceInstruction) < size {
+		f.read_struct_at(mut oplace, read_n * sizeof(OldPlaceInstruction))!
+		place.elem = Elem.from(oplace.elem)!
+		place.orientation = oplace.orientation
+		place.rel_x = oplace.rel_x
+		place.rel_y = oplace.rel_y
 		app.copied << place
 		read_n += 1
 	}
 	f.close()
+}
+
+struct LoadPlaceInstruction {
+mut:
+	elem        u8
+	orientation u8
+	rel_x       i32
+	rel_y       i32
+}
+
+fn (mut app App) load_gate_to_copied(gate_name string) ! {
+	if gate_name[0..3] == 'old' {
+		app.old_load_gate_to_copied(gate_name)!
+	} else {
+		mut f := os.open(gates_path + gate_name)!
+		mut read_n := u32(0)
+		size := os.inode(gates_path + gate_name).size
+		app.copied = []
+		mut lplace := LoadPlaceInstruction{}
+		mut place := PlaceInstruction{}
+		for read_n * sizeof(LoadPlaceInstruction) < size {
+			f.read_struct_at(mut lplace, read_n * sizeof(LoadPlaceInstruction))!
+			// Change back when tcc will understand enum sizes
+			place.elem = Elem.from(lplace.elem)!
+			place.orientation = lplace.orientation
+			place.rel_x = lplace.rel_x
+			place.rel_y = lplace.rel_y
+			app.copied << place
+			read_n += 1
+		}
+		f.close()
+	}
 }
 
 fn (mut app App) flip_v() {

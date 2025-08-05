@@ -16,6 +16,18 @@ fn test_save() {
 }
 */
 
+fn test_load() {
+	mut app := App{}
+	app.create_game()
+	app.comp_running = false
+	for app.comp_alive {}
+	app.load_gate_to_copied('sourire')!
+	check := app.copied.clone()
+	app.load_gate_to_copied('oldsourire')!
+	assert check == app.copied
+	println('Finished test_load')
+}
+
 fn test_placement_small() {
 	mut app := App{}
 	name := 'test'
