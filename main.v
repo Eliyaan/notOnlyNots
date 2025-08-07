@@ -1092,12 +1092,10 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		}
 		app.selected_item = .wire
 	} else if b == .rotate_copy {
-		if app.e.modifiers & 1 == 1 { // shift: 1<<0
-			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+		if app.e.modifiers & 1 == 1 || app.e.mouse_button == .right { // shift: 1<<0
+			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, 'l'}
 		} else {
-			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''} // TODO: rotate_right, maybe could use one of the fields
-			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
-			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, ''}
+			app.todo << TodoInfo{.rotate, 0, 0, 0, 0, 'r'}
 		}
 	} else if b == .load_gate {
 		app.disable_all_ingame_modes()
@@ -2042,7 +2040,11 @@ fn (mut app App) computation_loop() {
 						app.placement(todo.x, todo.y, todo.x_end, todo.y_end)
 					}
 					.rotate {
-						app.rotate_copied()
+						if todo.name[0] == `r` {
+							app.rotate_copied_right()
+						} else {
+							app.rotate_copied_left()
+						}
 					}
 					.flip_h {
 						app.flip_h()
@@ -2613,7 +2615,7 @@ fn (mut app App) flip_h() {
 	}
 }
 
-fn (mut app App) rotate_copied() {
+fn (mut app App) rotate_copied_left() {
 	if app.copied.len > 0 {
 		mut max_x := i32(0)
 		// find size of the patern
@@ -2640,6 +2642,43 @@ fn (mut app App) rotate_copied() {
 				east >> 56 { north >> 56 }
 				south >> 56 { east >> 56 }
 				west >> 56 { south >> 56 }
+				else { app.log_quit('invalid orientation') }
+			})
+		}
+		for mut place in app.copied {
+			place.rel_x -= min_x
+			place.rel_y -= min_y
+		}
+	}
+}
+
+fn (mut app App) rotate_copied_right() {
+	if app.copied.len > 0 {
+		mut max_y := i32(0)
+		// find size of the patern
+		for place in app.copied {
+			if place.rel_y > max_y {
+				max_y = place.rel_y
+			}
+		}
+
+		mut min_x := app.copied[0].rel_y
+		mut min_y := app.copied[0].rel_x
+		for mut place in app.copied { // matrix rotation by -90 deg
+			tmp_y := place.rel_y
+			place.rel_y = place.rel_x
+			place.rel_x = max_y - tmp_y - 1
+			if min_x > place.rel_x {
+				min_x = place.rel_x
+			}
+			if min_y > place.rel_y {
+				min_y = place.rel_y
+			}
+			place.orientation = u8(match u64(place.orientation) {
+				north >> 56 { east >> 56 }
+				east >> 56 { south >> 56 }
+				south >> 56 { west >> 56 }
+				west >> 56 { north >> 56 }
 				else { app.log_quit('invalid orientation') }
 			})
 		}
