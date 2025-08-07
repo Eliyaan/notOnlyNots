@@ -1239,6 +1239,7 @@ fn (mut app App) disable_all_ingame_modes() {
 	app.keyinput_mode = false
 	app.save_gate_mode = false
 	app.scroll_pos = 0.0
+	app.move_down = false
 }
 
 fn (mut app App) go_map_menu() {
@@ -1502,7 +1503,7 @@ fn (mut app App) handle_ingame_ui_button_keybind(nb int) {
 }
 
 fn (mut app App) scroll() {
-	if app.comp_running { 
+	if app.comp_running {
 		if app.e.scroll_y > 0 {
 			app.tile_size += 1
 		} else {
@@ -1574,7 +1575,9 @@ fn on_event(e &gg.Event, mut app App) {
 				}
 			} else if app.comp_running {
 				if app.keyinput_mode {
-					if mouse_x < app.ui_width {
+					if app.move_down && e.mouse_button == .middle {
+						app.finish_move_cam()
+					} else if mouse_x < app.ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						map_x := app.cam_x + (mouse_x / app.tile_size)
@@ -1598,7 +1601,9 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else if app.edit_mode {
-					if mouse_x < app.ui_width {
+					if app.move_down && e.mouse_button == .middle {
+						app.finish_move_cam()
+					} else if mouse_x < app.ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						if app.edit_color_submode && app.selected_colorchip != -1 {
@@ -1647,7 +1652,9 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else if app.load_gate_mode {
-					if mouse_x < app.ui_width {
+					if app.move_down && e.mouse_button == .middle {
+						app.finish_move_cam()
+					} else if mouse_x < app.ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						app.gate_name_list = os.ls(gates_path) or {
@@ -1666,13 +1673,17 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else if app.placement_mode {
-					if app.place_down { // TODO: make the UI disappear/fade out when doing a placement
+					if app.place_down && e.mouse_button != .middle { // TODO: make the UI disappear/fade out when doing a placement
 						app.placement_released_at(mouse_x, mouse_y, e)
+					} else if app.move_down && e.mouse_button == .middle {
+						app.finish_move_cam()
 					} else if mouse_x < app.ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					}
 				} else if app.paste_mode {
-					if mouse_x < app.ui_width {
+					if app.move_down && e.mouse_button == .middle {
+						app.finish_move_cam()
+					} else if mouse_x < app.ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						if e.mouse_button == .left {
@@ -1681,11 +1692,15 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else if app.save_gate_mode {
-					if mouse_x < app.ui_width {
+					if app.move_down && e.mouse_button == .middle {
+						app.finish_move_cam()
+					} else if mouse_x < app.ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					}
 				} else if app.selection_mode {
-					if mouse_x < app.ui_width {
+					if app.move_down && e.mouse_button == .middle {
+						app.finish_move_cam()
+					} else if mouse_x < app.ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						if e.mouse_button == .left {
@@ -1698,13 +1713,7 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 				} else {
 					if app.move_down {
-						app.move_down = false
-						app.cam_x = app.cam_x - ((mouse_x - app.click_x) / app.tile_size)
-						app.cam_y = app.cam_y - ((mouse_y - app.click_y) / app.tile_size)
-						app.click_x = 0
-						app.click_y = 0
-						app.drag_x = 0
-						app.drag_y = 0
+						app.finish_move_cam()
 					} else if mouse_x < app.ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					}
@@ -1836,22 +1845,26 @@ fn on_event(e &gg.Event, mut app App) {
 			if app.placement_mode {
 				if mouse_x <= app.ui_width {
 				} else {
-					if !app.place_down {
-						app.place_down = true
-						app.place_start_x = u32(app.cam_x + mouse_x / app.tile_size)
-						app.place_start_y = u32(app.cam_y + mouse_y / app.tile_size)
-						app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
-						app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
-					} else {
-						app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
-						app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
-					}
-					x_diff := app.place_start_x - app.place_end_x
-					y_diff := app.place_start_y - app.place_end_y
-					if x_diff * x_diff >= y_diff * y_diff {
-						app.place_end_y = app.place_start_y
-					} else {
-						app.place_end_x = app.place_start_x
+					if e.mouse_button == .middle && !app.place_down {
+						app.move_cam()
+					} else if !app.move_down {
+						if !app.place_down {
+							app.place_down = true
+							app.place_start_x = u32(app.cam_x + mouse_x / app.tile_size)
+							app.place_start_y = u32(app.cam_y + mouse_y / app.tile_size)
+							app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+							app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+						} else {
+							app.place_end_x = u32(app.cam_x + mouse_x / app.tile_size)
+							app.place_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+						}
+						x_diff := app.place_start_x - app.place_end_x
+						y_diff := app.place_start_y - app.place_end_y
+						if x_diff * x_diff >= y_diff * y_diff {
+							app.place_end_y = app.place_start_y
+						} else {
+							app.place_end_x = app.place_start_x
+						}
 					}
 				}
 			} else if app.selection_mode {
@@ -1863,24 +1876,48 @@ fn on_event(e &gg.Event, mut app App) {
 					} else if e.mouse_button == .right {
 						app.select_end_x = u32(app.cam_x + mouse_x / app.tile_size)
 						app.select_end_y = u32(app.cam_y + mouse_y / app.tile_size)
+					} else if e.mouse_button == .middle {
+						app.move_cam()
 					}
 				}
 			} else if app.paste_mode {
+				if e.mouse_button == .middle {
+					app.move_cam()
+				}
 			} else if app.load_gate_mode {
+				if e.mouse_button == .middle {
+					app.move_cam()
+				}
 			} else {
 				if mouse_x <= app.ui_width {
 				} else {
-					if !app.move_down {
-						app.move_down = true
-						app.click_x = mouse_x
-						app.click_y = mouse_y
-					}
-					app.drag_x = mouse_x
-					app.drag_y = mouse_y
+					app.move_cam()
 				}
 			}
 		}
 	}
+}
+
+fn (mut app App) finish_move_cam() {
+	if app.move_down {
+		app.move_down = false
+		app.cam_x = app.cam_x - ((app.e.mouse_x - app.click_x) / app.tile_size)
+		app.cam_y = app.cam_y - ((app.e.mouse_y - app.click_y) / app.tile_size)
+		app.click_x = 0
+		app.click_y = 0
+		app.drag_x = 0
+		app.drag_y = 0
+	}
+}
+
+fn (mut app App) move_cam() {
+	if !app.move_down {
+		app.click_x = app.e.mouse_x
+		app.click_y = app.e.mouse_y
+	}
+	app.drag_x = app.e.mouse_x
+	app.drag_y = app.e.mouse_y
+	app.move_down = true
 }
 
 // logic
