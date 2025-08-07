@@ -1501,6 +1501,19 @@ fn (mut app App) handle_ingame_ui_button_keybind(nb int) {
 	app.handle_ingame_ui_button_interrac(btn)
 }
 
+fn (mut app App) scroll() {
+	if app.comp_running { 
+		if app.e.scroll_y > 0 {
+			app.tile_size += 1
+		} else {
+			app.tile_size -= 1
+		}
+		if app.tile_size < 1 {
+			app.tile_size = 1
+		}
+	}
+}
+
 fn on_event(e &gg.Event, mut app App) {
 	unsafe {
 		app.e = e
@@ -1700,6 +1713,9 @@ fn on_event(e &gg.Event, mut app App) {
 		}
 		.mouse_down {
 			app.mouse_down = true
+		}
+		.mouse_scroll {
+			app.scroll()
 		}
 		.key_up {
 			if app.keyinput_mode {
