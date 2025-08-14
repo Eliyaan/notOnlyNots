@@ -47,8 +47,8 @@ fn (mut app App) placement() {
 					}
 			}
 			app.map << Chunk{
-				x: (x / chunk_size) * chunk_size
-				y: (y / chunk_size) * chunk_size
+				x: x
+				y: y
 			}
 		}
 	}
@@ -57,5 +57,5 @@ fn (mut app App) placement() {
 struct Chunk {
 	x      u32
 	y      u32
-	id_map [chunk_size][chunk_size]u64
+	id_map [60]u64 // higher is more probable to reproduce
 }
