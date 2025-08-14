@@ -19,9 +19,18 @@ struct TodoInfo {
 	name string
 }
 
+fn main() {
+	mut app := App{}
+	name := 'test'
+	app.create_game()
+	app.placement()
+	app.todo << TodoInfo{name}
+	for app.comp_running {}
+}
+
 fn (mut app App) computation_loop() {
 	for app.comp_running {
-		for i, todo in app.todo {
+		for _, todo in app.todo {
 			mut file := os.open_file(todo.name, 'w') or { return }
 			mut offset := u64(0)
 			file.write_raw_at(i64(3), offset) or { println('${@LOCATION}: ${err}') }
@@ -38,7 +47,7 @@ fn (mut app App) placement() {
 	y_end := x_end
 	for x in x_start .. x_end + 1 {
 		yl: for y in y_start .. y_end + 1 {
-			for i, chunk in app.map {
+			for _, chunk in app.map {
 				if x >= chunk.x && y >= chunk.y {
 					if x < chunk.x + chunk_size && y < chunk.y + chunk_size {
 						continue yl
