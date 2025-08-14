@@ -31,9 +31,9 @@ fn (mut app App) computation_loop() {
 				app.g = false
 			}
 		}
-		//gc_disable() // Workaround
+		// gc_disable() // Workaround
 		time.sleep(0)
-		//gc_enable()
+		// gc_enable()
 	}
 }
 
@@ -42,10 +42,10 @@ fn (mut app App) placement() {
 	y_start := x_start
 	x_end := x_start + 100
 	y_end := x_end
-	for x in x_start .. x_end + 1 {
-		yl: for y in y_start .. y_end + 1 {
+	for x in x_start .. x_end {
+		yl: for y in y_start .. y_end {
 			for _, chunk in app.map {
-				if x < chunk.x + 10 && y < chunk.y + 10 {
+				if x > chunk.x {
 					continue yl
 				}
 			}
