@@ -42,11 +42,9 @@ fn (mut app App) placement() {
 	for x in x_start .. x_end + 1 {
 		yl: for y in y_start .. y_end + 1 {
 			for _, chunk in app.map {
-				if x >= chunk.x && y >= chunk.y {
 					if x < chunk.x + chunk_size && y < chunk.y + chunk_size {
 						continue yl
 					}
-				}
 			}
 			app.map << Chunk{
 				x: (x / chunk_size) * chunk_size
