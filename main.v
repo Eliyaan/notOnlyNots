@@ -2127,7 +2127,6 @@ fn (mut app App) computation_loop() {
 		}
 		now = time.now().unix_nano()
 		if app.todo.len == 0 && cycle_end - now >= 10000 { // 10micro sec
-			gc_collect()
 			time.sleep((cycle_end - now) * time.nanosecond)
 		}
 
@@ -4315,6 +4314,11 @@ fn (mut app App) get_chunkmap_idx_at_coords(x u32, y u32) int {
 			x: x_
 			y: y_
 			id_map: [][]u64{len: chunk_size, init:[]u64{len: chunk_size}}
+		}
+		last_i := app.map.len - 1
+		unsafe { app.map[last_i].id_map.flags.set(.nogrow | .noshrink) }
+		for i in 0 .. chunk_size {
+			unsafe { app.map[last_i].id_map[i].flags.set(.nogrow | .noshrink) }
 		}
 		app.chunk_cache[coo] = app.map.len - 1
 		app.map.len - 1
