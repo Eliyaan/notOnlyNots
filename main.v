@@ -16,7 +16,7 @@ fn main() {
 
 fn (mut app App) computation_loop() {
 	for app.g {
-		mut file := os.open_file('test', 'w') or { return }
+		mut file := os.open_file('test', 'w') or { continue }
 		file.write_raw_at(i64(0), 0) or {
 			println('${@LOCATION}: ${err}')
 			app.g = false
@@ -28,21 +28,14 @@ fn (mut app App) computation_loop() {
 }
 
 fn (mut app App) placement() {
-	x_start := u32(0)
-	y_start := x_start
-	x_end := x_start + 100
-	y_end := x_end
-	for x in x_start .. x_end {
-		yl: for y in y_start .. y_end {
-			for _, chunk in app.map {
-				if x > chunk.x {
+	for _ in 0 .. 100 {
+		yl: for y in 0 .. 100 {
+			for _, _ in app.map {
+				if y > 1 {
 					continue yl
 				}
 			}
-			app.map << Chunk{
-				x: x
-				y: y
-			}
+			app.map << Chunk{}
 		}
 	}
 }
