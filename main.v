@@ -2372,8 +2372,10 @@ fn (mut app App) save_map(map_name string) ! {
 		}
 		offset += sizeof(chunk.y)
 		unsafe {
-			file.write_ptr_at(chunk.id_map, chunk_size * chunk_size * int(sizeof(u64)),
-				offset)
+			for i in 0 .. chunk_size {
+				file.write_ptr_at(chunk.id_map[i], chunk_size * int(sizeof(u64)),
+					offset)
+			}
 		}
 		offset += chunk_size * chunk_size * sizeof(u64)
 	}
@@ -4312,6 +4314,7 @@ fn (mut app App) get_chunkmap_idx_at_coords(x u32, y u32) int {
 		app.map << Chunk{
 			x: x_
 			y: y_
+			id_map: [][]u64{len: chunk_size, init:[]u64{len: chunk_size}}
 		}
 		app.chunk_cache[coo] = app.map.len - 1
 		app.map.len - 1
@@ -4356,7 +4359,8 @@ struct Chunk {
 mut:
 	x      u32
 	y      u32
-	id_map [chunk_size][chunk_size]u64 // [x][y] x++=east y++=south  // TODO: change to dynamic array with cap & len 
+	// TODO: maybe change this to []u64 to have one less indirection
+	id_map [][]u64 // [x][y] x++=east y++=south, of total size chunk_size * chunk_size
 }
 
 // A gate that outputs the opposite of the input signal
