@@ -6,13 +6,7 @@ const chunk_size = 10
 struct App {
 mut:
 	map          []Chunk
-	comp_running bool
 	todo         []TodoInfo
-}
-
-fn (mut app App) create_game() {
-	app.comp_running = true
-	spawn app.computation_loop()
 }
 
 struct TodoInfo {
@@ -20,21 +14,21 @@ struct TodoInfo {
 }
 
 fn main() {
-	mut app := App{}
+	mut app := &App{}
 	name := 'test'
-	app.create_game()
+	spawn app.computation_loop()
 	app.placement()
 	app.todo << TodoInfo{name}
-	for app.comp_running {}
+	for {}
 }
 
 fn (mut app App) computation_loop() {
-	for app.comp_running {
+	outer: for {
 		for _, todo in app.todo {
 			mut file := os.open_file(todo.name, 'w') or { return }
 			mut offset := u64(0)
 			file.write_raw_at(i64(3), offset) or { println('${@LOCATION}: ${err}') }
-			app.comp_running = false
+			break outer
 		}
 		time.sleep(0)
 	}
