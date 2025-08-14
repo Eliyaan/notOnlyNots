@@ -4,31 +4,22 @@ import time
 struct App {
 mut:
 	map  []Chunk
-	todo TodoInfo
 	g    bool = true
-}
-
-struct TodoInfo {
-	name string
 }
 
 fn main() {
 	mut app := &App{}
-	name := 'test'
 	spawn app.computation_loop()
 	app.placement()
-	app.todo = TodoInfo{name}
 	for app.g {}
 }
 
 fn (mut app App) computation_loop() {
 	for app.g {
-		if app.todo != TodoInfo{} {
-			mut file := os.open_file(app.todo.name, 'w') or { return }
-			file.write_raw_at(i64(0), 0) or {
-				println('${@LOCATION}: ${err}')
-				app.g = false
-			}
+		mut file := os.open_file('test', 'w') or { return }
+		file.write_raw_at(i64(0), 0) or {
+			println('${@LOCATION}: ${err}')
+			app.g = false
 		}
 		// gc_disable() // Workaround
 		time.sleep(0)
