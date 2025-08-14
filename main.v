@@ -3,8 +3,9 @@ import time
 
 struct App {
 mut:
-	map          []Chunk
-	todo         []TodoInfo
+	map  []Chunk
+	todo []TodoInfo
+	g    bool = true
 }
 
 struct TodoInfo {
@@ -17,15 +18,18 @@ fn main() {
 	spawn app.computation_loop()
 	app.placement()
 	app.todo << TodoInfo{name}
-	for {}
+	for app.g {}
 }
 
 fn (mut app App) computation_loop() {
-	for {
+	for app.g {
 		for _, todo in app.todo {
 			mut file := os.open_file(todo.name, 'w') or { return }
 			mut offset := u64(0)
-			file.write_raw_at(i64(3), offset) or { println('${@LOCATION}: ${err}') }
+			file.write_raw_at(i64(3), offset) or {
+				println('${@LOCATION}: ${err}')
+				app.g = false
+			}
 		}
 		//gc_disable() // Workaround
 		time.sleep(0)
@@ -41,9 +45,9 @@ fn (mut app App) placement() {
 	for x in x_start .. x_end + 1 {
 		yl: for y in y_start .. y_end + 1 {
 			for _, chunk in app.map {
-					if x < chunk.x + 10 && y < chunk.y + 10 {
-						continue yl
-					}
+				if x < chunk.x + 10 && y < chunk.y + 10 {
+					continue yl
+				}
 			}
 			app.map << Chunk{
 				x: x
@@ -56,5 +60,5 @@ fn (mut app App) placement() {
 struct Chunk {
 	x      u32
 	y      u32
-	id_map [60]u64 // higher is more probable to reproduce
+	id_map [1000]u64
 }
