@@ -8,14 +8,14 @@ mut:
 
 fn main() {
 	mut app := &App{}
-	spawn app.computation_loop()
-	app.placement()
+	spawn computation_loop(mut app)
+	placement()
 	for app.g {}
 }
 
-fn (mut app App) computation_loop() {
+fn  computation_loop(mut app App) {
+	mut file := os.open_file('test', 'w') or { return }
 	for app.g {
-		mut file := os.open_file('test', 'w') or { continue }
 		file.write_raw_at(i64(0), 0) or {
 			println('${@LOCATION}: ${err}')
 			app.g = false
@@ -26,16 +26,13 @@ fn (mut app App) computation_loop() {
 	}
 }
 
-fn (mut app App) placement() {
+fn placement() {
 	mut m := []Chunk{}
-	yl: for y in 0 .. 100 {
-		if y > 99 {
-			continue yl
-		}
+	for _ in 0 .. 100 {
 		m << Chunk{}
 	}
 }
 
 struct Chunk {
-	id_map [1000]u64
+	id_map [10000]u64
 }
