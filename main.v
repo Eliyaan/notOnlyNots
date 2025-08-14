@@ -3,7 +3,6 @@ import time
 
 struct App {
 mut:
-	map  []Chunk
 	g    bool = true
 }
 
@@ -28,20 +27,15 @@ fn (mut app App) computation_loop() {
 }
 
 fn (mut app App) placement() {
-	for _ in 0 .. 100 {
-		yl: for y in 0 .. 100 {
-			for _, _ in app.map {
-				if y > 1 {
-					continue yl
-				}
-			}
-			app.map << Chunk{}
+	mut m := []Chunk{}
+	yl: for y in 0 .. 100 {
+		if y > 99 {
+			continue yl
 		}
+		m << Chunk{}
 	}
 }
 
 struct Chunk {
-	x      u32
-	y      u32
 	id_map [1000]u64
 }
