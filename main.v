@@ -40,6 +40,7 @@ const id_mask = rid_mask | elem_type_mask // unique
 const ori_mask = u64(0x1800_0000_0000_0000) // 0001_1000...
 const chunk_size = 100
 const invalid_coo = u32(-1)
+const cardinal_coords = [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]!
 const diode_poly_unscaled = [
 	[f32(0.2), 1.0, 0.4, 0.0, 0.6, 0.0, 0.8, 1.0], // north
 	[f32(0.2), 0.0, 0.8, 0.0, 0.6, 1.0, 0.4, 1.0], // south
@@ -3292,7 +3293,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut coo_adj_wire := []Coo{}
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
-					for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] {
+					for coo in cardinal_coords {
 						adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(x,
 							y, coo[0], coo[1])
 						assert adj_id != elem_crossing_bits
@@ -3392,7 +3393,7 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 				}
 			}
 		}
-		for coo in [[0, 1], [0, -1], [1, 0], [-1, 0]] { // for each adjacent tile // TODO: this allocates I think, just use a const
+		for coo in cardinal_coords { // for each adjacent tile
 			adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable.x, cable.y,
 				coo[0], coo[1])
 			if adj_id != empty_id {
@@ -3665,7 +3666,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					mut adjacent_wires := []u64{}
 					mut adjacent_inps := []u64{}
 					mut adjacent_outs := []u64{}
-					for coo in [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]! {
+					for coo in cardinal_coords {
 						adj_id, is_input, _, _ := app.wire_next_gate_id_coo(x, y, coo[0],
 							coo[1])
 						if adj_id == empty_id {
@@ -4355,7 +4356,7 @@ struct Chunk {
 mut:
 	x      u32
 	y      u32
-	id_map [chunk_size][chunk_size]u64 // [x][y] x++=east y++=south
+	id_map [chunk_size][chunk_size]u64 // [x][y] x++=east y++=south  // TODO: change to dynamic array with cap & len 
 }
 
 // A gate that outputs the opposite of the input signal
