@@ -1,8 +1,6 @@
 import os
 import time
 
-const chunk_size = 10
-
 struct App {
 mut:
 	map          []Chunk
@@ -23,26 +21,27 @@ fn main() {
 }
 
 fn (mut app App) computation_loop() {
-	outer: for {
+	for {
 		for _, todo in app.todo {
 			mut file := os.open_file(todo.name, 'w') or { return }
 			mut offset := u64(0)
 			file.write_raw_at(i64(3), offset) or { println('${@LOCATION}: ${err}') }
-			break outer
 		}
+		//gc_disable() // Workaround
 		time.sleep(0)
+		//gc_enable()
 	}
 }
 
 fn (mut app App) placement() {
-	x_start := u32(2_000_000_000)
+	x_start := u32(2)
 	y_start := x_start
 	x_end := x_start + 100
 	y_end := x_end
 	for x in x_start .. x_end + 1 {
 		yl: for y in y_start .. y_end + 1 {
 			for _, chunk in app.map {
-					if x < chunk.x + chunk_size && y < chunk.y + chunk_size {
+					if x < chunk.x + 10 && y < chunk.y + 10 {
 						continue yl
 					}
 			}
