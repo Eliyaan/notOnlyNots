@@ -2590,7 +2590,7 @@ mut:
 }
 
 fn (mut app App) load_gate_to_copied(gate_name string) ! {
-	if gate_name[0..3] == 'old' {
+	if gate_name#[0..3] == 'old' {
 		app.old_load_gate_to_copied(gate_name)!
 	} else {
 		mut f := os.open(gates_path + gate_name)!
