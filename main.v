@@ -7,7 +7,6 @@ import rand
 import time
 import gg
 import toml
-import gx
 
 const game_data_path = 'game_data/'
 const player_data_path = 'player_data/'
@@ -376,36 +375,42 @@ mut:
 	button_top_padding  f32                    = 5.0
 	buttons             map[Buttons]ButtonData = button_map.clone()
 	log                 []string
-	log_cfg             gx.TextCfg = gx.TextCfg{
+	log_cfg             gg.TextCfg = gg.TextCfg{
 		size:  16
-		color: gx.black
+		color: gg.black
 	}
 	log_border          gg.Color
 	log_timer           int
 
 	// logic
-	map             []Chunk
-	map_name        string // to fill when loading a map
-	comp_running    bool   // is a map loaded and running
-	pause           bool   // is the map updating
-	nb_updates      int = 5 // number of updates per second
-	avg_update_time f64 // nanosecs
-	todo            []TodoInfo
-	selected_item   Elem
-	selected_ori    u64 = north
-	copied          []PlaceInstruction
-	actual_state    int // indicate which list is the old state list and which is the actual one, 0 for the first, 1 for the second
-	nots            []Nots    = nots_array_default.clone() // to start the rid at 1
-	n_states        [2][]bool = [[false], [false]]! // the old state and the actual state list
-	diodes          []Diode   = diode_array_default.clone()
-	d_states        [2][]bool = [[false], [false]]!
-	wires           []Wire    = wire_array_default.clone()
-	w_states        [2][]bool = [[false], [false]]!
-	forced_states   [][2]u32    // forced to ON state by a keyboard input
-	colorchips      []ColorChip // screens
-	palette         Palette = palette_def // TODO: edit palette and save palette
-	comp_alive      bool
-	chunk_cache     map[u64]int // x u32 y u32 -> index of app.map
+	map               []Chunk
+	map_name          string // to fill when loading a map
+	comp_running      bool   // is a map loaded and running
+	pause             bool   // is the map updating
+	nb_updates        int = 5 // number of updates per second
+	avg_update_time   f64 // nanosecs
+	todo              []TodoInfo
+	selected_item     Elem
+	selected_ori      u64 = north
+	copied            []PlaceInstruction
+	actual_state      int // indicate which list is the old state list and which is the actual one, 0 for the first, 1 for the second
+	nots              []Nots    = nots_array_default.clone() // to start the rid at 1
+	n_states          [2][]bool = [[false], [false]]! // the old state and the actual state list
+	dead_nots         []u64 // stores the rid of the dead nots (with invalid_coo, the ones that were removed)
+	dead_nots_lower   int   // marks the beggining of the valid dead nots (invalids not removed from the array)
+	diodes            []Diode   = diode_array_default.clone()
+	d_states          [2][]bool = [[false], [false]]!
+	dead_diodes       []u64
+	dead_diodes_lower int
+	wires             []Wire    = wire_array_default.clone()
+	w_states          [2][]bool = [[false], [false]]!
+	dead_wires        []u64
+	dead_wires_lower  int
+	forced_states     [][2]u32    // forced to ON state by a keyboard input
+	colorchips        []ColorChip // screens
+	palette           Palette = palette_def // TODO: edit palette and save palette
+	comp_alive        bool
+	chunk_cache       map[u64]int // x u32 y u32 -> index of app.map
 }
 
 // graphics
@@ -621,7 +626,7 @@ mut:
 		// colored border rect
 		app.ctx.draw_rect_filled(bor_x, bor_y, bor_w, bor_h, app.log_border)
 
-		app.ctx.draw_rect_filled(rect_x, rect_y, log_width, h, gx.white)
+		app.ctx.draw_rect_filled(rect_x, rect_y, log_width, h, gg.white)
 		for i, l in app.log {
 			ly := rect_y + i * (interline_spacing + app.log_cfg.size)
 			app.ctx.draw_text(rect_x, ly, l, app.log_cfg)
@@ -2372,8 +2377,7 @@ fn (mut app App) save_map(map_name string) ! {
 		offset += sizeof(chunk.y)
 		unsafe {
 			for i in 0 .. chunk_size {
-				file.write_ptr_at(chunk.id_map[i], chunk_size * int(sizeof(u64)),
-					offset)
+				file.write_ptr_at(chunk.id_map[i], chunk_size * int(sizeof(u64)), offset)
 			}
 		}
 		offset += chunk_size * chunk_size * sizeof(u64)
@@ -3113,6 +3117,71 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	}
 }
 
+// WIP
+fn (mut app App) add_dead_rid(t Elem, rid u64) {
+	match t {
+		.not {
+			if app.dead_nots_lower > 0 {
+				app.dead_nots_lower--
+				app.dead_nots[app.dead_nots_lower] = rid
+			} else {
+				app.dead_nots << rid
+			}
+		}
+		.diode {
+			if app.dead_diodes.len > 0 && app.dead_diodes_lower < app.dead_diodes.len {
+				app.dead_diodes_lower--
+				app.dead_diodes[app.dead_diodes_lower] = rid
+			} else {
+				app.dead_diodes << rid
+			}
+		}
+		.wire {
+			if app.dead_wires.len > 0 && app.dead_wires_lower < app.dead_wires.len {
+				app.dead_wires_lower--
+				app.dead_wires[app.dead_wires_lower] = rid
+			} else {
+				app.dead_wires << rid
+			}
+		}
+		.on {} // not stored
+		.crossing {} // not stored
+	}
+}
+
+// returns if nothing in the dead array { 0 } else { the rid of the dead elem }
+fn (mut app App) get_free_dead_rid(t Elem) i64 {
+	match t {
+		.not {
+			if app.dead_nots.len > 0 && app.dead_nots_lower < app.dead_nots.len {
+				app.dead_nots_lower++
+				return i64(app.dead_nots[app.dead_nots_lower - 1])
+			} else {
+				return 0
+			}
+		}
+		.diode {
+			if app.dead_diodes.len > 0 && app.dead_diodes_lower < app.dead_diodes.len {
+				app.dead_diodes_lower++
+				return i64(app.dead_diodes[app.dead_diodes_lower - 1])
+			} else {
+				return 0
+			}
+		}
+		.wire {
+			if app.dead_wires.len > 0 && app.dead_wires_lower < app.dead_wires.len {
+				app.dead_wires_lower++
+				return i64(app.dead_wires[app.dead_wires_lower - 1])
+			} else {
+				return 0
+			}
+		}
+		.on {} // not stored
+		.crossing {} // not stored
+	}
+	panic('${@LOCATION}: unexpected path ${t}')
+}
+
 fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	// 1.
 	// set the tile id to empty_id
@@ -3269,7 +3338,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
-					app.diodes[idx].x = invalid_coo // will get deleted at the end
+					app.diodes[idx].x = invalid_coo
 
 					// 3. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
@@ -4311,9 +4380,9 @@ fn (mut app App) get_chunkmap_idx_at_coords(x u32, y u32) int {
 		}
 		// chunk not found, create it
 		app.map << Chunk{
-			x: x_
-			y: y_
-			id_map: [][]u64{len: chunk_size, init:[]u64{len: chunk_size}}
+			x:      x_
+			y:      y_
+			id_map: [][]u64{len: chunk_size, init: []u64{len: chunk_size}}
 		}
 		last_i := app.map.len - 1
 		unsafe { app.map[last_i].id_map.flags.set(.nogrow | .noshrink) }
@@ -4361,8 +4430,8 @@ fn (mut app App) get_elem_state_idx_by_id(id u64, previous int) (bool, int) {
 
 struct Chunk {
 mut:
-	x      u32
-	y      u32
+	x u32
+	y u32
 	// TODO: maybe change this to []u64 to have one less indirection
 	id_map [][]u64 // [x][y] x++=east y++=south, of total size chunk_size * chunk_size
 }
@@ -4399,11 +4468,11 @@ mut:
 // It outputs the OR of all it's inputs
 struct Wire {
 mut:
-	rid           u64      // real id
-	inps          []u64    // id of the input elements outputing to the wire
-	outs          []u64    // id of the output elements whose inputs are the wire
+	rid           u64   // real id
+	inps          []u64 // id of the input elements outputing to the wire
+	outs          []u64 // id of the output elements whose inputs are the wire
 	cable_coords  []Coo // all the x y coordinates of the induvidual cables (elements) the wire is made of
-	cable_chunk_i []i64    // chunk index for each cable
+	cable_chunk_i []i64 // chunk index for each cable
 }
 
 struct Coo {
