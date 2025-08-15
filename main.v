@@ -3380,8 +3380,6 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 
-					// WIP
-
 					// 1. done; doing it before the join because it would count it as a valid wire
 					unsafe {
 						chunkmap[x_map][y_map] = empty_id
@@ -3456,8 +3454,6 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 		m_coo := (u64(w.x) << 32) | u64(w.y)
 		which_wire[m_coo] = u64(i)
 	}
-
-	// WIP check for new separated wires if space in dead array?
 
 	cable_stack: for c_stack.len > 0 { // for each wire in the stack
 		cable := c_stack.pop()
@@ -3556,8 +3552,17 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 	state0 := app.w_states[0][idx]
 	state1 := app.w_states[1][idx]
 	for mut wire in new_wires[1..] {
-		wire.rid = u64(app.wires.len)
-		app.wires << wire
+		mut dead_rid := app.get_free_dead_rid(.wire)
+		wire.rid = if dead_rid == 0 {
+			u64(app.wires.len)
+		} else {
+			u64(dead_rid)
+		}
+		if dead_rid == 0 {
+			app.wires << wire
+		} else {
+			app.wires[dead_rid] = wire
+		}
 		app.w_states[0] << state0
 		app.w_states[1] << state1
 	}
@@ -3791,7 +3796,6 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					if adjacent_wires.len > 1 { // if only one wire, there is no need to join it
 						app.join_wires(mut adjacent_wires)
 					} else if adjacent_wires.len == 0 {
-						// WIP
 						mut dead_rid := app.get_free_dead_rid(.wire)
 						rid := if dead_rid == 0 {
 							i64(app.wires.len)
