@@ -3117,7 +3117,6 @@ fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 	}
 }
 
-// WIP
 fn (mut app App) add_dead_rid(t Elem, rid u64) {
 	match t {
 		.not {
@@ -3129,7 +3128,7 @@ fn (mut app App) add_dead_rid(t Elem, rid u64) {
 			}
 		}
 		.diode {
-			if app.dead_diodes.len > 0 && app.dead_diodes_lower < app.dead_diodes.len {
+			if app.dead_diodes_lower > 0 {
 				app.dead_diodes_lower--
 				app.dead_diodes[app.dead_diodes_lower] = rid
 			} else {
@@ -3137,7 +3136,7 @@ fn (mut app App) add_dead_rid(t Elem, rid u64) {
 			}
 		}
 		.wire {
-			if app.dead_wires.len > 0 && app.dead_wires_lower < app.dead_wires.len {
+			if app.dead_wires_lower > 0 {
 				app.dead_wires_lower--
 				app.dead_wires[app.dead_wires_lower] = rid
 			} else {
@@ -3324,6 +3323,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
 					app.nots[idx].x = invalid_coo // now invalid
+					app.add_dead_rid(.not, u64(idx))
 
 					// 3. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
@@ -3339,6 +3339,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					_, idx := app.get_elem_state_idx_by_id(id, 0)
 					app.diodes[idx].x = invalid_coo
+					app.add_dead_rid(.diode, u64(idx))
 
 					// 3. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
@@ -3379,6 +3380,8 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 
+					// WIP
+
 					// 1. done; doing it before the join because it would count it as a valid wire
 					unsafe {
 						chunkmap[x_map][y_map] = empty_id
@@ -3390,6 +3393,7 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					} else if coo_adj_wire.len == 0 {
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
 						app.wires[idx].cable_coords[0].x = invalid_coo
+						app.add_dead_rid(.wire, u64(idx))
 					} else { // if only 1 adjacent wire: remove the cable from the wire
 						_, idx := app.get_elem_state_idx_by_id(id, 0)
 						i := app.wires[idx].cable_coords.index(Coo{x, y})
@@ -3452,6 +3456,8 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 		m_coo := (u64(w.x) << 32) | u64(w.y)
 		which_wire[m_coo] = u64(i)
 	}
+
+	// WIP check for new separated wires if space in dead array?
 
 	cable_stack: for c_stack.len > 0 { // for each wire in the stack
 		cable := c_stack.pop()
@@ -3630,13 +3636,23 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 
 					// 1. done
-					id := elem_not_bits | u64(app.nots.len) | app.selected_ori
+					mut dead_rid := app.get_free_dead_rid(.not)
+					rid := if dead_rid == 0 {
+						i64(app.nots.len)
+					} else {
+						dead_rid
+					}
+					id := elem_not_bits | u64(rid) | app.selected_ori
 					unsafe {
 						chunkmap[x_map][y_map] = id
 					}
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
-					app.nots << Nots{id & rid_mask, i64(chunk_i), inp_id, x, y}
+					if dead_rid == 0 {
+						app.nots << Nots{u64(rid), i64(chunk_i), inp_id, x, y}
+					} else {
+						app.nots[rid] = Nots{u64(rid), i64(chunk_i), inp_id, x, y}
+					}
 					app.n_states[0] << false // default state & important to do the two lists
 					app.n_states[1] << false // default state
 
@@ -3666,13 +3682,23 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					}
 
 					// 1. done
-					id := elem_diode_bits | u64(app.diodes.len) | app.selected_ori
+					mut dead_rid := app.get_free_dead_rid(.diode)
+					rid := if dead_rid == 0 {
+						i64(app.diodes.len)
+					} else {
+						dead_rid
+					}
+					id := elem_diode_bits | u64(rid) | app.selected_ori
 					unsafe {
 						chunkmap[x_map][y_map] = id
 					}
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
-					app.diodes << Diode{id & rid_mask, i64(chunk_i), inp_id, x, y}
+					if dead_rid == 0 {
+						app.diodes << Diode{u64(rid), i64(chunk_i), inp_id, x, y}
+					} else {
+						app.diodes[dead_rid] = Diode{u64(rid), i64(chunk_i), inp_id, x, y}
+					}
 					app.d_states[0] << false // default state & important to do the two lists
 					app.d_states[1] << false // default state
 
@@ -3732,6 +3758,7 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					if unsafe { chunkmap[x_map][y_map] } != empty_id { // map not empty
 						continue
 					}
+
 					// Find if a part of an existing wire
 					mut adjacent_wires := []u64{}
 					mut adjacent_inps := []u64{}
@@ -3764,9 +3791,23 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					if adjacent_wires.len > 1 { // if only one wire, there is no need to join it
 						app.join_wires(mut adjacent_wires)
 					} else if adjacent_wires.len == 0 {
-						adjacent_wires << u64(app.wires.len) | elem_wire_bits
-						app.wires << Wire{
-							rid: u64(app.wires.len)
+						// WIP
+						mut dead_rid := app.get_free_dead_rid(.wire)
+						rid := if dead_rid == 0 {
+							i64(app.wires.len)
+						} else {
+							dead_rid
+						}
+						id := u64(rid) | elem_wire_bits
+						adjacent_wires << id
+						if dead_rid == 0 {
+							app.wires << Wire{
+								rid: u64(rid)
+							}
+						} else {
+							app.wires[dead_rid] = Wire{
+								rid: u64(rid)
+							}
 						}
 						app.w_states[0] << false
 						app.w_states[1] << false
