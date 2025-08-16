@@ -2183,6 +2183,7 @@ fn (mut app App) save_copied(name_ string) ! {
 			name += 'New'
 		}
 		mut file := os.open_file(gates_path + name, 'w')!
+		file.write_raw(u64(0))! // version 0
 		$if tinyc { // TODO: change back when tcc understands enum sizes
 			mut place := LoadPlaceInstruction{}
 			for p in app.copied {
@@ -2631,12 +2632,14 @@ fn (mut app App) load_gate_to_copied(gate_name string) ! {
 	} else {
 		mut f := os.open(gates_path + gate_name)!
 		mut read_n := u32(0)
-		size := os.inode(gates_path + gate_name).size
+		version := f.read_raw[u64]()!
+		assert version == 0
+		size := os.inode(gates_path + gate_name).size - 8 // for the version
 		app.copied = []
 		mut lplace := LoadPlaceInstruction{}
 		mut place := PlaceInstruction{}
 		for read_n * sizeof(LoadPlaceInstruction) < size {
-			f.read_struct_at(mut lplace, read_n * sizeof(LoadPlaceInstruction))!
+			f.read_struct_at(mut lplace, 8 + read_n * sizeof(LoadPlaceInstruction))!
 			// Change back when tcc will understand enum sizes
 			place.elem = Elem.from(lplace.elem)!
 			place.orientation = lplace.orientation
