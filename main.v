@@ -107,6 +107,7 @@ enum Buttons {
 	selection_delete  // selection
 	flip_h            // paste
 	flip_v            // paste
+	trash
 }
 
 const selec_buttons = [Buttons.cancel_button, .copy_button, .save_gate, .create_color_chip,
@@ -260,6 +261,7 @@ const button_map = {
 	.selection_delete:     ButtonData{
 		pos: 7
 	}
+	.trash:                ButtonData{}
 }
 
 struct App {
@@ -286,6 +288,7 @@ mut:
 	solo_img         gg.Image
 	// solo menu TODO: display map info of the hovered map (size bits, nb of hours played, gates placed... fun stuff)
 	solo_menu           bool
+	map_delete_nb       int = -1
 	map_names_list      []string // without folder name
 	maps_x_offset       f32 = 50.0
 	maps_y_offset       f32 = 50.0
@@ -467,6 +470,7 @@ fn main() {
 		app.buttons[.flip_v].img = app.ctx.create_image(sprites_path + 'flip_v.png')!
 		app.buttons[.selection_delete].img = app.ctx.create_image(sprites_path +
 			'selection_delete.png')!
+		app.buttons[.trash].img = app.ctx.create_image(sprites_path + 'trash.png')!
 	}
 	app.solo_img = app.ctx.create_image(sprites_path + 'nots_icon.png')!
 	app.load_palette()
@@ -596,10 +600,15 @@ mut:
 		}
 	} else if app.solo_menu {
 		for i, m in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
-			app.ctx.draw_rect_filled(app.maps_x_offset, (app.maps_y_offset + app.maps_top_spacing) * (
-				i + 1), app.maps_w, app.maps_h, app.palette.ui_bg)
-			app.ctx.draw_text_def(int(app.maps_x_offset), int((app.maps_y_offset +
-				app.maps_top_spacing) * (i + 1)), m)
+			y := (app.maps_y_offset + app.maps_top_spacing) * (i + 1)
+			app.ctx.draw_rect_filled(app.maps_x_offset, y, app.maps_w, app.maps_h, app.palette.ui_bg)
+			app.ctx.draw_text_def(int(app.maps_x_offset), int(y), m)
+			end_x := app.maps_x_offset + app.maps_w
+			if i != app.map_delete_nb {
+				app.ctx.draw_image(end_x, y, app.maps_h, app.maps_h, unsafe { app.buttons[.trash].img })
+			} else {
+				app.ctx.draw_image(end_x + app.maps_h, y, app.maps_h, app.maps_h, unsafe { app.buttons[.trash].img })
+			}
 		}
 		app.ctx.draw_square_filled(app.button_new_map_x, app.button_new_map_y, app.button_new_map_size,
 			app.palette.ui_bg)
@@ -1251,6 +1260,7 @@ fn (mut app App) disable_all_ingame_modes() {
 fn (mut app App) go_map_menu() {
 	app.main_menu = false
 	app.solo_menu = true
+	app.map_delete_nb = -1
 	app.text_input = ''
 	if !os.exists(maps_path) {
 		os.mkdir(maps_path) or {
@@ -1556,7 +1566,7 @@ fn on_event(e &gg.Event, mut app App) {
 					exit(0)
 				}
 			} else if app.solo_menu {
-				if mouse_x >= app.maps_x_offset && mouse_x < app.maps_x_offset + app.maps_w {
+				if mouse_x >= app.maps_x_offset {
 					app.map_names_list = os.ls(maps_path) or {
 						app.log('Cannot list files in ${maps_path}, ${err}', .err)
 						return
@@ -1564,17 +1574,39 @@ fn on_event(e &gg.Event, mut app App) {
 					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 						if e.mouse_button == .left {
 							if app.check_maps_button_click_y(i, mouse_y) {
-								app.load_saved_game(name)
-								return
+								map_end_x := app.maps_x_offset + app.maps_w
+								if mouse_x < map_end_x {
+									app.load_saved_game(name)
+									return
+								} else if mouse_x < map_end_x + app.maps_h {
+									app.map_delete_nb = i
+									return
+								} else if app.map_delete_nb == i
+									&& mouse_x < map_end_x + 2 * app.maps_h {
+									app.map_delete_nb = -1
+									os.rm(maps_path + name) or {
+										app.log('${@LOCATION}: ${err}', .warn)
+									}
+									app.map_names_list = os.ls(maps_path) or {
+										app.log('Cannot list files in ${maps_path}, ${err}',
+											.err)
+										return
+									}
+									return
+								}
 							}
 						}
 					}
 				}
-				if app.text_input != '' && mouse_x >= app.button_new_map_x
+				if mouse_x >= app.button_new_map_x
 					&& mouse_x < app.button_new_map_x + app.button_new_map_size
 					&& mouse_y >= app.button_new_map_y
 					&& mouse_y < app.button_new_map_y + app.button_new_map_size {
-					app.create_game()
+					if app.text_input != '' {
+						app.create_game()
+					} else {
+						app.log('Please input a name for the new map', .info)
+					}
 				} else if mouse_x >= app.btn_back_x && mouse_x < app.btn_back_x + app.btn_back_s
 					&& mouse_y >= app.btn_back_y && mouse_y < app.btn_back_y + app.btn_back_s {
 					app.back_to_main_menu()
