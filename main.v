@@ -75,7 +75,62 @@ const diode_array_default = [Diode{
 const wire_array_default = [Wire{
 	cable_coords: [Coo{invalid_coo, 0}]
 }]
+// UI sizes
+const log_cfg = gg.TextCfg{
+	size:  16
+	color: gg.black
+}
 const log_width = 200
+const log_interline_spacing = 4
+const log_border = 5
+const input_box_off = 10.0
+const input_text_off_x = 15.0
+const input_text_off_y = 10.0
+const input_box_w = 250.0
+const input_box_h = 40.0
+const info_text_off = 10.0
+const info_text_spacing = 20.0
+const button_solo_x = f32(0.0)
+const button_solo_y = f32(0.0)
+const button_solo_w = f32(300.0)
+const button_solo_h = f32(300.0)
+const button_quit_size = f32(50.0)
+const btn_quit_ofst = f32(20.0)
+const maps_x_offset = f32(50.0)
+const maps_y_offset = f32(50.0)
+const maps_top_spacing = f32(10.0)
+const maps_h = f32(50.0)
+const maps_w = f32(500.0)
+const button_new_map_x = f32(5.0)
+const button_new_map_y = f32(5.0)
+const button_new_map_size = f32(40.0)
+const btn_back_x = f32(5.0)
+const btn_back_y = f32(50.0)
+const btn_back_s = f32(40.0)
+const text_field_x = f32(50.0)
+const text_field_y = f32(5.0)
+const editmenu_inputsize = f32(50.0)
+const editmenu_rgb_y = f32(10.0)
+const editmenu_rgb_h = f32(40.0)
+const editmenu_rgb_w = f32(40.0)
+const editmenu_r_x = f32(60.0)
+const editmenu_g_x = f32(110.0)
+const editmenu_b_x = f32(160.0)
+const editmenu_offset_x = f32(160.0)
+const editmenu_offset_y = f32(160.0)
+const editmenu_colorsize = f32(50.0)
+const editmenu_offset_inputs_x = f32(160.0)
+const editmenu_offset_inputs_y = f32(160.0)
+const gate_text_off_x = 10.0
+const gate_x_ofst = f32(5.0)
+const gate_y_offset = f32(50.0)
+const gate_top_spacing = f32(10.0)
+const gate_h = f32(50.0)
+const gate_w = f32(500.0)
+const ui_width = f32(50.0)
+const button_size = f32(40.0)
+const button_left_padding = f32(5.0)
+const button_top_padding = f32(5.0)
 
 enum Buttons {
 	cancel_button     // escapes modes
@@ -268,9 +323,11 @@ struct App {
 mut:
 	ctx               &gg.Context = unsafe { nil }
 	e                 &gg.Event   = &gg.Event{}
-	draw_count        int         = 1
-	draw_step         int         = 1000 // number of draw calls before .end( passthru
-	tile_size         int         = 50
+	s                 gg.Size // screen size
+	ui                f32 = 1.0 // ui scale, factor by which all ui is multiplied
+	draw_count        int = 1
+	draw_step         int = 1000 // number of draw calls before .end( passthru
+	tile_size         int = 30
 	text_input        string // holds what the user typed
 	colorchips_hidden bool   // if colorchips are hidden
 	mouse_down        bool
@@ -278,48 +335,17 @@ mut:
 	mouse_map_y       u32
 	scroll_pos        f32
 	// main menu
-	main_menu        bool
-	button_solo_x    f32 = 0.0 // TODO: make it scale with screensize and place it properly
-	button_solo_y    f32 = 0.0
-	button_solo_w    f32 = 300.0
-	button_solo_h    f32 = 300.0
-	button_quit_size f32 = 50.0
-	btn_quit_ofst    f32 = 20.0
-	solo_img         gg.Image
+	main_menu bool
+	solo_img  gg.Image
 	// solo menu TODO: display map info of the hovered map (size bits, nb of hours played, gates placed... fun stuff)
-	solo_menu           bool
-	map_delete_nb       int = -1
-	map_names_list      []string // without folder name
-	maps_x_offset       f32 = 50.0
-	maps_y_offset       f32 = 50.0
-	maps_top_spacing    f32 = 10.0
-	maps_h              f32 = 50.0
-	maps_w              f32 = 500.0
-	button_new_map_x    f32 = 5.0
-	button_new_map_y    f32 = 5.0
-	button_new_map_size f32 = 40.0
-	btn_back_x          f32 = 5.0
-	btn_back_y          f32 = 50.0
-	btn_back_s          f32 = 40.0
-	text_field_x        f32 = 50.0
-	text_field_y        f32 = 5.0
+	solo_menu      bool
+	map_delete_nb  int = -1
+	map_names_list []string // without folder name
 	// edit mode -> edit colorchips
 	edit_mode                 bool
-	editmenu_rgb_y            f32 = 10.0
-	editmenu_rgb_h            f32 = 40.0
-	editmenu_rgb_w            f32 = 40.0
-	editmenu_r_x              f32 = 60.0
-	editmenu_g_x              f32 = 110.0
-	editmenu_b_x              f32 = 160.0
-	editmenu_offset_x         f32 = 160.0 // TODO: scale w/ screen size
-	editmenu_offset_y         f32 = 160.0 // TODO: scale
 	editmenu_nb_color_by_row  int = 10
-	editmenu_colorsize        f32 = 50.0
 	editmenu_selected_color   int // TODO: show coords of input
-	editmenu_offset_inputs_x  f32 = 160.0 // TODO: scale w/ screen size
-	editmenu_offset_inputs_y  f32 = 160.0 // TODO: scale
 	editmenu_nb_inputs_by_row int = 10
-	editmenu_inputsize        f32 = 50.0
 	delete_colorchip_submode  bool
 	create_colorchip_submode  bool // select start and end of the new colorchip
 	create_colorchip_x        u32 = u32(-1)
@@ -357,13 +383,8 @@ mut:
 	// paste mode
 	paste_mode bool
 	// load gate mode
-	load_gate_mode   bool
-	gate_name_list   []string // without folder name
-	gate_x_ofst      f32 = 5.0
-	gate_y_offset    f32 = 50.0
-	gate_top_spacing f32 = 10.0
-	gate_h           f32 = 50.0
-	gate_w           f32 = 500.0
+	load_gate_mode bool
+	gate_name_list []string // without folder name
 	// save gate mode
 	save_gate_mode bool
 	// keyboard input (force state of a gate to ON) mode
@@ -372,18 +393,10 @@ mut:
 	tmp_pos_x     u32 = u32(-1)
 	tmp_pos_y     u32 = u32(-1)
 	// UI on the left border, TODO: need to make it scaling automatically w/ screensize
-	ui_width            f32                    = 50.0
-	button_size         f32                    = 40.0
-	button_left_padding f32                    = 5.0
-	button_top_padding  f32                    = 5.0
-	buttons             map[Buttons]ButtonData = button_map.clone()
-	log                 []string
-	log_cfg             gg.TextCfg = gg.TextCfg{
-		size:  16
-		color: gg.black
-	}
-	log_border          gg.Color
-	log_timer           int
+	buttons    map[Buttons]ButtonData = button_map.clone()
+	log        []string
+	log_border gg.Color
+	log_timer  int
 
 	// logic
 	map               []Chunk
@@ -519,10 +532,15 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 
 fn on_frame(mut app App) {
 	app.draw_count = 1
-	size := app.ctx.window_size()
+	app.s = app.ctx.window_size()
+	app.ui = f32(app.s.height) / f32(800.0)
 	// Draw
 	app.ctx.begin()
 	app.ctx.end() // to clear the screen
+	mut ui_log_cfg := gg.TextCfg{
+		size:  int(log_cfg.size * app.ui)
+		color: log_cfg.color
+	}
 	if app.comp_running {
 		app.draw_map()
 
@@ -565,80 +583,100 @@ mut:
 
 		compute_info := '${app.nb_updates}/s = ${int(time.second / app.nb_updates) / 1_000_000}ms/update (required:${app.avg_update_time / 1_000_000.0:.2f}ms)'
 		coords_info := 'x:${i64(app.cam_x)} y:${i64(app.cam_y)}'
-		app.ctx.draw_text_def(int(app.ui_width + 10), 10, app.map_name)
-		app.ctx.draw_text_def(int(app.ui_width + 10), 30, compute_info)
-		app.ctx.draw_text_def(int(app.ui_width + 10), 50, coords_info)
+		info_text_x := int((ui_width + 10) * app.ui)
+		app.ctx.draw_text(info_text_x, int(info_text_off * app.ui), app.map_name, ui_log_cfg)
+		app.ctx.draw_text(info_text_x, int((info_text_off + info_text_spacing) * app.ui),
+			compute_info, ui_log_cfg)
+		app.ctx.draw_text(info_text_x, int((info_text_off + 2 * info_text_spacing) * app.ui),
+			coords_info, ui_log_cfg)
 
 		if app.save_gate_mode {
-			app.ctx.draw_rect_filled(app.ui_width + 10, 10, 250, 40, app.palette.ui_bg)
-			app.ctx.draw_text_def(int(app.ui_width + 15), 20, 'Save gate: ${app.text_input}')
+			input_x := (ui_width + input_box_off) * app.ui
+			box_y := input_box_off * app.ui
+			box_w := input_box_w * app.ui
+			box_h := input_box_h * app.ui
+			text_x := int((ui_width + input_text_off_x) * app.ui)
+			text_y := int(box_y + input_text_off_y * app.ui)
+			app.ctx.draw_rect_filled(input_x, box_y, box_w, box_h, app.palette.ui_bg)
+			app.ctx.draw_text(text_x, text_y, 'Save gate: ${app.text_input}', ui_log_cfg)
 		}
 		if app.load_gate_mode {
-			app.ctx.draw_rect_filled(app.ui_width + 10, 10, 250, 40, app.palette.ui_bg)
-			app.ctx.draw_text_def(int(app.ui_width + 15), 20, 'Load gate: ${app.text_input}')
+			input_x := (ui_width + input_box_off) * app.ui
+			box_y := input_box_off * app.ui
+			box_w := input_box_w * app.ui
+			box_h := input_box_h * app.ui
+			text_x := int((ui_width + input_text_off_x) * app.ui)
+			text_y := int(box_y + input_text_off_y * app.ui)
+			app.ctx.draw_rect_filled(input_x, box_y, box_w, box_h, app.palette.ui_bg)
+			app.ctx.draw_text(text_x, text_y, 'Load gate: ${app.text_input}', ui_log_cfg)
 			// search results
 
 			app.gate_name_list = os.ls(gates_path) or {
 				app.log('cannot list files in ${gates_path}, ${err}', .err)
 				[]string{}
 			}
-			x := app.ui_width + app.gate_x_ofst
-			w := app.ui_width + app.gate_x_ofst + app.gate_w
-			h := app.gate_top_spacing + app.gate_h
+			x := (ui_width + gate_x_ofst) * app.ui
+			total_h := (gate_top_spacing + gate_h) * app.ui
+			w := (ui_width + gate_x_ofst + gate_w) * app.ui
 			for pos, name in app.gate_name_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
-				app.ctx.draw_rect_filled(x, pos * h + app.gate_y_offset, w, app.gate_h,
-					app.palette.ui_bg)
-				app.ctx.draw_text_def(int(x), int(pos * h + app.gate_y_offset + 10), name)
+				y := pos * total_h + gate_y_offset * app.ui
+				y_text := int(y + gate_text_off_x * app.ui)
+				app.ctx.draw_rect_filled(x, y, w, gate_h * app.ui, app.palette.ui_bg)
+				app.ctx.draw_text(int(x), y_text, name, ui_log_cfg)
 			}
 		}
 	} else if app.main_menu {
-		app.ctx.draw_image(app.button_solo_x, app.button_solo_y, app.button_solo_w, app.button_solo_h,
-			app.solo_img)
-		unsafe {
-			app.ctx.draw_image(app.btn_quit_ofst, app.button_solo_h + app.btn_quit_ofst,
-				app.button_quit_size, app.button_quit_size, app.buttons[.quit_map].img)
-		}
+		app.ctx.draw_image(button_solo_x * app.ui, button_solo_y * app.ui, button_solo_w * app.ui,
+			button_solo_h * app.ui, app.solo_img)
+		app.ctx.draw_image(btn_quit_ofst * app.ui, (button_solo_h + btn_quit_ofst) * app.ui,
+			button_quit_size * app.ui, button_quit_size * app.ui, unsafe { app.buttons[.quit_map].img })
 	} else if app.solo_menu {
 		for i, m in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
-			y := (app.maps_y_offset + app.maps_top_spacing) * (i + 1)
-			app.ctx.draw_rect_filled(app.maps_x_offset, y, app.maps_w, app.maps_h, app.palette.ui_bg)
-			app.ctx.draw_text_def(int(app.maps_x_offset), int(y), m)
-			end_x := app.maps_x_offset + app.maps_w
+			y := (maps_y_offset + maps_top_spacing) * (i + 1) * app.ui
+			app.ctx.draw_rect_filled(maps_x_offset * app.ui, y, maps_w * app.ui, maps_h * app.ui,
+				app.palette.ui_bg)
+			app.ctx.draw_text(int(maps_x_offset * app.ui), int(y), m, ui_log_cfg)
+			end_x := (maps_x_offset + maps_w) * app.ui
+			h := maps_h * app.ui
 			if i != app.map_delete_nb {
-				app.ctx.draw_image(end_x, y, app.maps_h, app.maps_h, unsafe { app.buttons[.trash].img })
+				app.ctx.draw_image(end_x, y, h, h, unsafe { app.buttons[.trash].img })
 			} else {
-				app.ctx.draw_image(end_x + app.maps_h, y, app.maps_h, app.maps_h, unsafe { app.buttons[.trash].img })
+				app.ctx.draw_image(end_x + h, y, h, h, unsafe { app.buttons[.trash].img })
 			}
 		}
-		app.ctx.draw_square_filled(app.button_new_map_x, app.button_new_map_y, app.button_new_map_size,
-			app.palette.ui_bg)
-		unsafe {
-			app.ctx.draw_image(app.btn_back_x, app.btn_back_y, app.btn_back_s, app.btn_back_s,
-				app.buttons[.cancel_button].img)
-		}
-		app.ctx.draw_text_def(int(app.text_field_x), int(app.text_field_y), app.text_input)
+		new_x := button_new_map_x * app.ui
+		new_y := button_new_map_y * app.ui
+		new_size := button_new_map_size * app.ui
+		app.ctx.draw_square_filled(new_x, new_y, new_size, app.palette.ui_bg)
+		back_x := btn_back_x * app.ui
+		back_y := btn_back_y * app.ui
+		back_s := btn_back_s * app.ui
+		app.ctx.draw_image(back_x, back_y, back_s, back_s, unsafe { app.buttons[.cancel_button].img })
+		text_x := int(text_field_x * app.ui)
+		text_y := int(text_field_y * app.ui)
+		app.ctx.draw_text(text_x, text_y, app.text_input, ui_log_cfg)
 	} else {
 		app.disable_all_ingame_modes()
 		app.ctx.draw_square_filled(0, 0, 10, gg.Color{255, 0, 0, 255})
 		app.log('Not implemented on_frame UI', .err)
 	}
 	if app.log_timer > 0 {
-		interline_spacing := 4
-		border := 5
-		h := app.log.len * (app.log_cfg.size + interline_spacing)
-		rect_x := size.width - log_width - border
-		rect_y := size.height - h - border
+		border := log_border * app.ui
+		width := log_width * app.ui
+		interline_spacing := log_interline_spacing * app.ui
+		h := app.log.len * (ui_log_cfg.size + interline_spacing)
+		rect_x := app.s.width - log_width - log_border
+		rect_y := app.s.height - h - border
 		bor_x := rect_x - border
 		bor_y := rect_y - border
-		bor_w := log_width + 2 * border
+		bor_w := width + 2 * border
 		bor_h := h + 2 * border
 		// colored border rect
 		app.ctx.draw_rect_filled(bor_x, bor_y, bor_w, bor_h, app.log_border)
-
 		app.ctx.draw_rect_filled(rect_x, rect_y, log_width, h, gg.white)
 		for i, l in app.log {
-			ly := rect_y + i * (interline_spacing + app.log_cfg.size)
-			app.ctx.draw_text(rect_x, ly, l, app.log_cfg)
+			ly := int(rect_y + i * (interline_spacing + ui_log_cfg.size))
+			app.ctx.draw_text(rect_x, ly, l, ui_log_cfg)
 		}
 		app.log_timer -= 1
 	}
@@ -646,11 +684,11 @@ mut:
 }
 
 fn (mut app App) draw_ingame_ui_buttons() {
-	base_x := app.button_left_padding
-	base_y := app.button_top_padding
-	size := app.button_size
-	y_factor := app.button_top_padding + size
-	app.ctx.draw_rect_filled(0, 0, app.ui_width, 5000, app.palette.ui_bg)
+	base_x := button_left_padding * app.ui
+	base_y := button_top_padding * app.ui
+	size := button_size * app.ui
+	y_factor := base_y + size
+	app.ctx.draw_rect_filled(0, 0, app.ui * ui_width, app.ui * 1400.0, app.palette.ui_bg)
 	app.ctx.draw_square_filled(base_x, base_y, size, default_button_color) // cancel_button
 	unsafe {
 		if app.selection_mode {
@@ -1021,15 +1059,16 @@ fn (mut app App) draw_map() {
 
 fn (app App) check_ui_button_click_y(but Buttons, mouse_y f32) bool {
 	pos := unsafe { app.buttons[but].pos }
-	return mouse_y >= pos * (app.button_top_padding + app.button_size) + app.button_top_padding
-		&& mouse_y < (pos + 1) * (app.button_top_padding + app.button_size) + app.button_top_padding
+	return mouse_y >= (pos * (button_top_padding + button_size + button_top_padding)) * app.ui
+		&& mouse_y < ((pos + 1) * (button_top_padding + button_size) + button_top_padding) * app.ui
 }
 
 fn (app App) ingame_ui_button_click_to_nb(mouse_x f32, mouse_y f32) int {
-	if !(mouse_x >= app.button_left_padding && mouse_x < app.button_size + app.button_left_padding) { // button area
+	if !(mouse_x >= app.ui * button_left_padding
+		&& mouse_x < app.ui * (button_size + button_left_padding)) { // button area
 		return -1
 	}
-	return int((mouse_y - app.button_top_padding) / (app.button_top_padding + app.button_size))
+	return int((mouse_y - app.ui * button_top_padding) / (app.ui * (button_top_padding + button_size)))
 }
 
 fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
@@ -1230,13 +1269,13 @@ fn (app App) convert_button_nb_to_enum(nb int) ?Buttons {
 }
 
 fn (app App) check_maps_button_click_y(pos int, mouse_y f32) bool {
-	return mouse_y >= pos * (app.maps_top_spacing + app.maps_h) + app.maps_y_offset
-		&& mouse_y < (pos + 1) * (app.maps_top_spacing + app.maps_h) + app.maps_y_offset
+	return mouse_y >= app.ui * (pos * (maps_top_spacing + maps_h) + maps_y_offset)
+		&& mouse_y < app.ui * ((pos + 1) * (maps_top_spacing + maps_h) + maps_y_offset)
 }
 
 fn (app App) check_gates_button_click_y(pos int, mouse_y f32) bool {
-	return mouse_y >= pos * (app.gate_top_spacing + app.gate_h) + app.gate_y_offset
-		&& mouse_y < (pos + 1) * (app.gate_top_spacing + app.gate_h) + app.gate_y_offset
+	return mouse_y >= app.ui * (pos * (gate_top_spacing + gate_h) + gate_y_offset)
+		&& mouse_y < app.ui * ((pos + 1) * (gate_top_spacing + gate_h) + gate_y_offset)
 }
 
 fn (mut app App) disable_all_ingame_modes() {
@@ -1345,12 +1384,12 @@ fn (mut app App) back_to_main_menu() {
 
 fn (mut app App) check_and_delete_colorchip_input(mouse_x f32, mouse_y f32) {
 	for i in 0 .. app.colorchips[app.selected_colorchip].inputs.len {
-		x := app.editmenu_offset_inputs_x +
-			i % app.editmenu_nb_inputs_by_row * app.editmenu_inputsize
-		y := app.editmenu_offset_inputs_y +
-			i / app.editmenu_nb_inputs_by_row * app.editmenu_inputsize
-		if mouse_x >= x && mouse_x < x + app.editmenu_inputsize {
-			if mouse_y >= y && mouse_y < y + app.editmenu_inputsize {
+		x := app.ui * editmenu_offset_inputs_x +
+			i % app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
+		y := app.ui * editmenu_offset_inputs_y +
+			i / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
+		if mouse_x >= x && mouse_x < x + app.ui * editmenu_inputsize {
+			if mouse_y >= y && mouse_y < y + app.ui * editmenu_inputsize {
 				app.colorchips[app.selected_colorchip].inputs.delete(i)
 				for app.colorchips[app.selected_colorchip].colors.len > pow(2, app.colorchips[app.selected_colorchip].inputs.len) {
 					app.colorchips[app.selected_colorchip].colors.delete(app.colorchips[app.selected_colorchip].colors.len - 1)
@@ -1362,10 +1401,12 @@ fn (mut app App) check_and_delete_colorchip_input(mouse_x f32, mouse_y f32) {
 
 fn (mut app App) check_and_select_or_delete_color_cc(mouse_x f32, mouse_y f32, e &gg.Event) {
 	for i in 0 .. app.colorchips[app.selected_colorchip].colors.len {
-		x := app.editmenu_offset_x + i % app.editmenu_nb_color_by_row * app.editmenu_colorsize
-		y := app.editmenu_offset_y + i / app.editmenu_nb_color_by_row * app.editmenu_colorsize
-		if mouse_x >= x && mouse_x < x + app.editmenu_colorsize {
-			if mouse_y >= y && mouse_y < y + app.editmenu_colorsize {
+		x := app.ui * editmenu_offset_x +
+			i % app.editmenu_nb_color_by_row * app.ui * editmenu_colorsize
+		y := app.ui * editmenu_offset_y +
+			i / app.editmenu_nb_color_by_row * app.ui * editmenu_colorsize
+		if mouse_x >= x && mouse_x < x + app.ui * editmenu_colorsize {
+			if mouse_y >= y && mouse_y < y + app.ui * editmenu_colorsize {
 				if e.mouse_button == .left {
 					app.editmenu_selected_color = i
 				} else if e.mouse_button == .right {
@@ -1384,22 +1425,22 @@ fn (mut app App) check_and_select_or_delete_color_cc(mouse_x f32, mouse_y f32, e
 }
 
 fn (mut app App) check_and_change_color_cc(mouse_x f32, mouse_y f32, e &gg.Event) {
-	if mouse_y >= app.editmenu_rgb_y && mouse_y < app.editmenu_rgb_y + app.editmenu_rgb_h {
-		if mouse_x >= app.editmenu_r_x && mouse_x < app.editmenu_r_x + app.editmenu_rgb_w {
+	if mouse_y >= app.ui * editmenu_rgb_y && mouse_y < app.ui * (editmenu_rgb_y + editmenu_rgb_h) {
+		if mouse_x >= app.ui * editmenu_r_x && mouse_x < app.ui * (editmenu_r_x + editmenu_rgb_w) {
 			if e.mouse_button == .left {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].r += 1
 			} else if e.mouse_button == .right {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].r -= 1
 			}
 		}
-		if mouse_x >= app.editmenu_g_x && mouse_x < app.editmenu_g_x + app.editmenu_rgb_w {
+		if mouse_x >= app.ui * editmenu_g_x && mouse_x < app.ui * (editmenu_g_x + editmenu_rgb_w) {
 			if e.mouse_button == .left {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].g += 1
 			} else if e.mouse_button == .right {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].g -= 1
 			}
 		}
-		if mouse_x >= app.editmenu_b_x && mouse_x < app.editmenu_b_x + app.editmenu_rgb_w {
+		if mouse_x >= app.ui * editmenu_b_x && mouse_x < app.ui * (editmenu_b_x + editmenu_rgb_w) {
 			if e.mouse_button == .left {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].b += 1
 			} else if e.mouse_button == .right {
@@ -1532,6 +1573,8 @@ fn (mut app App) scroll() {
 }
 
 fn on_event(e &gg.Event, mut app App) {
+	app.s = app.ctx.window_size()
+	app.ui = f32(app.s.height) / f32(800.0)
 	unsafe {
 		app.e = e
 	}
@@ -1555,18 +1598,19 @@ fn on_event(e &gg.Event, mut app App) {
 		.mouse_up {
 			app.mouse_down = false
 			if app.main_menu {
-				if mouse_x >= app.button_solo_x && mouse_x < app.button_solo_x + app.button_solo_w
-					&& mouse_y >= app.button_solo_y
-					&& mouse_y < app.button_solo_y + app.button_solo_h {
+				if mouse_x >= app.ui * button_solo_x
+					&& mouse_x < app.ui * (button_solo_x + button_solo_w)
+					&& mouse_y >= app.ui * button_solo_y
+					&& mouse_y < app.ui * (button_solo_y + button_solo_h) {
 					app.go_map_menu()
-				} else if mouse_x >= app.btn_quit_ofst
-					&& mouse_x < app.btn_quit_ofst + app.button_quit_size
-					&& mouse_y >= app.button_solo_h + app.btn_quit_ofst
-					&& mouse_y < app.button_solo_h + app.btn_quit_ofst + app.button_quit_size {
+				} else if mouse_x >= app.ui * btn_quit_ofst
+					&& mouse_x < app.ui * (btn_quit_ofst + button_quit_size)
+					&& mouse_y >= app.ui * (button_solo_h + btn_quit_ofst)
+					&& mouse_y < app.ui * (button_solo_h + btn_quit_ofst + button_quit_size) {
 					exit(0)
 				}
 			} else if app.solo_menu {
-				if mouse_x >= app.maps_x_offset {
+				if mouse_x >= app.ui * maps_x_offset {
 					app.map_names_list = os.ls(maps_path) or {
 						app.log('Cannot list files in ${maps_path}, ${err}', .err)
 						return
@@ -1574,15 +1618,15 @@ fn on_event(e &gg.Event, mut app App) {
 					for i, name in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 						if e.mouse_button == .left {
 							if app.check_maps_button_click_y(i, mouse_y) {
-								map_end_x := app.maps_x_offset + app.maps_w
+								map_end_x := app.ui * (maps_x_offset + maps_w)
 								if mouse_x < map_end_x {
 									app.load_saved_game(name)
 									return
-								} else if mouse_x < map_end_x + app.maps_h {
+								} else if mouse_x < map_end_x + app.ui * maps_h {
 									app.map_delete_nb = i
 									return
 								} else if app.map_delete_nb == i
-									&& mouse_x < map_end_x + 2 * app.maps_h {
+									&& mouse_x < map_end_x + 2 * app.ui * maps_h {
 									app.map_delete_nb = -1
 									os.rm(maps_path + name) or {
 										app.log('${@LOCATION}: ${err}', .warn)
@@ -1598,24 +1642,26 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				}
-				if mouse_x >= app.button_new_map_x
-					&& mouse_x < app.button_new_map_x + app.button_new_map_size
-					&& mouse_y >= app.button_new_map_y
-					&& mouse_y < app.button_new_map_y + app.button_new_map_size {
+				if mouse_x >= app.ui * button_new_map_x
+					&& mouse_x < app.ui * (button_new_map_x + button_new_map_size)
+					&& mouse_y >= app.ui * button_new_map_y
+					&& mouse_y < app.ui * (button_new_map_y + button_new_map_size) {
 					if app.text_input != '' {
 						app.create_game()
 					} else {
 						app.log('Please input a name for the new map', .info)
 					}
-				} else if mouse_x >= app.btn_back_x && mouse_x < app.btn_back_x + app.btn_back_s
-					&& mouse_y >= app.btn_back_y && mouse_y < app.btn_back_y + app.btn_back_s {
+				} else if mouse_x >= app.ui * btn_back_x
+					&& mouse_x < app.ui * (btn_back_x + btn_back_s)
+					&& mouse_y >= app.ui * btn_back_y
+					&& mouse_y < app.ui * (btn_back_y + btn_back_s) {
 					app.back_to_main_menu()
 				}
 			} else if app.comp_running {
 				if app.keyinput_mode {
 					if app.move_down && e.mouse_button == .middle {
 						app.finish_move_cam()
-					} else if mouse_x < app.ui_width {
+					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						map_x := app.cam_x + (mouse_x / app.tile_size)
@@ -1641,7 +1687,7 @@ fn on_event(e &gg.Event, mut app App) {
 				} else if app.edit_mode {
 					if app.move_down && e.mouse_button == .middle {
 						app.finish_move_cam()
-					} else if mouse_x < app.ui_width {
+					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						if app.edit_color_submode && app.selected_colorchip != -1 {
@@ -1692,15 +1738,15 @@ fn on_event(e &gg.Event, mut app App) {
 				} else if app.load_gate_mode {
 					if app.move_down && e.mouse_button == .middle {
 						app.finish_move_cam()
-					} else if mouse_x < app.ui_width {
+					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						app.gate_name_list = os.ls(gates_path) or {
 							app.log('cannot list files in ${gates_path}, ${err}', .err)
 							return
 						}
-						if mouse_x >= app.ui_width + app.gate_x_ofst
-							&& mouse_x < app.ui_width + app.gate_x_ofst + app.gate_w {
+						if mouse_x >= app.ui * (ui_width + gate_x_ofst)
+							&& mouse_x < app.ui * (ui_width + gate_x_ofst + gate_w) {
 							for i, name in app.gate_name_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 								if e.mouse_button == .left {
 									if app.check_gates_button_click_y(i, mouse_y) {
@@ -1715,13 +1761,13 @@ fn on_event(e &gg.Event, mut app App) {
 						app.placement_released_at(mouse_x, mouse_y, e)
 					} else if app.move_down && e.mouse_button == .middle {
 						app.finish_move_cam()
-					} else if mouse_x < app.ui_width {
+					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					}
 				} else if app.paste_mode {
 					if app.move_down && e.mouse_button == .middle {
 						app.finish_move_cam()
-					} else if mouse_x < app.ui_width {
+					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						if e.mouse_button == .left {
@@ -1732,13 +1778,13 @@ fn on_event(e &gg.Event, mut app App) {
 				} else if app.save_gate_mode {
 					if app.move_down && e.mouse_button == .middle {
 						app.finish_move_cam()
-					} else if mouse_x < app.ui_width {
+					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					}
 				} else if app.selection_mode {
 					if app.move_down && e.mouse_button == .middle {
 						app.finish_move_cam()
-					} else if mouse_x < app.ui_width {
+					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
 						if e.mouse_button == .left {
@@ -1752,7 +1798,7 @@ fn on_event(e &gg.Event, mut app App) {
 				} else {
 					if app.move_down {
 						app.finish_move_cam()
-					} else if mouse_x < app.ui_width {
+					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					}
 				}
@@ -1881,7 +1927,7 @@ fn on_event(e &gg.Event, mut app App) {
 	if app.mouse_down {
 		if app.comp_running {
 			if app.placement_mode {
-				if mouse_x <= app.ui_width {
+				if mouse_x <= app.ui * ui_width {
 				} else {
 					if e.mouse_button == .middle && !app.place_down {
 						app.move_cam()
@@ -1906,7 +1952,7 @@ fn on_event(e &gg.Event, mut app App) {
 					}
 				}
 			} else if app.selection_mode {
-				if mouse_x <= app.ui_width {
+				if mouse_x <= app.ui * ui_width {
 				} else {
 					if e.mouse_button == .left {
 						app.select_start_x = u32(app.cam_x + mouse_x / app.tile_size)
@@ -1927,7 +1973,7 @@ fn on_event(e &gg.Event, mut app App) {
 					app.move_cam()
 				}
 			} else {
-				if mouse_x <= app.ui_width {
+				if mouse_x <= app.ui * ui_width {
 				} else {
 					app.move_cam()
 				}
@@ -2053,7 +2099,7 @@ fn (mut app App) log(message string, log_type Log) {
 	f.close()
 	println(message)
 	// x2 because size is the height of the char and the width of the char is size/2
-	app.log = message.wrap(width: 2 * log_width / app.log_cfg.size).split('\n')
+	app.log = message.wrap(width: 2 * log_width / log_cfg.size).split('\n')
 	app.log_border = match log_type {
 		.warn { gg.Color{200, 200, 0, 255} }
 		.err { gg.Color{200, 0, 0, 255} }
