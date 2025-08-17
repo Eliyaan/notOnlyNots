@@ -669,7 +669,7 @@ mut:
 		width := log_width * app.ui
 		interline_spacing := log_interline_spacing * app.ui
 		h := app.log.len * (ui_log_cfg.size + interline_spacing)
-		rect_x := app.s.width - log_width - log_border
+		rect_x := app.s.width - width - log_border
 		rect_y := app.s.height - h - border
 		bor_x := rect_x - border
 		bor_y := rect_y - border
@@ -677,10 +677,10 @@ mut:
 		bor_h := h + 2 * border
 		// colored border rect
 		app.ctx.draw_rect_filled(bor_x, bor_y, bor_w, bor_h, app.log_border)
-		app.ctx.draw_rect_filled(rect_x, rect_y, log_width, h, gg.white)
+		app.ctx.draw_rect_filled(rect_x, rect_y, width, h, gg.white)
 		for i, l in app.log {
 			ly := int(rect_y + i * (interline_spacing + ui_log_cfg.size))
-			app.ctx.draw_text(rect_x, ly, l, ui_log_cfg)
+			app.ctx.draw_text(int(rect_x), ly, l, ui_log_cfg)
 		}
 		app.log_timer -= 1
 	}
