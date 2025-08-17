@@ -433,6 +433,13 @@ mut:
 
 fn main() {
 	mut app := &App{}
+	app.init_graphics()!
+	app.main_menu = true
+	app.log('Start: ${time.now()}', .info)
+	app.ctx.run()
+}
+
+fn (mut app App) init_graphics()! {
 	app.ctx = gg.new_context(
 		create_window: true
 		window_title:  'Nots'
@@ -443,9 +450,7 @@ fn main() {
 		bg_color:      app.palette.background
 		font_path:     font_path
 	)
-	app.log('Start: ${time.now()}', .info)
 	// lancement du programme/de la fenêtre
-	app.main_menu = true
 	unsafe {
 		app.buttons[.cancel_button].img = app.ctx.create_image(sprites_path + 'cancel_button.png')!
 		app.buttons[.confirm_save_gate].img = app.ctx.create_image(sprites_path +
@@ -487,7 +492,6 @@ fn main() {
 	}
 	app.solo_img = app.ctx.create_image(sprites_path + 'nots_icon.png')!
 	app.load_palette()
-	app.ctx.run()
 }
 
 fn toml_palette_color(color string, doc toml.Doc) gg.Color {

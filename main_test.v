@@ -150,7 +150,7 @@ fn test_seeded_fuzz_small() {
 	for app.comp_alive {}
 
 	app.nb_updates = 10_000_000
-	pos := u32(2_000_000)
+	pos := u32(2_000_000_000)
 	size := u32(10)
 	end := pos + size
 	nb_cycles := 10000
@@ -170,6 +170,12 @@ fn test_seeded_fuzz_small() {
 	println('Finished test_seeded_fuzz_small')
 }
 
+fn (mut app App) debug_view()! {
+	app.init_graphics()!
+	app.comp_running = true
+	app.ctx.run()
+}
+
 fn test_seeded_fuzz() {
 	mut app := App{}
 	name := 'test'
@@ -180,7 +186,7 @@ fn test_seeded_fuzz() {
 	for app.comp_alive {}
 
 	app.nb_updates = 10_000_000
-	pos := u32(2_000_000)
+	pos := u32(2_000_000_000)
 	size := u32(100)
 	end := pos + size
 	nb_cycles := 100
@@ -207,7 +213,7 @@ fn test_placement_removal_big() {
 	app.create_game()
 	app.comp_running = false
 	for app.comp_alive {}
-	mut pos := u32(2_000)
+	mut pos := u32(2_000_000_000)
 
 	app.selected_item = .not
 	app.placement(pos, pos, pos + 1000, pos + 1000)
