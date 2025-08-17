@@ -334,6 +334,7 @@ mut:
 	mouse_map_x       u32
 	mouse_map_y       u32
 	scroll_pos        f32
+	debug_mode        bool
 	// main menu
 	main_menu bool
 	solo_img  gg.Image
@@ -439,7 +440,7 @@ fn main() {
 	app.ctx.run()
 }
 
-fn (mut app App) init_graphics()! {
+fn (mut app App) init_graphics() ! {
 	app.ctx = gg.new_context(
 		create_window: true
 		window_title:  'Nots'
@@ -629,6 +630,88 @@ mut:
 				app.ctx.draw_text(int(x), y_text, name, ui_log_cfg)
 			}
 		}
+		if app.debug_mode {
+			x := app.mouse_map_x
+			y := app.mouse_map_y
+			mut chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+			mut chunkmap := &app.map[chunk_i].id_map
+			x_map := x % chunk_size
+			y_map := y % chunk_size
+			id := unsafe { chunkmap[x_map][y_map] }
+			rid := id & rid_mask
+			tile_mid := app.tile_size / 2
+			if id == 0x0 { // map empty
+			} else if id == elem_crossing_bits { // same bits as wires so need to be separated
+			} else {
+				match id & elem_type_mask {
+					elem_wire_bits {
+						w := app.wires[rid]
+						// println('Wire inps: ${w.inps.map('${it:064b}')} outs: ${w.outs.map('${it:064b}')} cable_coords: ${w.cable_coords} cable_chunk_i: ${w.cable_chunk_i}')
+						for inp in w.inps {
+							info := app.get_info(inp)
+							for c in info.coos {
+								inp_x := f32((f64(c.x) - app.cam_x) * app.tile_size) + tile_mid
+								inp_y := f32((f64(c.y) - app.cam_y) * app.tile_size) + tile_mid
+								app.ctx.draw_circle_empty(inp_x, inp_y, 10, gg.yellow)
+							}
+						}
+						for out in w.outs {
+							info := app.get_info(out)
+							for c in info.coos {
+								inp_x := f32((f64(c.x) - app.cam_x) * app.tile_size) + tile_mid
+								inp_y := f32((f64(c.y) - app.cam_y) * app.tile_size) + tile_mid
+								app.ctx.draw_circle_empty(inp_x, inp_y, 10, gg.purple)
+							}
+						}
+					}
+					elem_not_bits {
+						n := app.nots[rid]
+						pos_x := f32((f64(x) - app.cam_x) * app.tile_size) + tile_mid
+						pos_y := f32((f64(y) - app.cam_y) * app.tile_size) + tile_mid
+						app.ctx.draw_circle_empty(pos_x, pos_y, 10, gg.blue)
+						// input info
+						info := app.get_info(n.inp)
+						if info.dead {
+							app.ctx.draw_circle_filled(app.e.mouse_x, app.e.mouse_y, 10,
+								gg.black)
+						} else {
+							app.ctx.draw_circle_empty(app.e.mouse_x, app.e.mouse_y, 10,
+								gg.white)
+						}
+						for c in info.coos {
+							inp_x := f32((f64(c.x) - app.cam_x) * app.tile_size) + tile_mid
+							inp_y := f32((f64(c.y) - app.cam_y) * app.tile_size) + tile_mid
+							app.ctx.draw_circle_empty(inp_x, inp_y, 10, gg.yellow)
+						}
+					}
+					elem_diode_bits {
+						d := app.diodes[rid]
+						pos_x := f32((f64(x) - app.cam_x) * app.tile_size) + tile_mid
+						pos_y := f32((f64(y) - app.cam_y) * app.tile_size) + tile_mid
+						app.ctx.draw_circle_empty(pos_x, pos_y, 10, gg.blue)
+						// WIP
+						// input info
+						info := app.get_info(d.inp)
+						if info.dead {
+							app.ctx.draw_circle_filled(app.e.mouse_x, app.e.mouse_y, 10,
+								gg.black)
+						} else {
+							app.ctx.draw_circle_empty(app.e.mouse_x, app.e.mouse_y, 10,
+								gg.white)
+						}
+						for c in info.coos {
+							inp_x := f32((f64(c.x) - app.cam_x) * app.tile_size) + tile_mid
+							inp_y := f32((f64(c.y) - app.cam_y) * app.tile_size) + tile_mid
+							app.ctx.draw_circle_empty(inp_x, inp_y, 10, gg.yellow)
+						}
+					}
+					elem_on_bits {}
+					else {
+						app.log_quit('${@LOCATION} should not get into this else')
+					}
+				}
+			}
+		}
 	} else if app.main_menu {
 		app.ctx.draw_image(button_solo_x * app.ui, button_solo_y * app.ui, button_solo_w * app.ui,
 			button_solo_h * app.ui, app.solo_img)
@@ -685,6 +768,46 @@ mut:
 		app.log_timer -= 1
 	}
 	app.ctx.end(how: .passthru)
+}
+
+struct DebugInfo {
+mut:
+	id   u64
+	coos []Coo
+	dead bool
+}
+
+fn (mut app App) get_info(id u64) DebugInfo {
+	mut info := DebugInfo{
+		id: id
+	}
+	rid := id & rid_mask
+	if id == 0x0 { // map empty
+	} else if id == elem_crossing_bits { // same bits as wires so need to be separated
+	} else {
+		match id & elem_type_mask {
+			elem_wire_bits {
+				w := app.wires[rid]
+				info.dead = w.cable_coords[0].x == invalid_coo
+				info.coos = w.cable_coords.clone()
+			}
+			elem_not_bits {
+				n := app.nots[rid]
+				info.dead = n.x == invalid_coo
+				info.coos << Coo{n.x, n.y}
+			}
+			elem_diode_bits {
+				d := app.diodes[rid]
+				info.dead = d.x == invalid_coo
+				info.coos << Coo{d.x, d.y}
+			}
+			elem_on_bits {}
+			else {
+				app.log_quit('${@LOCATION} should not get into this else')
+			}
+		}
+	}
+	return info
 }
 
 fn (mut app App) draw_ingame_ui_buttons() {
@@ -2044,9 +2167,10 @@ fn (mut app App) nice_print(id u64) {
 		match id & elem_type_mask {
 			elem_wire_bits {
 				w := app.wires[rid]
-				println('inps: ${w.inps.map('${it:064b}')} outs: ${w.outs.map('${it:064b}')} cable_coords: ${w.cable_coords} cable_chunk_i: ${w.cable_chunk_i}')
+				println('Wire inps: ${w.inps.map('${it:064b}')} outs: ${w.outs.map('${it:064b}')} cable_coords: ${w.cable_coords} cable_chunk_i: ${w.cable_chunk_i}')
 			}
 			elem_not_bits {
+				print('Not ')
 				n := app.nots[rid]
 				x_c := n.x % chunk_size
 				y_c := n.y % chunk_size
@@ -2062,6 +2186,7 @@ fn (mut app App) nice_print(id u64) {
 				println('x: ${n.x} y: ${n.y} inp: ${n.inp:064b}')
 			}
 			elem_diode_bits {
+				print('Diode ')
 				d := app.diodes[rid]
 				x_c := d.x % chunk_size
 				y_c := d.y % chunk_size
@@ -2954,23 +3079,30 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 				elem_not_bits, elem_diode_bits {
 					inp_id := app.next_gate_id(x, y, -step[0], -step[1], ori)
 					if inp_id & id_mask != app.get_input(id) & id_mask {
-						return x, y, 'problem: Not/Diode input is not the preceding gate ${inp_id & id_mask:b} != ${app.get_input(id) & id_mask:b}'
+						app.nice_print(id)
+						app.nice_print(app.get_input(id))
+						app.nice_print(inp_id)
+						return x, y, 'problem: Not/Diode ${id & id_mask:b} input is not the preceding gate ${app.get_input(id) & id_mask:b} != ${inp_id & id_mask:b}'
 					}
 					inp_old_state := app.get_elem_state_by_id(inp_id, 1)
 					if id & elem_type_mask == elem_not_bits {
 						state := app.get_elem_state_by_id(id, 0)
 						if state == inp_old_state {
+							app.nice_print(id)
 							return x, y, 'problem: NOT did not inverse the input state ${state} ${inp_old_state}'
 						}
 						if (id & on_bits != 0) == inp_old_state {
+							app.nice_print(id)
 							return x, y, 'problem: NOT(map state) did not inverse the input state'
 						}
 					} else { // diode
 						state := app.get_elem_state_by_id(id, 0)
 						if state != inp_old_state {
+							app.nice_print(id)
 							return x, y, 'problem: Diode did not match the input state'
 						}
 						if (id & on_bits != 0) != inp_old_state {
+							app.nice_print(id)
 							return x, y, 'problem: Diode(map state) did not match the input state'
 						}
 					}

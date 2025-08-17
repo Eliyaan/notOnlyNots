@@ -170,7 +170,8 @@ fn test_seeded_fuzz_small() {
 	println('Finished test_seeded_fuzz_small')
 }
 
-fn (mut app App) debug_view()! {
+fn (mut app App) debug_view() ! {
+	app.debug_mode = true
 	app.init_graphics()!
 	app.comp_running = true
 	app.ctx.run()
