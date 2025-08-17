@@ -668,6 +668,9 @@ mut:
 						n := app.nots[rid]
 						pos_x := f32((f64(x) - app.cam_x) * app.tile_size) + tile_mid
 						pos_y := f32((f64(y) - app.cam_y) * app.tile_size) + tile_mid
+						if n.x == invalid_coo {
+							app.ctx.draw_circle_empty(pos_x, pos_y, 20, gg.red)
+						}
 						app.ctx.draw_circle_empty(pos_x, pos_y, 10, gg.blue)
 						// input info
 						info := app.get_info(n.inp)
@@ -688,6 +691,9 @@ mut:
 						d := app.diodes[rid]
 						pos_x := f32((f64(x) - app.cam_x) * app.tile_size) + tile_mid
 						pos_y := f32((f64(y) - app.cam_y) * app.tile_size) + tile_mid
+						if d.x == invalid_coo {
+							app.ctx.draw_circle_empty(pos_x, pos_y, 20, gg.red)
+						}
 						app.ctx.draw_circle_empty(pos_x, pos_y, 10, gg.blue)
 						// WIP
 						// input info
@@ -1723,6 +1729,9 @@ fn on_event(e &gg.Event, mut app App) {
 	app.mouse_map_y = u32(app.cam_y + mouse_y / app.tile_size)
 	match e.typ {
 		.mouse_up {
+			if app.debug_mode && e.modifiers & 1 == 1 { // shift
+				app.update_cycle()
+			}
 			app.mouse_down = false
 			if app.main_menu {
 				if mouse_x >= app.ui * button_solo_x
@@ -2167,7 +2176,7 @@ fn (mut app App) nice_print(id u64) {
 		match id & elem_type_mask {
 			elem_wire_bits {
 				w := app.wires[rid]
-				println('Wire inps: ${w.inps.map('${it:064b}')} outs: ${w.outs.map('${it:064b}')} cable_coords: ${w.cable_coords} cable_chunk_i: ${w.cable_chunk_i}')
+				println('Wire state: ${app.w_states[0][rid]},${app.w_states[1][rid]} inps: ${w.inps.map('${it:064b}')} outs: ${w.outs.map('${it:064b}')} cable_coords: ${w.cable_coords} cable_chunk_i: ${w.cable_chunk_i}')
 			}
 			elem_not_bits {
 				print('Not ')
@@ -2183,7 +2192,7 @@ fn (mut app App) nice_print(id u64) {
 					west { print('west ') }
 					else {}
 				}
-				println('x: ${n.x} y: ${n.y} inp: ${n.inp:064b}')
+				println('${app.n_states[0][rid]},${app.n_states[1][rid]} x: ${n.x} y: ${n.y} inp: ${n.inp:064b}')
 			}
 			elem_diode_bits {
 				print('Diode ')
@@ -2199,7 +2208,7 @@ fn (mut app App) nice_print(id u64) {
 					west { print('west ') }
 					else {}
 				}
-				println('x: ${d.x} y: ${d.y} inp: ${d.inp:064b}')
+				println('${app.d_states[0][rid]},${app.d_states[1][rid]} x: ${d.x} y: ${d.y} inp: ${d.inp:064b}')
 			}
 			elem_on_bits {
 				println('On')
@@ -3095,9 +3104,9 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 							app.nice_print(id)
 							return x, y, 'problem: NOT did not inverse the input state ${state} ${inp_old_state}'
 						}
-						if (id & on_bits != 0) == inp_old_state {
+						if (id & on_bits != 0) != state {
 							app.nice_print(id)
-							return x, y, 'problem: NOT(map state) did not inverse the input state'
+							return x, y, 'problem: NOT is not the same on the map and in state array'
 						}
 					} else if check_state { // diode
 						state := app.get_elem_state_by_id(id, 0)
@@ -3105,9 +3114,9 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 							app.nice_print(id)
 							return x, y, 'problem: Diode did not match the input state'
 						}
-						if (id & on_bits != 0) != inp_old_state {
+						if (id & on_bits != 0) != state {
 							app.nice_print(id)
-							return x, y, 'problem: Diode(map state) did not match the input state'
+							return x, y, 'problem: Diode is not the same on the map and in state array'
 						}
 					}
 				}
