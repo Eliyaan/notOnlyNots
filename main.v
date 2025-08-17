@@ -2973,7 +2973,7 @@ fn (mut app App) gate_unit_tests(x u32, y u32, square_size int) {
 		app.paste(x, y)
 		for _ in 0 .. cycles {
 			app.update_cycle()
-			x_err, y_err, str_err := app.test_validity(x, y, x + size, y + size)
+			x_err, y_err, str_err := app.test_validity(x, y, x + size, y + size, true)
 			if str_err != '' {
 				app.log('FAIL: (validity) ${str_err}', .err)
 				println('TODO:')
@@ -3000,7 +3000,23 @@ fn (mut app App) paste(x_start u32, y_start u32) {
 	app.selected_item = old_item
 }
 
-fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u32) (u32, u32, string) {
+fn (mut app App) is_id_dead(id u64) bool {
+	match id & elem_type_mask {
+		elem_not_bits {
+			return app.nots[id & rid_mask].x == invalid_coo
+		}
+		elem_diode_bits {
+			return app.diodes[id & rid_mask].x == invalid_coo
+		}
+		elem_wire_bits {
+			return app.wires[id & rid_mask].cable_coords[0].x == invalid_coo
+		}
+		else {}
+	}
+	return false
+}
+
+fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u32, check_state bool) (u32, u32, string) {
 	// check all the elems in the rectangle to see if their state / data is valid
 	// input/output id (ajdacent tiles)
 	// current state (depending on the input)
@@ -3030,7 +3046,6 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			x_map := x % chunk_size
 			y_map := y % chunk_size
 			id := unsafe { chunkmap[x_map][y_map] }
-			rid := id & rid_mask
 			if id == 0x0 { // map empty
 				continue
 			}
@@ -3038,23 +3053,8 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 				continue // do not have any state to check
 			}
 			// check if not dead
-			match id & elem_type_mask {
-				elem_not_bits {
-					if app.nots[rid].x == invalid_coo {
-						continue
-					}
-				}
-				elem_diode_bits {
-					if app.diodes[rid].x == invalid_coo {
-						continue
-					}
-				}
-				elem_wire_bits {
-					if app.wires[rid].cable_coords[0].x == invalid_coo {
-						continue
-					}
-				}
-				else {}
+			if app.is_id_dead(id) {
+				continue
 			}
 			ori := id & ori_mask
 			step := match ori {
@@ -3077,15 +3077,19 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 
 			match id & elem_type_mask {
 				elem_not_bits, elem_diode_bits {
-					inp_id := app.next_gate_id(x, y, -step[0], -step[1], ori)
-					if inp_id & id_mask != app.get_input(id) & id_mask {
-						app.nice_print(id)
-						app.nice_print(app.get_input(id))
-						app.nice_print(inp_id)
-						return x, y, 'problem: Not/Diode ${id & id_mask:b} input is not the preceding gate ${app.get_input(id) & id_mask:b} != ${inp_id & id_mask:b}'
+					world_inp_id := app.next_gate_id(x, y, -step[0], -step[1], ori)
+					data_inp_id := app.get_input(id)
+					if data_inp_id != empty_id && app.is_id_dead(data_inp_id) {
+						return x, y, 'problem: Not/Diode ${id & id_mask:b} input is dead ${data_inp_id & id_mask:b} != ${world_inp_id & id_mask:b}'
 					}
-					inp_old_state := app.get_elem_state_by_id(inp_id, 1)
-					if id & elem_type_mask == elem_not_bits {
+					if world_inp_id & id_mask != data_inp_id & id_mask {
+						app.nice_print(id)
+						app.nice_print(data_inp_id)
+						app.nice_print(world_inp_id)
+						return x, y, 'problem: Not/Diode ${id & id_mask:b} input is not the preceding gate ${data_inp_id & id_mask:b} != ${world_inp_id & id_mask:b}'
+					}
+					inp_old_state := app.get_elem_state_by_id(world_inp_id, 1)
+					if check_state && id & elem_type_mask == elem_not_bits {
 						state := app.get_elem_state_by_id(id, 0)
 						if state == inp_old_state {
 							app.nice_print(id)
@@ -3095,7 +3099,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 							app.nice_print(id)
 							return x, y, 'problem: NOT(map state) did not inverse the input state'
 						}
-					} else { // diode
+					} else if check_state { // diode
 						state := app.get_elem_state_by_id(id, 0)
 						if state != inp_old_state {
 							app.nice_print(id)
@@ -3107,7 +3111,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 						}
 					}
 				}
-				elem_on_bits { // do not have any state to check
+				elem_on_bits { // do not have any data to check
 				}
 				elem_wire_bits {
 					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
@@ -3117,7 +3121,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 						0)
 					wire_idx := id & rid_mask
 					wire_state := app.get_elem_state_by_id(id, 0)
-					if (id & on_bits != 0) != wire_state {
+					if check_state && (id & on_bits != 0) != wire_state {
 						return x, y, "problem: cable(map state)'s state is not the same as the wire"
 					}
 					if s_adj_id != empty_id {
@@ -3131,7 +3135,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 									return x, y, "problem: south(${s_adj_id}) is not in the wire(${id})'s input"
 								}
 								s_old_state := app.get_elem_state_by_id(s_adj_id, 1)
-								if s_old_state && !wire_state {
+								if check_state && s_old_state && !wire_state {
 									return x, y, 'problem: wire ${id & rid_mask} did not match south On state'
 								}
 							} else {
@@ -3152,7 +3156,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 									return x, y, "problem: north(${n_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
 								n_old_state := app.get_elem_state_by_id(n_adj_id, 1)
-								if n_old_state && !wire_state {
+								if check_state && n_old_state && !wire_state {
 									return x, y, 'problem: wire did not match north On state'
 								}
 							} else {
@@ -3173,7 +3177,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 									return x, y, "problem: east(${e_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
 								e_old_state := app.get_elem_state_by_id(e_adj_id, 1)
-								if e_old_state && !wire_state {
+								if check_state && e_old_state && !wire_state {
 									return x, y, 'problem: wire did not match east On state'
 								}
 							} else {
@@ -3194,7 +3198,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 									return x, y, "problem: west(${w_adj_id & id_mask}) is not in the wire(${id & id_mask})'s input"
 								}
 								w_old_state := app.get_elem_state_by_id(w_adj_id, 1)
-								if w_old_state && !wire_state {
+								if check_state && w_old_state && !wire_state {
 									return x, y, 'problem: wire did not match west On state'
 								}
 							} else {
@@ -3214,7 +3218,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	return 0, 0, ''
 }
 
-fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_tries u32, d_tries u32, seed []u32) {
+fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_tries u32, d_tries u32, seed []u32, check_graph bool) {
 	// place random elems in a rectangle
 	rand.seed(seed)
 
@@ -3237,7 +3241,8 @@ fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_trie
 			3 { east }
 			else { west }
 		}
-		match rand.int_in_range(0, 6) or { 0 } {
+		elem := rand.int_in_range(0, 6) or { 0 } 
+		match elem {
 			1 {
 				app.selected_item = .not
 				app.placement(x, y, x, y)
@@ -3260,12 +3265,29 @@ fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_trie
 			}
 			else {}
 		}
+		if check_graph {
+			x_err, y_err, str_err := app.test_validity(x_start, y_start, x_end, y_end, false)
+			if str_err != '' {
+				println('Last elem: ${elem} at x:${x} y:${y}, 1=not, 2=diode, 3=on, 4=wire, 5=crossing, 0=empty')
+				println('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+				app.debug_view() or { continue }
+				panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+			}
+		}
 	}
 	for _ in 0 .. d_tries {
 		x := rand.u32_in_range(x_start, x_end + 1) or { 2 }
 		y := rand.u32_in_range(y_start, y_end + 1) or { 2 }
 		app.removal(x, y, x, y)
 	}
+}
+
+// Only use it if in test file
+fn (mut app App) debug_view() ! {
+	app.debug_mode = true
+	app.init_graphics()!
+	app.comp_running = true
+	app.ctx.run()
 }
 
 fn (mut app App) copy(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
@@ -4083,9 +4105,6 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 3. done
 					s_adj_id, s_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, 1)
 					n_adj_id, n_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 0, -1)
-					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
-					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1,
-						0)
 					if s_adj_id != empty_id && n_adj_id != empty_id {
 						if s_adj_id & elem_type_mask == elem_wire_bits
 							&& n_adj_id & elem_type_mask == elem_wire_bits {
@@ -4129,6 +4148,9 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 							}
 						}
 					}
+					e_adj_id, e_is_input, _, _ := app.wire_next_gate_id_coo(x, y, 1, 0)
+					w_adj_id, w_is_input, _, _ := app.wire_next_gate_id_coo(x, y, -1,
+						0)
 					if e_adj_id != empty_id && w_adj_id != empty_id {
 						if e_adj_id & elem_type_mask == elem_wire_bits
 							&& w_adj_id & elem_type_mask == elem_wire_bits {
