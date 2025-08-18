@@ -3044,6 +3044,23 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
 	mut last_cm_x := x_start
 	mut last_cm_y := y_start
+	for w in app.wires {
+		for cc in w.cable_coords {
+			if cc.x == invalid_coo {
+				break
+			}
+			if check_change_chunkmap(last_cm_x, last_cm_y, cc.x, cc.y) {
+				last_cm_x = cc.x
+				last_cm_y = cc.y
+				chunk_i = app.get_chunkmap_idx_at_coords(cc.x, cc.y)
+			}
+			mut chunkmap := &app.map[chunk_i].id_map
+			id := unsafe { chunkmap[cc.x % chunk_size][cc.y % chunk_size] }
+			if id & elem_type_mask != elem_wire_bits {
+				return cc.x, cc.y, 'problem: cable coord does not point to wire'
+			}
+		}
+	}
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
 			if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
