@@ -3543,8 +3543,10 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					if e_adj_id & elem_type_mask == elem_wire_bits
 						&& w_adj_id & elem_type_mask == elem_wire_bits {
 						// two wires: separate them
-						app.separate_wires([Coo{u32(x + w_x_off), y},
-							Coo{u32(x + e_x_off), y}], e_adj_id) // same id for east and west
+						if e_adj_id & rid_mask == w_adj_id & rid_mask { // could already have been separated by north / south
+							app.separate_wires([Coo{u32(x + w_x_off), y},
+								Coo{u32(x + e_x_off), y}], e_adj_id) // same id for east and west
+						}
 					} else if e_adj_id & elem_type_mask == elem_wire_bits {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						if w_is_input {
