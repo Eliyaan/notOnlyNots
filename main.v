@@ -3123,7 +3123,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 						}
 						if (id & on_bits != 0) != state {
 							app.nice_print(id)
-							return x, y, 'problem: NOT is not the same on the map and in state array'
+							return x, y, 'problem: NOT is not the same on the map and in state array ${id & on_bits != 0} ${state}'
 						}
 					} else if check_state { // diode
 						state := app.get_elem_state_by_id(id, 0)
@@ -3500,10 +3500,6 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					1)
 				n_adj_id, n_is_input, _, n_y_off := app.wire_next_gate_id_coo(x, y, 0,
 					-1)
-				e_adj_id, e_is_input, e_x_off, _ := app.wire_next_gate_id_coo(x, y, 1,
-					0)
-				w_adj_id, w_is_input, w_x_off, _ := app.wire_next_gate_id_coo(x, y, -1,
-					0)
 				if s_adj_id != empty_id && n_adj_id != empty_id {
 					if s_adj_id & elem_type_mask == elem_wire_bits
 						&& n_adj_id & elem_type_mask == elem_wire_bits {
@@ -3539,6 +3535,10 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 				}
+				e_adj_id, e_is_input, e_x_off, _ := app.wire_next_gate_id_coo(x, y, 1,
+					0)
+				w_adj_id, w_is_input, w_x_off, _ := app.wire_next_gate_id_coo(x, y, -1,
+					0)
 				if e_adj_id != empty_id && w_adj_id != empty_id {
 					if e_adj_id & elem_type_mask == elem_wire_bits
 						&& w_adj_id & elem_type_mask == elem_wire_bits {
