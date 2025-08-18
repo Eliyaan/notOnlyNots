@@ -155,7 +155,7 @@ fn test_seeded_fuzz_small() {
 	end := pos + size
 	nb_cycles := 10000
 	seed_offset := 67897
-	outer: for i in 0 .. 100 { // TODO: increase the number of tests
+	outer: for i in 0 .. 1000 { // TODO: increase the number of tests
 		eprintln(i)
 		app.removal(pos, pos, end, end)
 		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i], false)
@@ -185,10 +185,11 @@ fn test_seeded_fuzz() {
 	size := u32(100)
 	end := pos + size
 	nb_cycles := 100
+	seed_offset := 973
 	outer: for i in 0 .. 100 {
 		eprintln(i)
 		app.removal(pos, pos, end, end)
-		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(0), i], false) // TODO: set the 0 to an offset
+		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i], false) // TODO: set the 0 to an offset
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()
