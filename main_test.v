@@ -69,7 +69,8 @@ fn test_placement_small() {
 
 	app.update_cycle()
 	app.update_cycle()
-	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 100, pos + 100, true)
+	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 100, pos + 100,
+		true)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
@@ -155,10 +156,11 @@ fn test_seeded_fuzz_small() {
 	end := pos + size
 	nb_cycles := 10000
 	seed_offset := 67897
-	outer: for i in 0 .. 1000 { // TODO: increase the number of tests
+	for i in 0 .. 1000 { // TODO: increase the number of tests
 		eprintln(i)
 		app.removal(pos, pos, end, end)
-		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i], false)
+		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i],
+			false)
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()
@@ -186,10 +188,11 @@ fn test_seeded_fuzz() {
 	end := pos + size
 	nb_cycles := 100
 	seed_offset := 973
-	outer: for i in 0 .. 100 {
+	for i in 0 .. 300 {
 		eprintln(i)
 		app.removal(pos, pos, end, end)
-		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i], false) // TODO: set the 0 to an offset
+		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i],
+			false) // TODO: set the 0 to an offset
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()
@@ -218,7 +221,8 @@ fn test_placement_removal_big() {
 
 	app.update_cycle()
 	app.update_cycle()
-	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 1000, pos + 1000, true)
+	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 1000, pos + 1000,
+		true)
 	println('tested nots')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')

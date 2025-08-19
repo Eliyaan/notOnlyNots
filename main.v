@@ -3271,7 +3271,7 @@ fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_trie
 			3 { east }
 			else { west }
 		}
-		elem := rand.int_in_range(0, 6) or { 0 } 
+		elem := rand.int_in_range(0, 6) or { 0 }
 		match elem {
 			1 {
 				app.selected_item = .not
@@ -3296,7 +3296,8 @@ fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_trie
 			else {}
 		}
 		if check_graph {
-			x_err, y_err, str_err := app.test_validity(x_start, y_start, x_end, y_end, false)
+			x_err, y_err, str_err := app.test_validity(x_start, y_start, x_end, y_end,
+				false)
 			if str_err != '' {
 				println('Last elem: ${elem} at x:${x} y:${y}, 1=not, 2=diode, 3=on, 4=wire, 5=crossing, 0=empty')
 				println('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -3568,10 +3569,10 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 							mut adj_wires := [Coo{u32(x + w_x_off), y},
 								Coo{u32(x + e_x_off), y}]
 							if e_adj_id & rid_mask == s_adj_id & rid_mask {
-								adj_wires << Coo{u32(x + s_y_off), y}
+								adj_wires << Coo{u32(x), u32(y + s_y_off)}
 							}
 							if e_adj_id & rid_mask == n_adj_id & rid_mask {
-								adj_wires << Coo{u32(x + n_y_off), y}
+								adj_wires << Coo{u32(x), u32(y + n_y_off)}
 							}
 							app.separate_wires(adj_wires, e_adj_id)
 						}
