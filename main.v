@@ -3147,7 +3147,11 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 						0)
 					wire_idx := id & rid_mask
 					wire_state := app.get_elem_state_by_id(id, 0)
+					if Coo{x, y} !in app.wires[wire_idx].cable_coords {
+						return x, y, 'problem: cable(on map) is not in cable_coords ${x} ${y} !in ${app.wires[wire_idx].cable_coords}'
+					}
 					if check_state && (id & on_bits != 0) != wire_state {
+						app.nice_print(id)
 						return x, y, "problem: cable(map state)'s state is not the same as the wire"
 					}
 					if s_adj_id != empty_id {
@@ -3496,16 +3500,29 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 				// 2. done: no state & no struct
 
 				// 3. done
-				s_adj_id, s_is_input, _, s_y_off := app.wire_next_gate_id_coo(x, y, 0,
-					1)
-				n_adj_id, n_is_input, _, n_y_off := app.wire_next_gate_id_coo(x, y, 0,
-					-1)
+				mut s_adj_id, mut s_is_input, _, mut s_y_off := app.wire_next_gate_id_coo(x,
+					y, 0, 1)
+				mut n_adj_id, mut n_is_input, _, mut n_y_off := app.wire_next_gate_id_coo(x,
+					y, 0, -1)
+				mut e_adj_id, mut e_is_input, mut e_x_off, _ := app.wire_next_gate_id_coo(x,
+					y, 1, 0)
+				mut w_adj_id, mut w_is_input, mut w_x_off, _ := app.wire_next_gate_id_coo(x,
+					y, -1, 0)
+				mut has_separated := false
 				if s_adj_id != empty_id && n_adj_id != empty_id {
 					if s_adj_id & elem_type_mask == elem_wire_bits
 						&& n_adj_id & elem_type_mask == elem_wire_bits {
-						// two wires: separate them
-						app.separate_wires([Coo{x, u32(y + n_y_off)},
-							Coo{u32(x), u32(y + s_y_off)}], s_adj_id) // same id for north and south
+						// two wires or more: separate them
+						mut adj_wires := [Coo{x, u32(y + n_y_off)},
+							Coo{u32(x), u32(y + s_y_off)}]
+						if s_adj_id & rid_mask == e_adj_id & rid_mask {
+							adj_wires << Coo{u32(x + e_x_off), y}
+						}
+						if s_adj_id & rid_mask == w_adj_id & rid_mask {
+							adj_wires << Coo{u32(x + w_x_off), y}
+						}
+						app.separate_wires(adj_wires, s_adj_id) // same id for north and south
+						has_separated = true
 					} else if s_adj_id & elem_type_mask == elem_wire_bits {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						if n_is_input {
@@ -3535,34 +3552,55 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						}
 					}
 				}
-				e_adj_id, e_is_input, e_x_off, _ := app.wire_next_gate_id_coo(x, y, 1,
+				s_adj_id, s_is_input, _, s_y_off = app.wire_next_gate_id_coo(x, y, 0,
+					1)
+				n_adj_id, n_is_input, _, n_y_off = app.wire_next_gate_id_coo(x, y, 0,
+					-1)
+				e_adj_id, e_is_input, e_x_off, _ = app.wire_next_gate_id_coo(x, y, 1,
 					0)
-				w_adj_id, w_is_input, w_x_off, _ := app.wire_next_gate_id_coo(x, y, -1,
+				w_adj_id, w_is_input, w_x_off, _ = app.wire_next_gate_id_coo(x, y, -1,
 					0)
 				if e_adj_id != empty_id && w_adj_id != empty_id {
 					if e_adj_id & elem_type_mask == elem_wire_bits
 						&& w_adj_id & elem_type_mask == elem_wire_bits {
 						// two wires: separate them
 						if e_adj_id & rid_mask == w_adj_id & rid_mask { // could already have been separated by north / south
-							app.separate_wires([Coo{u32(x + w_x_off), y},
-								Coo{u32(x + e_x_off), y}], e_adj_id) // same id for east and west
+							mut adj_wires := [Coo{u32(x + w_x_off), y},
+								Coo{u32(x + e_x_off), y}]
+							if e_adj_id & rid_mask == s_adj_id & rid_mask {
+								adj_wires << Coo{u32(x + s_y_off), y}
+							}
+							if e_adj_id & rid_mask == n_adj_id & rid_mask {
+								adj_wires << Coo{u32(x + n_y_off), y}
+							}
+							app.separate_wires(adj_wires, e_adj_id)
 						}
 					} else if e_adj_id & elem_type_mask == elem_wire_bits {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						if w_is_input {
-							app.remove_input(e_adj_id, w_adj_id)
-							// not the wire -> not useful app.remove_output(w_adj_id, e_adj_id) // remove output of the gate
+							if !has_separated { // If it has separated, it already removed the input while building back the wire
+								app.remove_input(e_adj_id, w_adj_id)
+								// not the wire -> not useful app.remove_output(w_adj_id, e_adj_id) // remove output of the gate
+							}
 						} else {
-							app.remove_output(e_adj_id, w_adj_id)
+							if !has_separated {
+								app.remove_output(e_adj_id, w_adj_id)
+							}
 							app.remove_input(w_adj_id, e_adj_id) // remove output of the gate
 						}
 					} else if w_adj_id & elem_type_mask == elem_wire_bits {
 						// one side is a wire: add the new i/o for the wire & for the gate
 						if e_is_input {
-							app.remove_input(w_adj_id, e_adj_id)
-							// not the wire -> not useful app.remove_output(e_adj_id, w_adj_id) // remove output of the gate
+							// If it has separated, it already removed the input while building back the wire
+							// because now on the map they are not linked
+							if !has_separated {
+								app.remove_input(w_adj_id, e_adj_id)
+								// not the wire -> not useful app.remove_output(e_adj_id, w_adj_id) // remove output of the gate
+							}
 						} else {
-							app.remove_output(w_adj_id, e_adj_id)
+							if !has_separated {
+								app.remove_output(w_adj_id, e_adj_id)
+							}
 							app.remove_input(e_adj_id, w_adj_id) // remove output of the gate
 						}
 					} else {
