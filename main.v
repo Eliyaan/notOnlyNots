@@ -2031,7 +2031,7 @@ fn on_event(e &gg.Event, mut app App) {
 		}
 		else {}
 	}
-	if e.char_code != 0 {
+	if e.char_code != 0 && e.char_code != 8 { // nothing, backspace
 		if app.solo_menu {
 			app.text_input += u8(e.char_code).ascii_str()
 		} else if app.load_gate_mode {
