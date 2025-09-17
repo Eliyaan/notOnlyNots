@@ -34,7 +34,7 @@ fn test_placement_small() {
 	app.text_input = name
 	app.create_game()
 	app.comp_running = false
-	for app.comp_alive {}
+	app.cl_thread.wait()
 	app.nb_updates = 10_000_000
 	mut pos := u32(2_000_000_000)
 
@@ -148,7 +148,7 @@ fn test_seeded_fuzz_small() {
 	app.create_game()
 	// kill the thread to have control
 	app.comp_running = false
-	for app.comp_alive {}
+	app.cl_thread.wait()
 
 	app.nb_updates = 10_000_000
 	pos := u32(2_000_000_000)
@@ -180,7 +180,7 @@ fn test_seeded_fuzz_placing() {
 	app.create_game()
 	// kill the thread to have control
 	app.comp_running = false
-	for app.comp_alive {}
+	app.cl_thread.wait()
 
 	app.nb_updates = 10_000_000
 	pos := u32(2_000_000_000)
@@ -212,7 +212,7 @@ fn test_seeded_fuzz() {
 	app.create_game()
 	// kill the thread to have control
 	app.comp_running = false
-	for app.comp_alive {}
+	app.cl_thread.wait()
 
 	app.nb_updates = 10_000_000
 	pos := u32(2_000_000_000)
@@ -243,73 +243,73 @@ fn test_placement_removal_big() {
 	app.text_input = name
 	app.create_game()
 	app.comp_running = false
-	for app.comp_alive {}
+	app.cl_thread.wait()
 	mut pos := u32(2_000_000_000)
 
 	app.selected_item = .not
 	app.placement(pos, pos, pos + 1000, pos + 1000)
-	println('placed nots')
+	eprintln('placed nots')
 	// test if they are nots, with the right orientation
 
 	app.update_cycle()
 	app.update_cycle()
 	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 1000, pos + 1000,
 		true)
-	println('tested nots')
+	eprintln('tested nots')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
-	println('removed nots')
+	eprintln('removed nots')
 
 	app.selected_item = .diode
 	app.placement(pos, pos, pos + 1000, pos + 1000)
-	println('placed diodes')
+	eprintln('placed diodes')
 	// test if they are diodes, with the right orientation
 
 	app.update_cycle()
 	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true)
-	println('tested diodes')
+	eprintln('tested diodes')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
-	println('removed diodes')
+	eprintln('removed diodes')
 
 	app.selected_item = .crossing
 	app.placement(pos, pos, pos + 1000, pos + 1000)
-	println('placed crossings')
+	eprintln('placed crossings')
 	// test if they are crossings, with the right orientation
 
 	app.update_cycle()
 	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true)
-	println('tested crossings')
+	eprintln('tested crossings')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
-	println('removed crossings')
+	eprintln('removed crossings')
 
 	app.selected_item = .on
 	app.placement(pos, pos, pos + 1000, pos + 1000)
-	println('placed ons')
+	eprintln('placed ons')
 	// test if they are ons, with the right orientation
 
 	app.update_cycle()
 	app.update_cycle()
 	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true)
-	println('tested ons')
+	eprintln('tested ons')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
-	println('removed ons')
+	eprintln('removed ons')
 
 	app.selected_item = .wire
 	app.placement(pos, pos, pos + 1000, pos + 1000)
-	println('placed wires')
+	eprintln('placed wires')
 	// test if they are wires, with the right orientation
 
 	app.update_cycle()
@@ -320,6 +320,6 @@ fn test_placement_removal_big() {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
-	println('removed wires')
-	println('Finished test_placement_removal_big')
+	eprintln('removed wires')
+	eprintln('Finished test_placement_removal_big')
 }

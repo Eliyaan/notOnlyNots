@@ -401,6 +401,7 @@ mut:
 
 	// logic
 	map               []Chunk
+	cl_thread         thread
 	map_name          string // to fill when loading a map
 	comp_running      bool   // is a map loaded and running
 	pause             bool   // is the map updating
@@ -1501,7 +1502,7 @@ fn (mut app App) create_game() {
 		app.comp_running = true
 		///
 		println('starting computation!!!')
-		spawn app.computation_loop()
+		app.cl_thread = spawn app.computation_loop()
 		app.cam_x = default_camera_pos_x
 		app.cam_y = default_camera_pos_y
 	} else {
