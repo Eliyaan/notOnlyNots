@@ -6,6 +6,7 @@ import os
 import rand
 import time
 import gg
+import sokol.sgl
 import toml
 
 const game_data_path = 'game_data/'
@@ -75,6 +76,7 @@ const diode_array_default = [Diode{
 const wire_array_default = [Wire{
 	cable_coords: [Coo{invalid_coo, 0}]
 }]
+
 // UI sizes
 const log_cfg = gg.TextCfg{
 	size:  16
@@ -326,7 +328,7 @@ mut:
 	s                 gg.Size // screen size
 	ui                f32 = 1.0 // ui scale, factor by which all ui is multiplied
 	draw_count        int = 1
-	draw_step         int = 1000 // number of draw calls before .end( passthru
+	draw_step         int = 20000 // number of draw calls before .end( passthru
 	tile_size         int = 30
 	text_input        string // holds what the user typed
 	colorchips_hidden bool   // if colorchips are hidden
@@ -394,10 +396,18 @@ mut:
 	tmp_pos_x     u32 = u32(-1)
 	tmp_pos_y     u32 = u32(-1)
 	// UI on the left border, TODO: need to make it scaling automatically w/ screensize
-	buttons    map[Buttons]ButtonData = button_map.clone()
-	log        []string
-	log_border gg.Color
-	log_timer  int
+	buttons       map[Buttons]ButtonData = button_map.clone()
+	log           []string
+	log_border    gg.Color
+	log_timer     int
+	not_on_cfg    gg.DrawImageConfig
+	not_off_cfg   gg.DrawImageConfig
+	diode_on_cfg  gg.DrawImageConfig
+	diode_off_cfg gg.DrawImageConfig
+	wire_on_cfg   gg.DrawImageConfig
+	wire_off_cfg  gg.DrawImageConfig
+	junc_cfg      gg.DrawImageConfig
+	on_cfg        gg.DrawImageConfig
 
 	// logic
 	map               []Chunk
@@ -491,6 +501,38 @@ fn (mut app App) init_graphics() ! {
 		app.buttons[.selection_delete].img = app.ctx.create_image(sprites_path +
 			'selection_delete.png')!
 		app.buttons[.trash].img = app.ctx.create_image(sprites_path + 'trash.png')!
+	}
+	not_on_img := app.ctx.create_image(sprites_path + 'not_on.png')!
+	not_off_img := app.ctx.create_image(sprites_path + 'not_off.png')!
+	diode_on_img := app.ctx.create_image(sprites_path + 'diode_on.png')!
+	diode_off_img := app.ctx.create_image(sprites_path + 'diode_off.png')!
+	wire_on_img := app.ctx.create_image(sprites_path + 'wire_on.png')!
+	wire_off_img := app.ctx.create_image(sprites_path + 'wire_off.png')!
+	junc_img := app.ctx.create_image(sprites_path + 'junction.png')!
+	on_img := app.ctx.create_image(sprites_path + 'on.png')!
+	app.not_on_cfg = gg.DrawImageConfig{
+		img_id: not_on_img.id
+	}
+	app.not_off_cfg = gg.DrawImageConfig{
+		img_id: not_off_img.id
+	}
+	app.diode_on_cfg = gg.DrawImageConfig{
+		img_id: diode_on_img.id
+	}
+	app.diode_off_cfg = gg.DrawImageConfig{
+		img_id: diode_off_img.id
+	}
+	app.wire_on_cfg = gg.DrawImageConfig{
+		img_id: wire_on_img.id
+	}
+	app.wire_off_cfg = gg.DrawImageConfig{
+		img_id: wire_off_img.id
+	}
+	app.junc_cfg = gg.DrawImageConfig{
+		img_id: junc_img.id
+	}
+	app.on_cfg = gg.DrawImageConfig{
+		img_id: on_img.id
 	}
 	app.solo_img = app.ctx.create_image(sprites_path + 'nots_icon.png')!
 	app.load_palette()
@@ -1044,28 +1086,60 @@ fn (mut app App) draw_selection_box() {
 	}
 }
 
+// customized version of gg.draw_image_with_config
+fn (mut app App) draw_image_with_config(config gg.DrawImageConfig) {
+	ctx := app.ctx
+	img := &ctx.image_cache[config.img_id]
+
+	mut img_rect := config.img_rect
+	x0 := img_rect.x * ctx.scale
+	y0 := img_rect.y * ctx.scale
+	x1 := (img_rect.x + img_rect.width) * ctx.scale
+	mut y1 := (img_rect.y + img_rect.height) * ctx.scale
+
+	sgl.texture(img.simg, img.ssmp) // TODO
+
+	if config.rotation != 0 {
+		width := img_rect.width * ctx.scale
+		height := img_rect.height * ctx.scale
+
+		sgl.push_matrix()
+		sgl.translate(x0 + (width / 2), y0 + (height / 2), 0)
+		sgl.rotate(sgl.rad(-config.rotation), 0, 0, 1)
+		sgl.translate(-x0 - (width / 2), -y0 - (height / 2), 0)
+	}
+
+	sgl.begin_quads() // TODO with enable / disable texture
+	sgl.v3f_t2f(x0, y0, config.z, 0, 0)
+	sgl.v3f_t2f(x1, y0, config.z, 1, 0)
+	sgl.v3f_t2f(x1, y1, config.z, 1, 1)
+	sgl.v3f_t2f(x0, y1, config.z, 0, 1)
+	sgl.end() // TODO
+
+	if config.rotation != 0 {
+		sgl.pop_matrix()
+	}
+}
+
 fn (mut app App) draw_map() {
 	size := app.ctx.window_size()
 	// map rendering
-	not_poly := app.scale_sprite(not_poly_unscaled)
-	not_rect := app.scale_sprite(not_rect_unscaled)
-	mut not_poly_offset := []f32{len: 6, cap: 6}
-	diode_poly := app.scale_sprite(diode_poly_unscaled)
-	mut diode_poly_offset := []f32{len: 8, cap: 8}
-	on_poly := app.scale_sprite(on_poly_unscaled)
-	mut on_poly_offset := []f32{len: 8, cap: 8}
 	virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
 	virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
-	for i in 0 .. (size.width) / app.tile_size + 1 {
-		pos_x := f32((int(virt_cam_x) - virt_cam_x + i) * app.tile_size)
-		app.ctx.draw_line(pos_x, 0, pos_x, size.height, app.palette.grid)
-		app.draw_count += 1
+	if app.tile_size > 8 {
+		for i in 0 .. (size.width) / app.tile_size + 1 {
+			pos_x := f32((int(virt_cam_x) - virt_cam_x + i) * app.tile_size)
+			app.ctx.draw_line(pos_x, 0, pos_x, size.height, app.palette.grid)
+			app.draw_count += 1
+		}
+		for i in 0 .. (size.height) / app.tile_size + 1 {
+			pos_y := f32((int(virt_cam_y) - virt_cam_y + i) * app.tile_size)
+			app.ctx.draw_line(0, pos_y, size.width, pos_y, app.palette.grid)
+			app.draw_count += 1
+		}
 	}
-	for i in 0 .. (size.height) / app.tile_size + 1 {
-		pos_y := f32((int(virt_cam_y) - virt_cam_y + i) * app.tile_size)
-		app.ctx.draw_line(0, pos_y, size.width, pos_y, app.palette.grid)
-		app.draw_count += 1
-	}
+	sgl.c4b(gg.white.r, gg.white.g, gg.white.b, gg.white.a)
+	sgl.enable_texture()
 	for chunk in app.map {
 		chunk_cam_x := chunk.x - virt_cam_x
 		chunk_cam_y := chunk.y - virt_cam_y
@@ -1083,95 +1157,62 @@ fn (mut app App) draw_map() {
 							if pos_y > -chunk_size * app.tile_size
 								&& pos_x > -chunk_size * app.tile_size {
 								if app.draw_count >= app.draw_step {
+									sgl.disable_texture()
 									app.ctx.end(how: .passthru)
 									app.ctx.begin()
 									app.draw_count = 1
+									sgl.enable_texture()
 								}
 								app.draw_count += 1
 								if id == elem_crossing_bits { // same bits as wires so need to be separated
-									app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
-										app.palette.junc)
-									app.draw_count += 1
-									if app.tile_size >= 10 {
-										app.ctx.draw_rect_filled(pos_x, pos_y + app.tile_size / 3,
-											app.tile_size, app.tile_size / 3, app.palette.junc_h)
-										app.ctx.draw_rect_filled(pos_x + app.tile_size / 3,
-											pos_y, app.tile_size / 3, app.tile_size, app.palette.junc_v)
-										app.draw_count += 2
-									}
+									app.junc_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
+									app.draw_image_with_config(app.junc_cfg)
 								} else {
-									state_color, not_state_color := if id & on_bits == 0 {
-										app.palette.wire_off, app.palette.wire_on
-									} else {
-										app.palette.wire_on, app.palette.wire_off
-									}
-									ori := match id & ori_mask {
-										north { 0 }
-										south { 1 }
-										west { 2 }
-										east { 3 }
+									ori := f32(match id & ori_mask {
+										north { 270.0 }
+										south { 90.0 }
+										west { 180.0 }
+										east { 0.0 }
 										else { app.log_quit('${@LOCATION} should not get into this else') }
-									}
+									})
 									match id & elem_type_mask {
 										elem_not_bits {
-											app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
-												app.palette.not)
-											app.draw_count += 1
-											if app.tile_size >= 5 {
-												not_poly_offset[0] = not_poly[ori][0] + pos_x
-												not_poly_offset[1] = not_poly[ori][1] + pos_y
-												not_poly_offset[2] = not_poly[ori][2] + pos_x
-												not_poly_offset[3] = not_poly[ori][3] + pos_y
-												not_poly_offset[4] = not_poly[ori][4] + pos_x
-												not_poly_offset[5] = not_poly[ori][5] + pos_y
-												app.ctx.draw_convex_poly(not_poly_offset,
-													not_state_color)
-												app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x,
-													not_rect[ori][1] + pos_y, not_rect[ori][2],
-													not_rect[ori][3], state_color)
-												app.draw_count += 2
+											if id & on_bits == 0 {
+												app.not_off_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
+												app.not_off_cfg.rotation = ori
+												app.draw_image_with_config(app.not_off_cfg)
+											} else {
+												app.not_on_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
+												app.not_on_cfg.rotation = ori
+												app.draw_image_with_config(app.not_on_cfg)
 											}
 										}
 										elem_diode_bits {
-											app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
-												app.palette.diode)
-											app.draw_count += 1
-											if app.tile_size >= 5 {
-												diode_poly_offset[0] = diode_poly[ori][0] + pos_x
-												diode_poly_offset[1] = diode_poly[ori][1] + pos_y
-												diode_poly_offset[2] = diode_poly[ori][2] + pos_x
-												diode_poly_offset[3] = diode_poly[ori][3] + pos_y
-												diode_poly_offset[4] = diode_poly[ori][4] + pos_x
-												diode_poly_offset[5] = diode_poly[ori][5] + pos_y
-												diode_poly_offset[6] = diode_poly[ori][6] + pos_x
-												diode_poly_offset[7] = diode_poly[ori][7] + pos_y
-												app.ctx.draw_convex_poly(diode_poly_offset,
-													state_color)
-												app.draw_count += 1
+											if id & on_bits == 0 {
+												app.diode_off_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
+												app.diode_off_cfg.rotation = ori
+												app.draw_image_with_config(app.diode_off_cfg)
+											} else {
+												app.diode_on_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
+												app.diode_on_cfg.rotation = ori
+												app.draw_image_with_config(app.diode_on_cfg)
 											}
 										}
 										elem_on_bits {
-											app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
-												app.palette.on)
-											app.draw_count += 1
-											if app.tile_size >= 5 {
-												on_poly_offset[0] = on_poly[ori][0] + pos_x
-												on_poly_offset[1] = on_poly[ori][1] + pos_y
-												on_poly_offset[2] = on_poly[ori][2] + pos_x
-												on_poly_offset[3] = on_poly[ori][3] + pos_y
-												on_poly_offset[4] = on_poly[ori][4] + pos_x
-												on_poly_offset[5] = on_poly[ori][5] + pos_y
-												on_poly_offset[6] = on_poly[ori][6] + pos_x
-												on_poly_offset[7] = on_poly[ori][7] + pos_y
-												app.ctx.draw_convex_poly(on_poly_offset,
-													app.palette.wire_on)
-												app.draw_count += 1
-											}
+											app.on_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
+											app.on_cfg.rotation = ori
+											app.draw_image_with_config(app.on_cfg)
 										}
 										elem_wire_bits {
-											app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size,
-												state_color)
-											app.draw_count += 1
+											if id & on_bits == 0 {
+												app.wire_off_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
+												app.wire_off_cfg.rotation = ori
+												app.draw_image_with_config(app.wire_off_cfg)
+											} else {
+												app.wire_on_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
+												app.wire_on_cfg.rotation = ori
+												app.draw_image_with_config(app.wire_on_cfg)
+											}
 										}
 										else {
 											app.log_quit('${@LOCATION} should not get into this else')
@@ -1189,6 +1230,7 @@ fn (mut app App) draw_map() {
 			}
 		}
 	}
+	sgl.disable_texture()
 }
 
 fn (app App) check_ui_button_click_y(but Buttons, mouse_y f32) bool {
