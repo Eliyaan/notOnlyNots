@@ -567,6 +567,8 @@ fn (app App) scale_sprite(a [][]f32) [][]f32 {
 }
 
 fn on_frame(mut app App) {
+	app.mouse_map_x = u32(app.cam_x + app.ctx.mouse_pos_x / app.tile_size)
+	app.mouse_map_y = u32(app.cam_y + app.ctx.mouse_pos_y / app.tile_size)
 	app.draw_count = 1
 	app.s = app.ctx.window_size()
 	app.ui = f32(app.s.height) / f32(800.0)
@@ -946,106 +948,144 @@ fn (mut app App) draw_placing_preview() {
 }
 
 fn (mut app App) draw_paste_preview() {
-	// map rendering
-	if true {
-		return
-	}
-	not_poly := app.scale_sprite(not_poly_unscaled)
-	not_rect := app.scale_sprite(not_rect_unscaled)
-	mut not_poly_offset := []f32{len: 6, cap: 6}
-	diode_poly := app.scale_sprite(diode_poly_unscaled)
-	mut diode_poly_offset := []f32{len: 8, cap: 8}
-	on_poly := app.scale_sprite(on_poly_unscaled)
-	mut on_poly_offset := []f32{len: 8, cap: 8}
+	app.not_on_coo.clear()
+	app.not_off_coo.clear()
+	app.diode_on_coo.clear()
+	app.diode_off_coo.clear()
+	app.wire_on_coo.clear()
+	app.wire_off_coo.clear()
+	app.junc_coo.clear()
+	app.on_coo.clear()
 
+	mut max_x := app.e.mouse_x
+	mut max_y := app.e.mouse_y
 	for pi in app.copied {
 		pos_x := f32((f64(pi.rel_x) + f64(app.mouse_map_x) - app.cam_x) * app.tile_size)
 		pos_y := f32((f64(pi.rel_y) + f64(app.mouse_map_y) - app.cam_y) * app.tile_size)
 		orient := u64(pi.orientation) << 56
-		if app.draw_count >= app.draw_step {
-			app.ctx.end(how: .passthru)
-			app.ctx.begin()
-			app.draw_count = 1
-		}
-		state_color, not_state_color := app.palette.wire_off, app.palette.wire_on
+		ori := f32(match orient {
+			north { 270.0 }
+			south { 90.0 }
+			west { 180.0 }
+			east { 0.0 }
+			else { app.log_quit('${@LOCATION} should not get into this else') }
+		})
 
+		if pos_x > max_x {
+			max_x = pos_x
+		}
+		if pos_y > max_y {
+			max_y = pos_y
+		}
 		match pi.elem {
 			.not {
-				ori := match orient {
-					north { 0 }
-					south { 1 }
-					west { 2 }
-					east { 3 }
-					else { app.log_quit('${@LOCATION} should not get into this else') }
-				}
-				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.not)
-				not_poly_offset[0] = not_poly[ori][0] + pos_x
-				not_poly_offset[1] = not_poly[ori][1] + pos_y
-				not_poly_offset[2] = not_poly[ori][2] + pos_x
-				not_poly_offset[3] = not_poly[ori][3] + pos_y
-				not_poly_offset[4] = not_poly[ori][4] + pos_x
-				not_poly_offset[5] = not_poly[ori][5] + pos_y
-				app.ctx.draw_convex_poly(not_poly_offset, not_state_color)
-				app.ctx.draw_rect_filled(not_rect[ori][0] + pos_x, not_rect[ori][1] + pos_y,
-					not_rect[ori][2], not_rect[ori][3], state_color)
-				app.draw_count += 3
+				app.not_off_coo << pos_x
+				app.not_off_coo << pos_y
+				app.not_off_coo << ori
 			}
 			.diode {
-				ori := match orient {
-					north { 0 }
-					south { 1 }
-					west { 2 }
-					east { 3 }
-					else { app.log_quit('${@LOCATION} should not get into this else') }
-				}
-				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.diode)
-				diode_poly_offset[0] = diode_poly[ori][0] + pos_x
-				diode_poly_offset[1] = diode_poly[ori][1] + pos_y
-				diode_poly_offset[2] = diode_poly[ori][2] + pos_x
-				diode_poly_offset[3] = diode_poly[ori][3] + pos_y
-				diode_poly_offset[4] = diode_poly[ori][4] + pos_x
-				diode_poly_offset[5] = diode_poly[ori][5] + pos_y
-				diode_poly_offset[6] = diode_poly[ori][6] + pos_x
-				diode_poly_offset[7] = diode_poly[ori][7] + pos_y
-				app.ctx.draw_convex_poly(diode_poly_offset, state_color)
-				app.draw_count += 2
+				app.diode_off_coo << pos_x
+				app.diode_off_coo << pos_y
+				app.diode_off_coo << ori
 			}
 			.on {
-				ori := match orient {
-					north { 0 }
-					south { 1 }
-					west { 2 }
-					east { 3 }
-					else { app.log_quit('${@LOCATION} should not get into this else') }
-				}
-				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.on)
-				on_poly_offset[0] = on_poly[ori][0] + pos_x
-				on_poly_offset[1] = on_poly[ori][1] + pos_y
-				on_poly_offset[2] = on_poly[ori][2] + pos_x
-				on_poly_offset[3] = on_poly[ori][3] + pos_y
-				on_poly_offset[4] = on_poly[ori][4] + pos_x
-				on_poly_offset[5] = on_poly[ori][5] + pos_y
-				on_poly_offset[6] = on_poly[ori][6] + pos_x
-				on_poly_offset[7] = on_poly[ori][7] + pos_y
-				app.ctx.draw_convex_poly(on_poly_offset, app.palette.wire_on)
-				app.draw_count += 2
+				app.on_coo << pos_x
+				app.on_coo << pos_y
+				app.on_coo << ori
 			}
 			.wire {
-				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, state_color)
-				app.draw_count += 1
+				app.wire_off_coo << pos_x
+				app.wire_off_coo << pos_y
 			}
 			.crossing {
-				app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.junc)
-				app.ctx.draw_rect_filled(pos_x, pos_y + app.tile_size / 3, app.tile_size,
-					app.tile_size / 3, app.palette.junc_h)
-				app.ctx.draw_rect_filled(pos_x + app.tile_size / 3, pos_y, app.tile_size / 3,
-					app.tile_size, app.palette.junc_v)
-				app.draw_count += 3
+				app.junc_coo << pos_x
+				app.junc_coo << pos_y
 			}
 		}
-		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.copy_preview)
-		app.draw_count += 1
 	}
+
+	mut img_rect := gg.Rect{0, 0, app.tile_size, app.tile_size}
+
+	sgl.enable_texture()
+	sgl.texture(app.not_off_img.simg, app.not_off_img.ssmp)
+	sgl.begin_quads()
+	sgl.c4b(gg.white.r, gg.white.g, gg.white.b, 128)
+	for i := 0; i < app.not_off_coo.len; i += 3 {
+		app.draw_count += 1
+		img_rect.x = app.not_off_coo[i]
+		img_rect.y = app.not_off_coo[i + 1]
+		draw_image_with_config(img_rect, app.not_off_coo[i + 2])
+		if app.draw_count >= app.draw_step {
+			sgl.end()
+			app.ensure_draw_count()
+			sgl.texture(app.not_off_img.simg, app.not_off_img.ssmp)
+			sgl.begin_quads()
+		}
+	}
+	sgl.end()
+	sgl.texture(app.diode_off_img.simg, app.diode_off_img.ssmp)
+	sgl.begin_quads()
+	for i := 0; i < app.diode_off_coo.len; i += 3 {
+		app.draw_count += 1
+		img_rect.x = app.diode_off_coo[i]
+		img_rect.y = app.diode_off_coo[i + 1]
+		draw_image_with_config(img_rect, app.diode_off_coo[i + 2])
+		if app.draw_count >= app.draw_step {
+			sgl.end()
+			app.ensure_draw_count()
+			sgl.texture(app.diode_off_img.simg, app.diode_off_img.ssmp)
+			sgl.begin_quads()
+		}
+	}
+	sgl.end()
+	sgl.texture(app.wire_off_img.simg, app.wire_off_img.ssmp)
+	sgl.begin_quads()
+	for i := 0; i < app.wire_off_coo.len; i += 2 {
+		app.draw_count += 1
+		img_rect.x = app.wire_off_coo[i]
+		img_rect.y = app.wire_off_coo[i + 1]
+		draw_image_with_config(img_rect, 0.0)
+		if app.draw_count >= app.draw_step {
+			sgl.end()
+			app.ensure_draw_count()
+			sgl.texture(app.wire_off_img.simg, app.wire_off_img.ssmp)
+			sgl.begin_quads()
+		}
+	}
+	sgl.end()
+	sgl.texture(app.junc_img.simg, app.junc_img.ssmp)
+	sgl.begin_quads()
+	for i := 0; i < app.junc_coo.len; i += 2 {
+		app.draw_count += 1
+		img_rect.x = app.junc_coo[i]
+		img_rect.y = app.junc_coo[i + 1]
+		draw_image_with_config(img_rect, 0.0)
+		if app.draw_count >= app.draw_step {
+			sgl.end()
+			app.ensure_draw_count()
+			sgl.texture(app.junc_img.simg, app.junc_img.ssmp)
+			sgl.begin_quads()
+		}
+	}
+	sgl.end()
+	sgl.texture(app.on_img.simg, app.on_img.ssmp)
+	sgl.begin_quads()
+	for i := 0; i < app.on_coo.len; i += 3 {
+		app.draw_count += 1
+		img_rect.x = app.on_coo[i]
+		img_rect.y = app.on_coo[i + 1]
+		draw_image_with_config(img_rect, app.on_coo[i + 2])
+		if app.draw_count >= app.draw_step {
+			sgl.end()
+			app.ensure_draw_count()
+			sgl.texture(app.on_img.simg, app.on_img.ssmp)
+			sgl.begin_quads()
+		}
+	}
+	sgl.end()
+	sgl.disable_texture()
+	app.ctx.draw_rect_filled(app.e.mouse_x, app.e.mouse_y, max_x - app.e.mouse_x + app.tile_size,
+		max_y - app.e.mouse_y + app.tile_size, gg.Color{255, 255, 255, 128})
 }
 
 fn (mut app App) draw_selection_box() {
