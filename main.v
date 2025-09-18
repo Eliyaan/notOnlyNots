@@ -806,7 +806,6 @@ mut:
 		}
 		app.log_timer -= 1
 	}
-	app.ctx.show_fps()
 	app.ctx.end(how: .passthru)
 }
 
