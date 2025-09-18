@@ -408,6 +408,14 @@ mut:
 	wire_off_cfg  gg.DrawImageConfig
 	junc_cfg      gg.DrawImageConfig
 	on_cfg        gg.DrawImageConfig
+	not_on_img    gg.Image
+	not_off_img   gg.Image
+	diode_on_img  gg.Image
+	diode_off_img gg.Image
+	wire_on_img   gg.Image
+	wire_off_img  gg.Image
+	junc_img      gg.Image
+	on_img        gg.Image
 
 	// logic
 	map               []Chunk
@@ -445,23 +453,27 @@ mut:
 
 fn main() {
 	mut app := &App{}
-	app.init_graphics()!
 	app.main_menu = true
 	app.log('Start: ${time.now()}', .info)
-	app.ctx.run()
-}
-
-fn (mut app App) init_graphics() ! {
 	app.ctx = gg.new_context(
 		create_window: true
 		window_title:  'Nots'
 		user_data:     app
+		init_fn:       on_init
 		frame_fn:      on_frame
 		event_fn:      on_event
 		sample_count:  4
 		bg_color:      app.palette.background
 		font_path:     font_path
 	)
+	app.ctx.run()
+}
+
+fn on_init(mut app App) {
+	app.init_graphics() or { app.log_quit('${err}') }
+}
+
+fn (mut app App) init_graphics() ! {
 	// lancement du programme/de la fenêtre
 	unsafe {
 		app.buttons[.cancel_button].img = app.ctx.create_image(sprites_path + 'cancel_button.png')!
@@ -502,37 +514,37 @@ fn (mut app App) init_graphics() ! {
 			'selection_delete.png')!
 		app.buttons[.trash].img = app.ctx.create_image(sprites_path + 'trash.png')!
 	}
-	not_on_img := app.ctx.create_image(sprites_path + 'not_on.png')!
-	not_off_img := app.ctx.create_image(sprites_path + 'not_off.png')!
-	diode_on_img := app.ctx.create_image(sprites_path + 'diode_on.png')!
-	diode_off_img := app.ctx.create_image(sprites_path + 'diode_off.png')!
-	wire_on_img := app.ctx.create_image(sprites_path + 'wire_on.png')!
-	wire_off_img := app.ctx.create_image(sprites_path + 'wire_off.png')!
-	junc_img := app.ctx.create_image(sprites_path + 'junction.png')!
-	on_img := app.ctx.create_image(sprites_path + 'on.png')!
+	app.not_on_img = app.ctx.create_image(sprites_path + 'not_on.png')!
+	app.not_off_img = app.ctx.create_image(sprites_path + 'not_off.png')!
+	app.diode_on_img = app.ctx.create_image(sprites_path + 'diode_on.png')!
+	app.diode_off_img = app.ctx.create_image(sprites_path + 'diode_off.png')!
+	app.wire_on_img = app.ctx.create_image(sprites_path + 'wire_on.png')!
+	app.wire_off_img = app.ctx.create_image(sprites_path + 'wire_off.png')!
+	app.junc_img = app.ctx.create_image(sprites_path + 'junction.png')!
+	app.on_img = app.ctx.create_image(sprites_path + 'on.png')!
 	app.not_on_cfg = gg.DrawImageConfig{
-		img_id: not_on_img.id
+		img: &app.not_on_img
 	}
 	app.not_off_cfg = gg.DrawImageConfig{
-		img_id: not_off_img.id
+		img: &app.not_off_img
 	}
 	app.diode_on_cfg = gg.DrawImageConfig{
-		img_id: diode_on_img.id
+		img: &app.diode_on_img
 	}
 	app.diode_off_cfg = gg.DrawImageConfig{
-		img_id: diode_off_img.id
+		img: &app.diode_off_img
 	}
 	app.wire_on_cfg = gg.DrawImageConfig{
-		img_id: wire_on_img.id
+		img: &app.wire_on_img
 	}
 	app.wire_off_cfg = gg.DrawImageConfig{
-		img_id: wire_off_img.id
+		img: &app.wire_off_img
 	}
 	app.junc_cfg = gg.DrawImageConfig{
-		img_id: junc_img.id
+		img: &app.junc_img
 	}
 	app.on_cfg = gg.DrawImageConfig{
-		img_id: on_img.id
+		img: &app.on_img
 	}
 	app.solo_img = app.ctx.create_image(sprites_path + 'nots_icon.png')!
 	app.load_palette()
@@ -584,7 +596,7 @@ fn on_frame(mut app App) {
 	app.ui = f32(app.s.height) / f32(800.0)
 	// Draw
 	app.ctx.begin()
-	app.ctx.end() // to clear the screen
+	app.ctx.draw_rect_filled(0, 0, app.s.width, app.s.height, app.palette.background)
 	mut ui_log_cfg := gg.TextCfg{
 		size:  int(log_cfg.size * app.ui)
 		color: log_cfg.color
@@ -1089,7 +1101,7 @@ fn (mut app App) draw_selection_box() {
 // customized version of gg.draw_image_with_config
 fn (mut app App) draw_image_with_config(config gg.DrawImageConfig) {
 	ctx := app.ctx
-	img := &ctx.image_cache[config.img_id]
+	img := &config.img
 
 	mut img_rect := config.img_rect
 	x0 := img_rect.x * ctx.scale
@@ -3359,6 +3371,17 @@ fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_trie
 // Only use it if in test file
 fn (mut app App) debug_view() ! {
 	app.debug_mode = true
+	app.ctx = gg.new_context(
+		create_window: true
+		window_title:  'Nots'
+		user_data:     app
+		init_fn:       on_init
+		frame_fn:      on_frame
+		event_fn:      on_event
+		sample_count:  4
+		bg_color:      app.palette.background
+		font_path:     font_path
+	)
 	app.init_graphics()!
 	app.comp_running = true
 	app.ctx.run()
