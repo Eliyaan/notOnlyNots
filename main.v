@@ -416,6 +416,14 @@ mut:
 	wire_off_img  gg.Image
 	junc_img      gg.Image
 	on_img        gg.Image
+	not_on_coo    []f32
+	not_off_coo   []f32
+	diode_on_coo  []f32
+	diode_off_coo []f32
+	wire_on_coo   []f32
+	wire_off_coo  []f32
+	junc_coo      []f32
+	on_coo        []f32
 
 	// logic
 	map               []Chunk
@@ -462,7 +470,7 @@ fn main() {
 		init_fn:       on_init
 		frame_fn:      on_frame
 		event_fn:      on_event
-		sample_count:  4
+		sample_count:  0
 		bg_color:      app.palette.background
 		font_path:     font_path
 	)
@@ -828,6 +836,7 @@ mut:
 		}
 		app.log_timer -= 1
 	}
+	app.ctx.show_fps()
 	app.ctx.end(how: .passthru)
 }
 
@@ -970,6 +979,9 @@ fn (mut app App) draw_placing_preview() {
 
 fn (mut app App) draw_paste_preview() {
 	// map rendering
+	if true {
+		return
+	}
 	not_poly := app.scale_sprite(not_poly_unscaled)
 	not_rect := app.scale_sprite(not_rect_unscaled)
 	mut not_poly_offset := []f32{len: 6, cap: 6}
@@ -1099,33 +1111,32 @@ fn (mut app App) draw_selection_box() {
 }
 
 // customized version of gg.draw_image_with_config
-fn (mut app App) draw_image_with_config(config gg.DrawImageConfig) {
+fn (mut app App) draw_image_with_config(config gg.DrawImageConfig) { // TODO: pass only the rect and the rotation
 	ctx := app.ctx
-	img := &config.img
 
 	mut img_rect := config.img_rect
+	width := img_rect.width * ctx.scale
+	height := img_rect.height * ctx.scale
 	x0 := img_rect.x * ctx.scale
 	y0 := img_rect.y * ctx.scale
-	x1 := (img_rect.x + img_rect.width) * ctx.scale
-	mut y1 := (img_rect.y + img_rect.height) * ctx.scale
-
-	sgl.texture(img.simg, img.ssmp) // TODO
+	x1 := x0 + width
+	mut y1 := y0 + height
 
 	if config.rotation != 0 {
-		width := img_rect.width * ctx.scale
-		height := img_rect.height * ctx.scale
-
 		sgl.push_matrix()
-		sgl.translate(x0 + (width / 2), y0 + (height / 2), 0)
-		sgl.rotate(sgl.rad(-config.rotation), 0, 0, 1)
-		sgl.translate(-x0 - (width / 2), -y0 - (height / 2), 0)
+		x0_half_width := x0 + (width / 2)
+		y0_half_height := y0 + (height / 2)
+		rad := (-config.rotation * math.pi) / 180.0
+		sgl.translate(x0_half_width, y0_half_height, 0)
+		sgl.rotate(rad, 0, 0, 1)
+		sgl.translate(-x0_half_width, -y0_half_height, 0)
 	}
 
 	sgl.begin_quads() // TODO with enable / disable texture
-	sgl.v3f_t2f(x0, y0, config.z, 0, 0)
-	sgl.v3f_t2f(x1, y0, config.z, 1, 0)
-	sgl.v3f_t2f(x1, y1, config.z, 1, 1)
-	sgl.v3f_t2f(x0, y1, config.z, 0, 1)
+	sgl.v3f_t2f(x0, y0, 0.0, 0, 0)
+	sgl.v3f_t2f(x1, y0, 0.0, 1, 0)
+	sgl.v3f_t2f(x1, y1, 0.0, 1, 1)
+	sgl.v3f_t2f(x0, y1, 0.0, 0, 1)
 	sgl.end() // TODO
 
 	if config.rotation != 0 {
@@ -1133,7 +1144,17 @@ fn (mut app App) draw_image_with_config(config gg.DrawImageConfig) {
 	}
 }
 
+@[direct_array_access]
 fn (mut app App) draw_map() {
+	app.not_on_coo.clear()
+	app.not_off_coo.clear()
+	app.diode_on_coo.clear()
+	app.diode_off_coo.clear()
+	app.wire_on_coo.clear()
+	app.wire_off_coo.clear()
+	app.junc_coo.clear()
+	app.on_coo.clear()
+
 	size := app.ctx.window_size()
 	// map rendering
 	virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
@@ -1150,8 +1171,7 @@ fn (mut app App) draw_map() {
 			app.draw_count += 1
 		}
 	}
-	sgl.c4b(gg.white.r, gg.white.g, gg.white.b, gg.white.a)
-	sgl.enable_texture()
+
 	for chunk in app.map {
 		chunk_cam_x := chunk.x - virt_cam_x
 		chunk_cam_y := chunk.y - virt_cam_y
@@ -1168,17 +1188,8 @@ fn (mut app App) draw_map() {
 						if pos_y < size.height {
 							if pos_y > -chunk_size * app.tile_size
 								&& pos_x > -chunk_size * app.tile_size {
-								if app.draw_count >= app.draw_step {
-									sgl.disable_texture()
-									app.ctx.end(how: .passthru)
-									app.ctx.begin()
-									app.draw_count = 1
-									sgl.enable_texture()
-								}
-								app.draw_count += 1
 								if id == elem_crossing_bits { // same bits as wires so need to be separated
-									app.junc_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
-									app.draw_image_with_config(app.junc_cfg)
+									app.junc_coo << [pos_x, pos_y]
 								} else {
 									ori := f32(match id & ori_mask {
 										north { 270.0 }
@@ -1190,40 +1201,26 @@ fn (mut app App) draw_map() {
 									match id & elem_type_mask {
 										elem_not_bits {
 											if id & on_bits == 0 {
-												app.not_off_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
-												app.not_off_cfg.rotation = ori
-												app.draw_image_with_config(app.not_off_cfg)
+												app.not_off_coo << [pos_x, pos_y, ori]
 											} else {
-												app.not_on_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
-												app.not_on_cfg.rotation = ori
-												app.draw_image_with_config(app.not_on_cfg)
+												app.not_on_coo << [pos_x, pos_y, ori]
 											}
 										}
 										elem_diode_bits {
 											if id & on_bits == 0 {
-												app.diode_off_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
-												app.diode_off_cfg.rotation = ori
-												app.draw_image_with_config(app.diode_off_cfg)
+												app.diode_off_coo << [pos_x, pos_y, ori]
 											} else {
-												app.diode_on_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
-												app.diode_on_cfg.rotation = ori
-												app.draw_image_with_config(app.diode_on_cfg)
+												app.diode_on_coo << [pos_x, pos_y, ori]
 											}
 										}
 										elem_on_bits {
-											app.on_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
-											app.on_cfg.rotation = ori
-											app.draw_image_with_config(app.on_cfg)
+											app.on_coo << [pos_x, pos_y, ori]
 										}
 										elem_wire_bits {
 											if id & on_bits == 0 {
-												app.wire_off_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
-												app.wire_off_cfg.rotation = ori
-												app.draw_image_with_config(app.wire_off_cfg)
+												app.wire_off_coo << [pos_x, pos_y]
 											} else {
-												app.wire_on_cfg.img_rect = gg.Rect{pos_x, pos_y, app.tile_size, app.tile_size}
-												app.wire_on_cfg.rotation = ori
-												app.draw_image_with_config(app.wire_on_cfg)
+												app.wire_on_coo << [pos_x, pos_y]
 											}
 										}
 										else {
@@ -1242,7 +1239,120 @@ fn (mut app App) draw_map() {
 			}
 		}
 	}
+
+	app.not_on_cfg.img_rect = gg.Rect{0, 0, app.tile_size, app.tile_size}
+	app.not_off_cfg.img_rect = gg.Rect{0, 0, app.tile_size, app.tile_size}
+	app.diode_on_cfg.img_rect = gg.Rect{0, 0, app.tile_size, app.tile_size}
+	app.diode_off_cfg.img_rect = gg.Rect{0, 0, app.tile_size, app.tile_size}
+	app.wire_on_cfg.img_rect = gg.Rect{0, 0, app.tile_size, app.tile_size}
+	app.wire_off_cfg.img_rect = gg.Rect{0, 0, app.tile_size, app.tile_size}
+	app.junc_cfg.img_rect = gg.Rect{0, 0, app.tile_size, app.tile_size}
+	app.on_cfg.img_rect = gg.Rect{0, 0, app.tile_size, app.tile_size}
+
+	sgl.c4b(gg.white.r, gg.white.g, gg.white.b, gg.white.a)
+	sgl.enable_texture()
+	sgl.texture(app.not_on_img.simg, app.not_on_img.ssmp)
+	for i := 0; i < app.not_on_coo.len; i += 3 {
+		app.draw_count += 1
+		app.not_on_cfg.img_rect.x = app.not_on_coo[i]
+		app.not_on_cfg.img_rect.y = app.not_on_coo[i + 1]
+		app.not_on_cfg.rotation = app.not_on_coo[i + 2]
+		app.draw_image_with_config(app.not_on_cfg)
+		if app.draw_count >= app.draw_step {
+			app.ensure_draw_count()
+			sgl.texture(app.not_on_img.simg, app.not_on_img.ssmp)
+		}
+	}
+	sgl.texture(app.not_off_img.simg, app.not_off_img.ssmp)
+	for i := 0; i < app.not_off_coo.len; i += 3 {
+		app.draw_count += 1
+		app.not_off_cfg.img_rect.x = app.not_off_coo[i]
+		app.not_off_cfg.img_rect.y = app.not_off_coo[i + 1]
+		app.not_off_cfg.rotation = app.not_off_coo[i + 2]
+		app.draw_image_with_config(app.not_off_cfg)
+		if app.draw_count >= app.draw_step {
+			app.ensure_draw_count()
+			sgl.texture(app.not_off_img.simg, app.not_off_img.ssmp)
+		}
+	}
+	sgl.texture(app.diode_on_img.simg, app.diode_on_img.ssmp)
+	for i := 0; i < app.diode_on_coo.len; i += 3 {
+		app.draw_count += 1
+		app.diode_on_cfg.img_rect.x = app.diode_on_coo[i]
+		app.diode_on_cfg.img_rect.y = app.diode_on_coo[i + 1]
+		app.diode_on_cfg.rotation = app.diode_on_coo[i + 2]
+		app.draw_image_with_config(app.diode_on_cfg)
+		if app.draw_count >= app.draw_step {
+			app.ensure_draw_count()
+			sgl.texture(app.diode_on_img.simg, app.diode_on_img.ssmp)
+		}
+	}
+	sgl.texture(app.diode_off_img.simg, app.diode_off_img.ssmp)
+	for i := 0; i < app.diode_off_coo.len; i += 3 {
+		app.draw_count += 1
+		app.diode_off_cfg.img_rect.x = app.diode_off_coo[i]
+		app.diode_off_cfg.img_rect.y = app.diode_off_coo[i + 1]
+		app.diode_off_cfg.rotation = app.diode_off_coo[i + 2]
+		app.draw_image_with_config(app.diode_off_cfg)
+		if app.draw_count >= app.draw_step {
+			app.ensure_draw_count()
+			sgl.texture(app.diode_off_img.simg, app.diode_off_img.ssmp)
+		}
+	}
+	sgl.texture(app.wire_on_img.simg, app.wire_on_img.ssmp)
+	for i := 0; i < app.wire_on_coo.len; i += 2 {
+		app.draw_count += 1
+		app.wire_on_cfg.img_rect.x = app.wire_on_coo[i]
+		app.wire_on_cfg.img_rect.y = app.wire_on_coo[i + 1]
+		app.draw_image_with_config(app.wire_on_cfg)
+		if app.draw_count >= app.draw_step {
+			app.ensure_draw_count()
+			sgl.texture(app.wire_on_img.simg, app.wire_on_img.ssmp)
+		}
+	}
+	sgl.texture(app.wire_off_img.simg, app.wire_off_img.ssmp)
+	for i := 0; i < app.wire_off_coo.len; i += 2 {
+		app.draw_count += 1
+		app.wire_off_cfg.img_rect.x = app.wire_off_coo[i]
+		app.wire_off_cfg.img_rect.y = app.wire_off_coo[i + 1]
+		app.draw_image_with_config(app.wire_off_cfg)
+		if app.draw_count >= app.draw_step {
+			app.ensure_draw_count()
+			sgl.texture(app.wire_off_img.simg, app.wire_off_img.ssmp)
+		}
+	}
+	sgl.texture(app.junc_img.simg, app.junc_img.ssmp)
+	for i := 0; i < app.junc_coo.len; i += 2 {
+		app.draw_count += 1
+		app.junc_cfg.img_rect.x = app.junc_coo[i]
+		app.junc_cfg.img_rect.y = app.junc_coo[i + 1]
+		app.draw_image_with_config(app.junc_cfg)
+		if app.draw_count >= app.draw_step {
+			app.ensure_draw_count()
+			sgl.texture(app.junc_img.simg, app.junc_img.ssmp)
+		}
+	}
+	sgl.texture(app.on_img.simg, app.on_img.ssmp)
+	for i := 0; i < app.on_coo.len; i += 3 {
+		app.draw_count += 1
+		app.on_cfg.img_rect.x = app.on_coo[i]
+		app.on_cfg.img_rect.y = app.on_coo[i + 1]
+		app.on_cfg.rotation = app.on_coo[i + 2]
+		app.draw_image_with_config(app.on_cfg)
+		if app.draw_count >= app.draw_step {
+			app.ensure_draw_count()
+			sgl.texture(app.on_img.simg, app.on_img.ssmp)
+		}
+	}
 	sgl.disable_texture()
+}
+
+fn (mut app App) ensure_draw_count() {
+	sgl.disable_texture()
+	app.ctx.end(how: .passthru)
+	app.ctx.begin()
+	app.draw_count = 1
+	sgl.enable_texture()
 }
 
 fn (app App) check_ui_button_click_y(but Buttons, mouse_y f32) bool {
@@ -3378,7 +3488,7 @@ fn (mut app App) debug_view() ! {
 		init_fn:       on_init
 		frame_fn:      on_frame
 		event_fn:      on_event
-		sample_count:  4
+		sample_count:  0
 		bg_color:      app.palette.background
 		font_path:     font_path
 	)
