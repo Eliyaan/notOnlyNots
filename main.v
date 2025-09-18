@@ -1088,14 +1088,16 @@ fn (mut app App) draw_paste_preview() {
 }
 
 fn (mut app App) draw_selection_box() {
+	virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
+	virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
 	if app.select_start_x != u32(-1) {
-		pos_x := f32((f64(app.select_start_x) - app.cam_x) * app.tile_size)
-		pos_y := f32((f64(app.select_start_y) - app.cam_y) * app.tile_size)
+		pos_x := f32((f64(app.select_start_x) - virt_cam_x) * app.tile_size)
+		pos_y := f32((f64(app.select_start_y) - virt_cam_y) * app.tile_size)
 		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_start)
 	}
 	if app.select_end_x != u32(-1) {
-		pos_x := f32((f64(app.select_end_x) - app.cam_x) * app.tile_size)
-		pos_y := f32((f64(app.select_end_y) - app.cam_y) * app.tile_size)
+		pos_x := f32((f64(app.select_end_x) - virt_cam_x) * app.tile_size)
+		pos_y := f32((f64(app.select_end_y) - virt_cam_y) * app.tile_size)
 		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.selection_end)
 	}
 	if app.select_start_x != u32(-1) && app.select_end_x != u32(-1) {
@@ -1109,10 +1111,10 @@ fn (mut app App) draw_selection_box() {
 		} else {
 			app.select_start_y, app.select_end_y
 		}
-		pos_x := f32((f64(x_start) - app.cam_x) * app.tile_size)
-		pos_y := f32((f64(y_start) - app.cam_y) * app.tile_size)
-		end_pos_w := f32((f64(x_end + 1) - app.cam_x) * app.tile_size) - pos_x
-		end_pos_h := f32((f64(y_end + 1) - app.cam_y) * app.tile_size) - pos_y
+		pos_x := f32((f64(x_start) - virt_cam_x) * app.tile_size)
+		pos_y := f32((f64(y_start) - virt_cam_y) * app.tile_size)
+		end_pos_w := f32((f64(x_end + 1) - virt_cam_x) * app.tile_size) - pos_x
+		end_pos_h := f32((f64(y_end + 1) - virt_cam_y) * app.tile_size) - pos_y
 		app.ctx.draw_rect_filled(pos_x, pos_y, end_pos_w, end_pos_h, app.palette.selection_box)
 	}
 }
