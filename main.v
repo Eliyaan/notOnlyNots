@@ -1083,8 +1083,9 @@ fn (mut app App) draw_paste_preview() {
 	}
 	sgl.end()
 	sgl.disable_texture()
-	app.ctx.draw_rect_filled(app.e.mouse_x, app.e.mouse_y, max_x - app.e.mouse_x + app.tile_size,
-		max_y - app.e.mouse_y + app.tile_size, gg.Color{255, 255, 255, 128})
+	m_x := app.ctx.mouse_pos_x/app.tile_size*app.tile_size 
+	m_y := app.ctx.mouse_pos_y/app.tile_size*app.tile_size
+	app.ctx.draw_rect_filled(m_x, m_y, max_x - m_x + app.tile_size, max_y - m_y + app.tile_size, gg.Color{255, 255, 255, 128})
 }
 
 fn (mut app App) draw_selection_box() {
