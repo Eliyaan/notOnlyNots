@@ -393,7 +393,7 @@ mut:
 	save_gate_mode bool
 	// keyboard input (force state of a gate to ON) mode
 	keyinput_mode bool
-	key_pos       map[u8][][2]u32 // `n` -> [[0, 3], [32, 53]] : will force the state to ON at x:0 y:3 and x:32 y:53
+	key_pos       map[u8][]Coo // `n` -> [[0, 3], [32, 53]] : will force the state to ON at x:0 y:3 and x:32 y:53
 	tmp_pos_x     u32 = u32(-1)
 	tmp_pos_y     u32 = u32(-1)
 	// UI on the left border, TODO: need to make it scaling automatically w/ screensize
@@ -443,7 +443,7 @@ mut:
 	w_states          [2][]bool = [[false], [false]]!
 	dead_wires        []u64
 	dead_wires_lower  int
-	forced_states     [][2]u32    // forced to ON state by a keyboard input
+	forced_states     []Coo       // forced to ON state by a keyboard input
 	colorchips        []ColorChip // screens
 	palette           Palette = palette_def // TODO: edit palette and save palette
 	comp_alive        bool
@@ -913,22 +913,35 @@ fn (mut app App) draw_ingame_ui_buttons() {
 
 // keyboard inputs locations
 fn (mut app App) draw_input_buttons() {
-	for _, positions in app.key_pos {
+	virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
+	virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
+	half := app.tile_size / 2
+	quarter := half / 2
+	mut ui_log_cfg := gg.TextCfg{
+		size:  int(log_cfg.size * app.ui)
+		color: log_cfg.color
+	}
+	half_size := ui_log_cfg.size / 2
+	quar_size := half_size / 2
+	for c, positions in app.key_pos {
 		for pos in positions {
-			pos_x := f32(f64(pos[0] * u32(app.tile_size)) - app.cam_x)
-			pos_y := f32(f64(pos[1] * u32(app.tile_size)) - app.cam_y)
-			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.input_preview)
-			// TODO: draw_text
+			pos_x := f32((pos.x - virt_cam_x) * app.tile_size)
+			pos_y := f32((pos.y - virt_cam_y) * app.tile_size)
+			app.ctx.draw_square_filled(pos_x + quarter, pos_y + quarter, half, app.palette.input_preview)
+			app.ctx.draw_text(int(pos_x + half - quar_size), int(pos_y + half - half_size),
+				c.ascii_str(), ui_log_cfg)
 		}
 	}
 	if app.tmp_pos_x != u32(-1) && app.tmp_pos_y != u32(-1) {
-		pos_x := f32(f64(app.tmp_pos_x * u32(app.tile_size)) - app.cam_x)
-		pos_y := f32(f64(app.tmp_pos_y * u32(app.tile_size)) - app.cam_y)
+		pos_x := f32((app.tmp_pos_x - virt_cam_x) * app.tile_size)
+		pos_y := f32((app.tmp_pos_y - virt_cam_y) * app.tile_size)
 		app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.input_preview)
 	}
 }
 
 fn (mut app App) draw_placing_preview() {
+	virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
+	virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
 	x_start, x_end := if app.place_start_x > app.place_end_x {
 		app.place_end_x, app.place_start_x
 	} else {
@@ -941,8 +954,8 @@ fn (mut app App) draw_placing_preview() {
 	}
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
-			pos_x := f32((f64(x) - app.cam_x) * app.tile_size)
-			pos_y := f32((f64(y) - app.cam_y) * app.tile_size)
+			pos_x := f32((f64(x) - virt_cam_x) * app.tile_size)
+			pos_y := f32((f64(y) - virt_cam_y) * app.tile_size)
 			app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.place_preview)
 			app.draw_count += 1
 		}
@@ -1883,13 +1896,11 @@ fn (mut app App) update_mouse_action() {
 			}
 		} else {
 			if app.keyinput_mode {
-						// right click -> delete the pos = click_pos encountered in the map
-						// left click -> waiting for input, when input, save pos & key in the map
-				app.mouse_action = 'TODO: '
+				app.mouse_action = '[left] set pos (keyboard input afterwards) [right] delete key input [middle] camera'
 			} else if app.selection_mode {
 				app.mouse_action = '[left] start of selection [right] end of selection [middle] camera'
 			} else if app.save_gate_mode {
-				app.mouse_action = '[left/right/middle] camera'
+				app.mouse_action = '[middle] camera'
 			} else if app.paste_mode {
 				app.mouse_action = '[left] paste [middle] camera'
 			} else if app.placement_mode {
@@ -2013,16 +2024,14 @@ fn on_event(e &gg.Event, mut app App) {
 							app.tmp_pos_x = u32(-1)
 							app.tmp_pos_y = u32(-1)
 							for key in app.key_pos.keys() {
-								i := app.key_pos[key].index([u32(map_x), u32(map_y)]!)
+								i := app.key_pos[key].index(Coo{u32(map_x), u32(map_y)})
 								if i != -1 {
-									app.key_pos[key].delete(i) // it will delete all the "buttons" on this tile, but the multiple buttons are not intended anyways				
+									app.key_pos[key].delete(i) // it will delete all the "buttons" on this tile, but the multiple buttons are not intended anyways	
 								}
 							}
 						} else if e.mouse_button == .left {
-							app.tmp_pos_x = u32(map_x) // TODO: show these too
+							app.tmp_pos_x = u32(map_x)
 							app.tmp_pos_y = u32(map_y)
-						} else {
-							// TODO: move, do this with other modes too, it's nice to move w/ middle click when having a mouse
 						}
 					}
 				} else if app.edit_mode {
@@ -2164,16 +2173,6 @@ fn on_event(e &gg.Event, mut app App) {
 			app.scroll()
 		}
 		.key_up {
-			if app.keyinput_mode {
-				if e.char_code != 0 {
-					for pos in app.key_pos[u8(e.char_code)] {
-						i := app.forced_states.index(pos)
-						if i != -1 {
-							app.forced_states.delete(i)
-						}
-					}
-				}
-			}
 			if !(app.solo_menu || app.load_gate_mode || app.keyinput_mode || app.save_gate_mode) {
 				match e.key_code {
 					._0, ._1, ._2, ._3, ._4, ._5, ._6, ._7, ._8, ._9 {
@@ -2251,13 +2250,20 @@ fn on_event(e &gg.Event, mut app App) {
 			app.text_input += u8(e.char_code).ascii_str()
 		} else if app.keyinput_mode {
 			if app.tmp_pos_x == u32(-1) || app.tmp_pos_y == u32(-1) { // defensive: prevent map border
-				app.forced_states << app.key_pos[u8(e.char_code)]
+				for pos in app.key_pos[u8(e.char_code)] {
+					i := app.forced_states.index(pos)
+					if i == -1 {
+						app.forced_states << pos
+					} else {
+						app.forced_states.delete(i)
+					}
+				}
 			} else {
-				if mut a := app.key_pos[u8(e.char_code)] {
-					a << [app.tmp_pos_x, app.tmp_pos_y]!
+				if _ := app.key_pos[u8(e.char_code)] {
+					app.key_pos[u8(e.char_code)] << Coo{app.tmp_pos_x, app.tmp_pos_y}
 				} else {
 					app.key_pos[u8(e.char_code)] = [
-						[app.tmp_pos_x, app.tmp_pos_y]!,
+						Coo{app.tmp_pos_x, app.tmp_pos_y},
 					]
 				}
 			}
@@ -2318,6 +2324,14 @@ fn on_event(e &gg.Event, mut app App) {
 					app.move_cam()
 				}
 			} else if app.load_gate_mode {
+				if e.mouse_button == .middle {
+					app.move_cam()
+				}
+			} else if app.save_gate_mode {
+				if e.mouse_button == .middle {
+					app.move_cam()
+				}
+			} else if app.keyinput_mode {
 				if e.mouse_button == .middle {
 					app.move_cam()
 				}
@@ -2498,7 +2512,7 @@ fn (mut app App) computation_loop() {
 	mut now := i64(0)
 	for app.comp_running {
 		for pos in app.forced_states {
-			app.set_elem_state_by_pos(pos[0], pos[1], true)
+			app.set_elem_state_by_pos(pos.x, pos.y)
 		}
 		cycle_end = time.now().unix_nano() + i64(1_000_000_000.0 / f32(app.nb_updates)) - i64(app.avg_update_time) // nanosecs
 		mut done := []int{}
@@ -2702,7 +2716,7 @@ fn (mut app App) load_map(map_name string) ! {
 		dump(forced_states_len)
 		app.forced_states = []
 		for _ in 0 .. forced_states_len {
-			app.forced_states << [f.read_raw[u32]()!, f.read_raw[u32]()!]!
+			app.forced_states << Coo{f.read_raw[u32]()!, f.read_raw[u32]()!}
 		}
 		dump('forced states')
 		colorchips_len := f.read_raw[i64]()!
@@ -2902,12 +2916,12 @@ fn (mut app App) save_map(map_name string) ! {
 	}
 	offset += sizeof(i64)
 	for pos in app.forced_states {
-		file.write_raw_at(pos[0], offset) or {
+		file.write_raw_at(pos.x, offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(u32)
-		file.write_raw_at(pos[1], offset) or {
+		file.write_raw_at(pos.y, offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
@@ -4822,31 +4836,47 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 	return next_id
 }
 
-fn (mut app App) set_elem_state_by_pos(x u32, y u32, new_state bool) {
-	chunk_i := app.get_chunkmap_idx_at_coords(x, y)
+fn (mut app App) set_elem_state_by_pos(x u32, y u32) {
+	mut chunk_i := app.get_chunkmap_idx_at_coords(x, y)
 	mut chunkmap := &app.map[chunk_i].id_map
-	xmap := x % chunk_size
-	ymap := y % chunk_size
-	id := unsafe { chunkmap[xmap][ymap] }
+	mut xmap := x % chunk_size
+	mut ymap := y % chunk_size
+	mut id := unsafe { chunkmap[xmap][ymap] }
 	if id == elem_crossing_bits || id == empty_id || id & elem_type_mask == elem_on_bits {
 		return
 	}
-	if new_state {
+	i := unsafe { chunkmap[xmap][ymap] } & rid_mask
+	if id & elem_type_mask == elem_wire_bits {
 		unsafe {
 			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
 		}
-	} else {
+		app.w_states[app.actual_state][i] = false
+		mut last_cm_x := x
+		mut last_cm_y := y
+		for cc in app.wires[i].cable_coords {
+			if check_change_chunkmap(last_cm_x, last_cm_y, cc.x, cc.y) {
+				last_cm_x = cc.x
+				last_cm_y = cc.y
+				chunk_i = app.get_chunkmap_idx_at_coords(cc.x, cc.y)
+			}
+			chunkmap = &app.map[chunk_i].id_map
+			xmap = cc.x % chunk_size
+			ymap = cc.y % chunk_size
+			id = unsafe { chunkmap[xmap][ymap] }
+			unsafe {
+				chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+			}
+		}
+	} else if id & elem_type_mask == elem_not_bits {
 		unsafe {
 			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] & (~on_bits)
 		}
-	}
-	i := unsafe { chunkmap[xmap][ymap] } & rid_mask
-	if id & elem_type_mask == elem_wire_bits {
-		app.w_states[app.actual_state][i] = new_state
-	} else if id & elem_type_mask == elem_not_bits {
-		app.n_states[app.actual_state][i] = new_state
+		app.n_states[app.actual_state][i] = false
 	} else if id & elem_type_mask == elem_diode_bits {
-		app.d_states[app.actual_state][i] = new_state
+		unsafe {
+			chunkmap[xmap][ymap] = chunkmap[xmap][ymap] | on_bits
+		}
+		app.d_states[app.actual_state][i] = true
 	}
 }
 
