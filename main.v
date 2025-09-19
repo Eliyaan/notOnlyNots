@@ -335,6 +335,7 @@ mut:
 	mouse_down        bool
 	mouse_map_x       u32
 	mouse_map_y       u32
+	mouse_action      string
 	scroll_pos        f32
 	debug_mode        bool
 	// main menu
@@ -627,6 +628,8 @@ mut:
 			compute_info, ui_log_cfg)
 		app.ctx.draw_text(info_text_x, int((info_text_off + 2 * info_text_spacing) * app.ui),
 			coords_info, ui_log_cfg)
+		app.ctx.draw_text(info_text_x, app.s.height - int(info_text_spacing * app.ui),
+			app.mouse_action, ui_log_cfg)
 
 		if app.save_gate_mode {
 			input_x := (ui_width + input_box_off) * app.ui
@@ -956,11 +959,17 @@ fn (mut app App) draw_paste_preview() {
 	app.junc_coo.clear()
 	app.on_coo.clear()
 
-	mut max_x := app.e.mouse_x
-	mut max_y := app.e.mouse_y
+	virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
+	virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
+	mouse_map_x := u32(virt_cam_x + app.e.mouse_x / app.tile_size)
+	mouse_map_y := u32(virt_cam_y + app.e.mouse_y / app.tile_size)
+	m_x := f32((f64(mouse_map_x) - virt_cam_x) * app.tile_size)
+	m_y := f32((f64(mouse_map_y) - virt_cam_y) * app.tile_size)
+	mut max_x := m_x
+	mut max_y := m_y
 	for pi in app.copied {
-		pos_x := f32((f64(pi.rel_x) + f64(app.mouse_map_x) - app.cam_x) * app.tile_size)
-		pos_y := f32((f64(pi.rel_y) + f64(app.mouse_map_y) - app.cam_y) * app.tile_size)
+		pos_x := f32((f64(pi.rel_x) + f64(mouse_map_x) - virt_cam_x) * app.tile_size)
+		pos_y := f32((f64(pi.rel_y) + f64(mouse_map_y) - virt_cam_y) * app.tile_size)
 		orient := u64(pi.orientation) << 56
 		ori := f32(match orient {
 			north { 270.0 }
@@ -1083,9 +1092,9 @@ fn (mut app App) draw_paste_preview() {
 	}
 	sgl.end()
 	sgl.disable_texture()
-	m_x := app.ctx.mouse_pos_x/app.tile_size*app.tile_size 
-	m_y := app.ctx.mouse_pos_y/app.tile_size*app.tile_size
-	app.ctx.draw_rect_filled(m_x, m_y, max_x - m_x + app.tile_size, max_y - m_y + app.tile_size, gg.Color{255, 255, 255, 128})
+
+	app.ctx.draw_rect_filled(m_x, m_y, max_x - m_x + app.tile_size, max_y - m_y + app.tile_size,
+		gg.Color{255, 255, 255, 128})
 }
 
 fn (mut app App) draw_selection_box() {
@@ -1205,13 +1214,13 @@ fn (mut app App) draw_map() {
 									match id & elem_type_mask {
 										elem_not_bits {
 											if id & on_bits == 0 {
-												app.not_off_coo << pos_x
-												app.not_off_coo << pos_y
-												app.not_off_coo << ori
-											} else {
 												app.not_on_coo << pos_x
 												app.not_on_coo << pos_y
 												app.not_on_coo << ori
+											} else {
+												app.not_off_coo << pos_x
+												app.not_off_coo << pos_y
+												app.not_off_coo << ori
 											}
 										}
 										elem_diode_bits {
@@ -1906,6 +1915,43 @@ fn (mut app App) scroll() {
 	}
 }
 
+fn (mut app App) update_mouse_action() {
+	if app.comp_running {
+		if app.e.mouse_x < app.ui * ui_width {
+			nb := app.ingame_ui_button_click_to_nb(app.e.mouse_x, app.e.mouse_y)
+			btn := app.convert_button_nb_to_enum(nb) or { return }
+			match btn {
+				.rotate_copy {
+					app.mouse_action = '[left] rotate cw [right/left+shift] rotate ccw'
+				}
+				else {
+					app.mouse_action = btn.str()
+				}
+			}
+		} else {
+			if app.keyinput_mode {
+				app.mouse_action = 'TODO: '
+			} else if app.selection_mode {
+				app.mouse_action = '[left] start of selection [right] end of selection [middle] camera'
+			} else if app.save_gate_mode {
+				app.mouse_action = '[left/right/middle] camera'
+			} else if app.paste_mode {
+				app.mouse_action = '[left] paste [middle] camera'
+			} else if app.placement_mode {
+				app.mouse_action = '[drag left] place [drag right] remove [middle] camera'
+			} else if app.load_gate_mode {
+				app.mouse_action = '[middle] camera'
+			} else if app.edit_mode {
+				app.mouse_action = 'TODO: '
+			} else {
+				app.mouse_action = '[left/right/middle] camera'
+			}
+		}
+	} else {
+		app.mouse_action = ''
+	}
+}
+
 fn on_event(e &gg.Event, mut app App) {
 	app.s = app.ctx.window_size()
 	app.ui = f32(app.s.height) / f32(800.0)
@@ -1928,6 +1974,7 @@ fn on_event(e &gg.Event, mut app App) {
 	}
 	app.mouse_map_x = u32(app.cam_x + mouse_x / app.tile_size)
 	app.mouse_map_y = u32(app.cam_y + mouse_y / app.tile_size)
+	app.update_mouse_action()
 	match e.typ {
 		.mouse_up {
 			if app.debug_mode && e.modifiers & 1 == 1 { // shift
@@ -1996,8 +2043,10 @@ fn on_event(e &gg.Event, mut app App) {
 				}
 			} else if app.comp_running {
 				if app.keyinput_mode {
-					if app.move_down && e.mouse_button == .middle {
-						app.finish_move_cam()
+					if app.move_down {
+						if e.mouse_button == .middle {
+							app.finish_move_cam()
+						}
 					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
@@ -2022,8 +2071,10 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else if app.edit_mode {
-					if app.move_down && e.mouse_button == .middle {
-						app.finish_move_cam()
+					if app.move_down {
+						if e.mouse_button == .middle {
+							app.finish_move_cam()
+						}
 					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
@@ -2073,8 +2124,10 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else if app.load_gate_mode {
-					if app.move_down && e.mouse_button == .middle {
-						app.finish_move_cam()
+					if app.move_down {
+						if e.mouse_button == .middle {
+							app.finish_move_cam()
+						}
 					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
@@ -2096,14 +2149,18 @@ fn on_event(e &gg.Event, mut app App) {
 				} else if app.placement_mode {
 					if app.place_down && e.mouse_button != .middle { // TODO: make the UI disappear/fade out when doing a placement
 						app.placement_released_at(mouse_x, mouse_y, e)
-					} else if app.move_down && e.mouse_button == .middle {
-						app.finish_move_cam()
+					} else if app.move_down {
+						if e.mouse_button == .middle {
+							app.finish_move_cam()
+						}
 					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					}
 				} else if app.paste_mode {
-					if app.move_down && e.mouse_button == .middle {
-						app.finish_move_cam()
+					if app.move_down {
+						if e.mouse_button == .middle {
+							app.finish_move_cam()
+						}
 					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
@@ -2113,14 +2170,18 @@ fn on_event(e &gg.Event, mut app App) {
 						}
 					}
 				} else if app.save_gate_mode {
-					if app.move_down && e.mouse_button == .middle {
-						app.finish_move_cam()
+					if app.move_down {
+						if e.mouse_button == .middle {
+							app.finish_move_cam()
+						}
 					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					}
 				} else if app.selection_mode {
-					if app.move_down && e.mouse_button == .middle {
-						app.finish_move_cam()
+					if app.move_down {
+						if e.mouse_button == .middle {
+							app.finish_move_cam()
+						}
 					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
@@ -2200,10 +2261,6 @@ fn on_event(e &gg.Event, mut app App) {
 			}
 
 			if app.solo_menu {
-				if e.key_code == .backspace {
-					app.text_input = app.text_input#[..-1]
-				}
-			} else if app.load_gate_mode {
 				if e.key_code == .backspace {
 					app.text_input = app.text_input#[..-1]
 				}
