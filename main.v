@@ -972,8 +972,8 @@ fn (mut app App) draw_paste_preview() {
 		pos_y := f32((f64(pi.rel_y) + f64(mouse_map_y) - virt_cam_y) * app.tile_size)
 		orient := u64(pi.orientation) << 56
 		ori := f32(match orient {
-			north { 270.0 }
-			south { 90.0 }
+			north { 90.0 }
+			south { 270.0 }
 			west { 180.0 }
 			east { 0.0 }
 			else { app.log_quit('${@LOCATION} should not get into this else') }
@@ -1016,7 +1016,6 @@ fn (mut app App) draw_paste_preview() {
 
 	sgl.enable_texture()
 	sgl.texture(app.not_off_img.simg, app.not_off_img.ssmp)
-	sgl.begin_quads()
 	sgl.c4b(gg.white.r, gg.white.g, gg.white.b, 128)
 	for i := 0; i < app.not_off_coo.len; i += 3 {
 		app.draw_count += 1
@@ -1024,73 +1023,54 @@ fn (mut app App) draw_paste_preview() {
 		img_rect.y = app.not_off_coo[i + 1]
 		draw_image_with_config(img_rect, app.not_off_coo[i + 2])
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.not_off_img.simg, app.not_off_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.diode_off_img.simg, app.diode_off_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.diode_off_coo.len; i += 3 {
 		app.draw_count += 1
 		img_rect.x = app.diode_off_coo[i]
 		img_rect.y = app.diode_off_coo[i + 1]
 		draw_image_with_config(img_rect, app.diode_off_coo[i + 2])
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.diode_off_img.simg, app.diode_off_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.wire_off_img.simg, app.wire_off_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.wire_off_coo.len; i += 2 {
 		app.draw_count += 1
 		img_rect.x = app.wire_off_coo[i]
 		img_rect.y = app.wire_off_coo[i + 1]
 		draw_image_with_config(img_rect, 0.0)
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.wire_off_img.simg, app.wire_off_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.junc_img.simg, app.junc_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.junc_coo.len; i += 2 {
 		app.draw_count += 1
 		img_rect.x = app.junc_coo[i]
 		img_rect.y = app.junc_coo[i + 1]
 		draw_image_with_config(img_rect, 0.0)
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.junc_img.simg, app.junc_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.on_img.simg, app.on_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.on_coo.len; i += 3 {
 		app.draw_count += 1
 		img_rect.x = app.on_coo[i]
 		img_rect.y = app.on_coo[i + 1]
 		draw_image_with_config(img_rect, app.on_coo[i + 2])
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.on_img.simg, app.on_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.disable_texture()
 
 	app.ctx.draw_rect_filled(m_x, m_y, max_x - m_x + app.tile_size, max_y - m_y + app.tile_size,
@@ -1146,10 +1126,12 @@ fn draw_image_with_config(img_rect gg.Rect, rotation f32) { // TODO: pass only t
 		sgl.translate(-x0_half_width, -y0_half_height, 0)
 	}
 
+	sgl.begin_quads() // NEEDED to apply the rotation to the quad, move it only if you draw every image with the same rotation
 	sgl.v3f_t2f(x0, y0, 0.0, 0, 0)
 	sgl.v3f_t2f(x1, y0, 0.0, 1, 0)
 	sgl.v3f_t2f(x1, y1, 0.0, 1, 1)
 	sgl.v3f_t2f(x0, y1, 0.0, 0, 1)
+	sgl.end()
 
 	if rotation != 0 {
 		sgl.pop_matrix()
@@ -1205,8 +1187,8 @@ fn (mut app App) draw_map() {
 									app.junc_coo << pos_y
 								} else {
 									ori := f32(match id & ori_mask {
-										north { 270.0 }
-										south { 90.0 }
+										north { 90.0 }
+										south { 270.0 }
 										west { 180.0 }
 										east { 0.0 }
 										else { app.log_quit('${@LOCATION} should not get into this else') }
@@ -1270,125 +1252,93 @@ fn (mut app App) draw_map() {
 	sgl.c4b(gg.white.r, gg.white.g, gg.white.b, gg.white.a)
 	sgl.enable_texture()
 	sgl.texture(app.not_on_img.simg, app.not_on_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.not_on_coo.len; i += 3 {
 		app.draw_count += 1
 		img_rect.x = app.not_on_coo[i]
 		img_rect.y = app.not_on_coo[i + 1]
 		draw_image_with_config(img_rect, app.not_on_coo[i + 2])
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.not_on_img.simg, app.not_on_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.not_off_img.simg, app.not_off_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.not_off_coo.len; i += 3 {
 		app.draw_count += 1
 		img_rect.x = app.not_off_coo[i]
 		img_rect.y = app.not_off_coo[i + 1]
 		draw_image_with_config(img_rect, app.not_off_coo[i + 2])
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.not_off_img.simg, app.not_off_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.diode_on_img.simg, app.diode_on_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.diode_on_coo.len; i += 3 {
 		app.draw_count += 1
 		img_rect.x = app.diode_on_coo[i]
 		img_rect.y = app.diode_on_coo[i + 1]
 		draw_image_with_config(img_rect, app.diode_on_coo[i + 2])
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.diode_on_img.simg, app.diode_on_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.diode_off_img.simg, app.diode_off_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.diode_off_coo.len; i += 3 {
 		app.draw_count += 1
 		img_rect.x = app.diode_off_coo[i]
 		img_rect.y = app.diode_off_coo[i + 1]
 		draw_image_with_config(img_rect, app.diode_off_coo[i + 2])
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.diode_off_img.simg, app.diode_off_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.wire_on_img.simg, app.wire_on_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.wire_on_coo.len; i += 2 {
 		app.draw_count += 1
 		img_rect.x = app.wire_on_coo[i]
 		img_rect.y = app.wire_on_coo[i + 1]
 		draw_image_with_config(img_rect, 0.0)
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.wire_on_img.simg, app.wire_on_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.wire_off_img.simg, app.wire_off_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.wire_off_coo.len; i += 2 {
 		app.draw_count += 1
 		img_rect.x = app.wire_off_coo[i]
 		img_rect.y = app.wire_off_coo[i + 1]
 		draw_image_with_config(img_rect, 0.0)
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.wire_off_img.simg, app.wire_off_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.junc_img.simg, app.junc_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.junc_coo.len; i += 2 {
 		app.draw_count += 1
 		img_rect.x = app.junc_coo[i]
 		img_rect.y = app.junc_coo[i + 1]
 		draw_image_with_config(img_rect, 0.0)
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.junc_img.simg, app.junc_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.texture(app.on_img.simg, app.on_img.ssmp)
-	sgl.begin_quads()
 	for i := 0; i < app.on_coo.len; i += 3 {
 		app.draw_count += 1
 		img_rect.x = app.on_coo[i]
 		img_rect.y = app.on_coo[i + 1]
 		draw_image_with_config(img_rect, app.on_coo[i + 2])
 		if app.draw_count >= app.draw_step {
-			sgl.end()
 			app.ensure_draw_count()
 			sgl.texture(app.on_img.simg, app.on_img.ssmp)
-			sgl.begin_quads()
 		}
 	}
-	sgl.end()
 	sgl.disable_texture()
 }
 
@@ -1557,6 +1507,9 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		app.quit_map()
 	} else if b == .hide_colorchips {
 		app.colorchips_hidden = !app.colorchips_hidden
+	} else if b == .keyinput {
+		app.disable_all_ingame_modes()
+		app.keyinput_mode = true
 	}
 }
 
@@ -1930,6 +1883,8 @@ fn (mut app App) update_mouse_action() {
 			}
 		} else {
 			if app.keyinput_mode {
+						// right click -> delete the pos = click_pos encountered in the map
+						// left click -> waiting for input, when input, save pos & key in the map
 				app.mouse_action = 'TODO: '
 			} else if app.selection_mode {
 				app.mouse_action = '[left] start of selection [right] end of selection [middle] camera'
