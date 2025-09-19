@@ -89,23 +89,23 @@ const input_box_off = 10.0
 const input_text_off_x = 15.0
 const input_text_off_y = 10.0
 const input_box_w = 250.0
-const input_box_h = 40.0
+const input_box_h = 35.0
 const info_text_off = 10.0
 const info_text_spacing = 20.0
-const button_solo_x = f32(0.0)
-const button_solo_y = f32(0.0)
-const button_solo_w = f32(300.0)
-const button_solo_h = f32(300.0)
+const button_solo_w = f32(600.0)
+const button_solo_h = f32(600.0)
+const button_solo_x = f32(711.0) - button_solo_w / 2.0
+const button_solo_y = f32(400.0) - button_solo_h / 2.0
 const button_quit_size = f32(50.0)
 const btn_quit_ofst = f32(20.0)
 const maps_x_offset = f32(50.0)
 const maps_y_offset = f32(50.0)
-const maps_top_spacing = f32(10.0)
-const maps_h = f32(50.0)
+const maps_top_spacing = f32(0.0)
 const maps_w = f32(500.0)
 const button_new_map_x = f32(5.0)
 const button_new_map_y = f32(5.0)
 const button_new_map_size = f32(40.0)
+const maps_h = button_new_map_size
 const btn_back_x = f32(5.0)
 const btn_back_y = f32(50.0)
 const btn_back_s = f32(40.0)
@@ -776,14 +776,14 @@ mut:
 		new_x := button_new_map_x * app.ui
 		new_y := button_new_map_y * app.ui
 		new_size := button_new_map_size * app.ui
-		app.ctx.draw_square_filled(new_x, new_y, new_size, app.palette.ui_bg)
+		app.ctx.draw_image(new_x, new_y, new_size, new_size, unsafe { app.buttons[.confirm_save_gate].img })
 		back_x := btn_back_x * app.ui
 		back_y := btn_back_y * app.ui
 		back_s := btn_back_s * app.ui
-		app.ctx.draw_image(back_x, back_y, back_s, back_s, unsafe { app.buttons[.cancel_button].img })
+		app.ctx.draw_image(back_x, back_y, back_s, back_s, unsafe { app.buttons[.quit_map].img })
 		text_x := int(text_field_x * app.ui)
-		text_y := int(text_field_y * app.ui)
-		app.ctx.draw_text(text_x, text_y, app.text_input, ui_log_cfg)
+		text_y := int((text_field_y + button_new_map_size / 2 - f32(ui_log_cfg.size) / 2) * app.ui)
+		app.ctx.draw_text(text_x, text_y, 'Create/search map: ' + app.text_input, ui_log_cfg)
 	} else {
 		app.disable_all_ingame_modes()
 		app.ctx.draw_square_filled(0, 0, 10, gg.Color{255, 0, 0, 255})
@@ -1578,8 +1578,8 @@ fn (app App) convert_button_nb_to_enum(nb int) ?Buttons {
 }
 
 fn (app App) check_maps_button_click_y(pos int, mouse_y f32) bool {
-	return mouse_y >= app.ui * (pos * (maps_top_spacing + maps_h) + maps_y_offset)
-		&& mouse_y < app.ui * ((pos + 1) * (maps_top_spacing + maps_h) + maps_y_offset)
+	return mouse_y >= app.ui * (pos * (maps_top_spacing + maps_y_offset) + maps_y_offset)
+		&& mouse_y < app.ui * ((pos + 1) * (maps_top_spacing + maps_y_offset) + maps_y_offset)
 }
 
 fn (app App) check_gates_button_click_y(pos int, mouse_y f32) bool {
