@@ -227,7 +227,7 @@ struct ColorChip { // TODO: save color chips and keyboard inputs too
 	h u32
 mut:
 	colors []gg.Color // colors to show
-	inputs [][2]u32   // the state will be converted to a number (binary) and it will be the index of the shown color
+	inputs []Coo      // the state will be converted to a number (binary) and it will be the index of the shown color
 }
 
 const button_map = {
@@ -352,7 +352,7 @@ mut:
 	editmenu_nb_inputs_by_row int = 10
 	delete_colorchip_submode  bool
 	create_colorchip_submode  bool // select start and end of the new colorchip
-	create_colorchip_x        u32 = u32(-1)
+	create_colorchip_x        u32 = u32(-1) // TODO: delete
 	create_colorchip_y        u32 = u32(-1)
 	create_colorchip_endx     u32 = u32(-1)
 	create_colorchip_endy     u32 = u32(-1)
@@ -599,6 +599,8 @@ fn on_frame(mut app App) {
 		app.draw_ingame_ui_buttons()
 
 		if !app.colorchips_hidden {
+			virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
+			virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
 			for cc in app.colorchips {
 				// TODO: compute the index of the color w/ the inputs
 				/*
@@ -609,14 +611,19 @@ struct ColorChip { // TODO: save color chips and keyboard inputs too
 	h u32
 mut:
 	colors []gg.Color // colors to show
-	inputs [][2]u32   // the state will be converted to a number (binary) and it will be the index of the shown color
+	inputs []Coo   // the state will be converted to a number (binary) and it will be the index of the shown color
 }
 				*/
-				pos_x := f32((f64(cc.x) - app.cam_x) * app.tile_size)
-				pos_y := f32((f64(cc.y) - app.cam_y) * app.tile_size)
-				end_pos_x := f32((f64(cc.w) - app.cam_x) * app.tile_size)
-				end_pos_y := f32((f64(cc.h) - app.cam_y) * app.tile_size)
-				app.ctx.draw_rect_filled(pos_x, pos_y, end_pos_x, end_pos_y, app.palette.selection_box)
+				pos_x := f32((f64(cc.x) - virt_cam_x) * app.tile_size)
+				pos_y := f32((f64(cc.y) - virt_cam_y) * app.tile_size)
+				w := f32(int(cc.w) * app.tile_size)
+				h := f32(int(cc.h) * app.tile_size)
+				mut color_i := 0
+				for i, coo in cc.inputs {
+					// if state
+					// color_i += pow(2, i)
+				}
+				app.ctx.draw_rect_filled(pos_x, pos_y, w, h, cc.colors[i])
 			}
 		}
 
@@ -1397,10 +1404,6 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 	} else if b == .choose_colorchip {
 		app.disable_all_ingame_modes()
 		app.choose_colorchip_submode = true
-	} else if b == .create_color_chip {
-		app.disable_all_ingame_modes()
-		app.colorchips_hidden = false
-		app.create_colorchip_submode = true
 	} else if b == .add_input {
 		if app.selected_colorchip == -1 {
 			app.log('No ColorChip selected', .warn)
@@ -1496,11 +1499,27 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		if app.select_start_x != u32(-1) && app.select_start_y != u32(-1)
 			&& app.select_end_x != u32(-1) && app.select_end_y != u32(-1) {
 			app.disable_all_ingame_modes()
-			app.create_colorchip_submode = true
-			app.create_colorchip_x = u32(-1)
-			app.create_colorchip_y = u32(-1)
-			app.create_colorchip_endx = u32(-1)
-			app.create_colorchip_endy = u32(-1)
+			app.edit_mode = true
+			app.edit_color_submode = true
+			app.selected_colorchip = app.colorchips.len
+			x_start, x_end := if app.select_start_x > app.select_end_x {
+				app.select_end_x, app.select_start_x
+			} else {
+				app.select_start_x, app.select_end_x
+			}
+			y_start, y_end := if app.select_start_y > app.select_end_y {
+				app.select_end_y, app.select_start_y
+			} else {
+				app.select_start_y, app.select_end_y
+			}
+			app.colorchips << ColorChip{x_start, y_start, x_end - x_start + 1, y_end - y_start + 1, [
+				default_colorchip_color_off,
+				default_colorchip_color_on,
+			], [Coo{x_start, y_start}]}
+			app.select_start_x = u32(-1)
+			app.select_start_y = u32(-1)
+			app.select_end_x = u32(-1)
+			app.select_end_y = u32(-1)
 		}
 	} else if b == .selection_button {
 		app.disable_all_ingame_modes()
@@ -1708,7 +1727,7 @@ fn (mut app App) check_and_delete_colorchip_input(mouse_x f32, mouse_y f32) {
 	}
 }
 
-fn (mut app App) check_and_select_or_delete_color_cc(mouse_x f32, mouse_y f32, e &gg.Event) {
+fn (mut app App) check_and_select_or_delete_color_cc(mouse_x f32, mouse_y f32) {
 	for i in 0 .. app.colorchips[app.selected_colorchip].colors.len {
 		x := app.ui * editmenu_offset_x +
 			i % app.editmenu_nb_color_by_row * app.ui * editmenu_colorsize
@@ -1716,9 +1735,9 @@ fn (mut app App) check_and_select_or_delete_color_cc(mouse_x f32, mouse_y f32, e
 			i / app.editmenu_nb_color_by_row * app.ui * editmenu_colorsize
 		if mouse_x >= x && mouse_x < x + app.ui * editmenu_colorsize {
 			if mouse_y >= y && mouse_y < y + app.ui * editmenu_colorsize {
-				if e.mouse_button == .left {
+				if app.e.mouse_button == .left {
 					app.editmenu_selected_color = i
-				} else if e.mouse_button == .right {
+				} else if app.e.mouse_button == .right {
 					app.colorchips[app.selected_colorchip].colors.delete(i)
 					app.editmenu_selected_color -= 1
 					if app.editmenu_selected_color < 0 {
@@ -1733,26 +1752,26 @@ fn (mut app App) check_and_select_or_delete_color_cc(mouse_x f32, mouse_y f32, e
 	}
 }
 
-fn (mut app App) check_and_change_color_cc(mouse_x f32, mouse_y f32, e &gg.Event) {
+fn (mut app App) check_and_change_color_cc(mouse_x f32, mouse_y f32) {
 	if mouse_y >= app.ui * editmenu_rgb_y && mouse_y < app.ui * (editmenu_rgb_y + editmenu_rgb_h) {
 		if mouse_x >= app.ui * editmenu_r_x && mouse_x < app.ui * (editmenu_r_x + editmenu_rgb_w) {
-			if e.mouse_button == .left {
+			if app.e.mouse_button == .left {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].r += 1
-			} else if e.mouse_button == .right {
+			} else if app.e.mouse_button == .right {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].r -= 1
 			}
 		}
 		if mouse_x >= app.ui * editmenu_g_x && mouse_x < app.ui * (editmenu_g_x + editmenu_rgb_w) {
-			if e.mouse_button == .left {
+			if app.e.mouse_button == .left {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].g += 1
-			} else if e.mouse_button == .right {
+			} else if app.e.mouse_button == .right {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].g -= 1
 			}
 		}
 		if mouse_x >= app.ui * editmenu_b_x && mouse_x < app.ui * (editmenu_b_x + editmenu_rgb_w) {
-			if e.mouse_button == .left {
+			if app.e.mouse_button == .left {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].b += 1
-			} else if e.mouse_button == .right {
+			} else if app.e.mouse_button == .right {
 				app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color].b -= 1
 			}
 		}
@@ -1775,29 +1794,6 @@ fn (mut app App) delete_colorchip_at(mouse_x f32, mouse_y f32) {
 			app.selected_colorchip = -1
 		}
 	}
-}
-
-fn (mut app App) create_colorchip_with_end_at(mouse_x f32, mouse_y f32) {
-	app.create_colorchip_endx = u32(app.cam_x + (mouse_x / app.tile_size))
-	app.create_colorchip_endy = u32(app.cam_y + (mouse_y / app.tile_size))
-	if app.create_colorchip_x > app.create_colorchip_endx {
-		app.create_colorchip_x, app.create_colorchip_endx = app.create_colorchip_endx, app.create_colorchip_x
-	}
-	if app.create_colorchip_y > app.create_colorchip_endy {
-		app.create_colorchip_y, app.create_colorchip_endy = app.create_colorchip_endy, app.create_colorchip_y
-	}
-	app.colorchips << ColorChip{
-		x:      app.create_colorchip_x
-		y:      app.create_colorchip_y
-		w:      app.create_colorchip_endx - app.create_colorchip_x
-		h:      app.create_colorchip_endy - app.create_colorchip_y
-		colors: [default_colorchip_color_on, default_colorchip_color_off]
-	}
-	app.create_colorchip_x = u32(-1)
-	app.create_colorchip_endx = u32(-1)
-	app.create_colorchip_y = u32(-1)
-	app.create_colorchip_endy = u32(-1)
-	app.selected_colorchip = app.colorchips.len - 1
 }
 
 fn (mut app App) load_gate_and_paste_mode(name string) {
@@ -2044,23 +2040,15 @@ fn on_event(e &gg.Event, mut app App) {
 					} else {
 						if app.edit_color_submode && app.selected_colorchip != -1 {
 							app.check_and_delete_colorchip_input(mouse_x, mouse_y)
-							app.check_and_select_or_delete_color_cc(mouse_x, mouse_y,
-								e)
-							app.check_and_change_color_cc(mouse_x, mouse_y, e)
+							app.check_and_select_or_delete_color_cc(mouse_x, mouse_y)
+							app.check_and_change_color_cc(mouse_x, mouse_y)
 						} else if app.delete_colorchip_submode {
 							app.delete_colorchip_at(mouse_x, mouse_y)
-						} else if app.create_colorchip_submode {
-							if app.create_colorchip_x == u32(-1) {
-								app.create_colorchip_x = u32(app.cam_x + (mouse_x / app.tile_size))
-								app.create_colorchip_y = u32(app.cam_y + (mouse_y / app.tile_size))
-							} else if app.create_colorchip_endx == u32(-1) {
-								app.create_colorchip_with_end_at(mouse_x, mouse_y)
-							}
+						} else if app.create_colorchip_submode { // TODO: delete
 						} else if app.add_input_submode && app.selected_colorchip != -1 {
-							app.colorchips[app.selected_colorchip].inputs << [
-								u32(app.cam_x + (mouse_x / app.tile_size)),
-								u32(app.cam_y + (mouse_y / app.tile_size)),
-							]!
+							app.colorchips[app.selected_colorchip].inputs << Coo{u32(app.cam_x +
+								(mouse_x / app.tile_size)), u32(app.cam_y +
+								(mouse_y / app.tile_size))}
 							for app.colorchips[app.selected_colorchip].colors.len < pow(2,
 								app.colorchips[app.selected_colorchip].inputs.len) {
 							}
@@ -2332,6 +2320,10 @@ fn on_event(e &gg.Event, mut app App) {
 					app.move_cam()
 				}
 			} else if app.keyinput_mode {
+				if e.mouse_button == .middle {
+					app.move_cam()
+				}
+			} else if app.edit_mode {
 				if e.mouse_button == .middle {
 					app.move_cam()
 				}
@@ -2737,7 +2729,7 @@ fn (mut app App) load_map(map_name string) ! {
 			inputs_len := f.read_raw[i64]()!
 			dump(inputs_len)
 			for _ in 0 .. inputs_len {
-				new_cc.inputs << [f.read_raw[u32]()!, f.read_raw[u32]()!]!
+				new_cc.inputs << Coo{f.read_raw[u32]()!, f.read_raw[u32]()!}
 			}
 		}
 		dump('Done!')
@@ -2987,12 +2979,12 @@ fn (mut app App) save_map(map_name string) ! {
 		}
 		offset += sizeof(i64)
 		for i in cc.inputs {
-			file.write_raw_at(i[0], offset) or {
+			file.write_raw_at(i.x, offset) or {
 				app.log('${@LOCATION}: ${err}', .err)
 				return
 			}
 			offset += sizeof(u32)
-			file.write_raw_at(i[1], offset) or {
+			file.write_raw_at(i.y, offset) or {
 				app.log('${@LOCATION}: ${err}', .err)
 				return
 			}
