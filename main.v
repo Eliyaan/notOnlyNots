@@ -85,6 +85,7 @@ const log_cfg = gg.TextCfg{
 const log_width = 200
 const log_interline_spacing = 4
 const log_border = 5
+const selected_cc_circle_r = 6
 const input_box_off = 10.0
 const input_text_off_x = 15.0
 const input_text_off_y = 10.0
@@ -112,6 +113,7 @@ const btn_back_s = f32(40.0)
 const text_field_x = f32(50.0)
 const text_field_y = f32(5.0)
 const editmenu_inputsize = f32(50.0)
+const editmenu_input_x_space = f32(10.0)
 const editmenu_rgb_y = f32(10.0)
 const editmenu_rgb_h = f32(40.0)
 const editmenu_rgb_w = f32(40.0)
@@ -151,7 +153,7 @@ enum Buttons {
 	create_color_chip // selection
 	add_input         // edit
 	item_diode        // no/placement
-	steal_settings    // edit
+	copy_settings    // edit
 	item_crossing     // no/placement
 	delete_colorchip  // edit
 	item_on           // no/placement
@@ -168,19 +170,20 @@ enum Buttons {
 	flip_h            // paste
 	flip_v            // paste
 	trash
+	cc_mode // no
 }
 
 const selec_buttons = [Buttons.cancel_button, .copy_button, .save_gate, .create_color_chip,
 	.selection_delete, .paste]
 const no_mode_buttons = [Buttons.cancel_button, .selection_button, .load_gate, .item_nots,
 	.item_diode, .item_crossing, .item_on, .item_wire, .speed, .slow, .pause, .paste, .save_map,
-	.keyinput, .hide_colorchips, .quit_map]
+	.keyinput, .hide_colorchips, .cc_mode, .quit_map]
 const save_gate_buttons = [Buttons.cancel_button, .confirm_save_gate]
 const paste_buttons = [Buttons.cancel_button, .rotate_copy, .load_gate, .flip_h, .flip_v]
 const placement_buttons = [Buttons.cancel_button, .item_nots, .item_diode, .item_crossing, .item_on,
 	.item_wire]
 const edit_buttons = [Buttons.cancel_button, .choose_colorchip, .edit_color, .add_input,
-	.steal_settings, .delete_colorchip]
+	.copy_settings, .delete_colorchip, .hide_colorchips]
 
 struct ButtonData {
 mut:
@@ -279,7 +282,7 @@ const button_map = {
 	.item_diode:           ButtonData{
 		pos: 4
 	}
-	.steal_settings:       ButtonData{
+	.copy_settings:       ButtonData{
 		pos: 4
 	}
 	.item_crossing:        ButtonData{
@@ -315,8 +318,11 @@ const button_map = {
 	.hide_colorchips:      ButtonData{
 		pos: 14
 	}
-	.quit_map:             ButtonData{
+	.cc_mode:              ButtonData{
 		pos: 15
+	}
+	.quit_map:             ButtonData{
+		pos: 16
 	}
 	.selection_delete:     ButtonData{
 		pos: 7
@@ -350,9 +356,9 @@ mut:
 	map_names_list []string // without folder name
 	// edit mode -> edit colorchips
 	edit_mode                 bool
-	editmenu_nb_color_by_row  int = 10
+	editmenu_nb_color_by_row  int = 20
 	editmenu_selected_color   int // TODO: show coords of input
-	editmenu_nb_inputs_by_row int = 10
+	editmenu_nb_inputs_by_row int = 16
 	editmenu_hold             int
 	delete_colorchip_submode  bool
 	create_colorchip_submode  bool // select start and end of the new colorchip
@@ -361,7 +367,7 @@ mut:
 	create_colorchip_endx     u32 = u32(-1)
 	create_colorchip_endy     u32 = u32(-1)
 	choose_colorchip_submode  bool // select a colorchip to edit
-	steal_settings_submode    bool
+	copy_settings_submode    bool
 	add_input_submode         bool // to add an input to a colorchip
 	edit_color_submode        bool // edit colors of a colorchip
 	selected_colorchip        int  // index of the selected colorchip
@@ -498,7 +504,7 @@ fn (mut app App) init_graphics() ! {
 			'create_color_chip.png')!
 		app.buttons[.add_input].img = app.ctx.create_image(sprites_path + 'add_input.png')!
 		app.buttons[.item_diode].img = app.ctx.create_image(sprites_path + 'item_diode.png')!
-		app.buttons[.steal_settings].img = app.ctx.create_image(sprites_path + 'steal_settings.png')!
+		app.buttons[.copy_settings].img = app.ctx.create_image(sprites_path + 'steal_settings.png')!
 		app.buttons[.item_crossing].img = app.ctx.create_image(sprites_path + 'item_crossing.png')!
 		app.buttons[.delete_colorchip].img = app.ctx.create_image(sprites_path +
 			'delete_colorchip.png')!
@@ -513,6 +519,7 @@ fn (mut app App) init_graphics() ! {
 		app.buttons[.hide_colorchips].img = app.ctx.create_image(sprites_path +
 			'hide_colorchips.png')!
 		app.buttons[.quit_map].img = app.ctx.create_image(sprites_path + 'quit_map.png')!
+		app.buttons[.cc_mode].img = app.ctx.create_image(sprites_path + 'edit_color.png')!
 		app.buttons[.flip_h].img = app.ctx.create_image(sprites_path + 'flip_h.png')!
 		app.buttons[.flip_v].img = app.ctx.create_image(sprites_path + 'flip_v.png')!
 		app.buttons[.selection_delete].img = app.ctx.create_image(sprites_path +
@@ -585,6 +592,9 @@ fn on_frame(mut app App) {
 		color: log_cfg.color
 	}
 	if app.comp_running {
+		if app.selected_colorchip < -1 || app.selected_colorchip > app.colorchips.len {
+			app.selected_colorchip = -1
+		}
 		if app.edit_mode && app.mouse_down {
 			if app.move_down {
 			} else if app.e.mouse_x < app.ui * ui_width {
@@ -601,7 +611,7 @@ fn on_frame(mut app App) {
 		if !app.colorchips_hidden {
 			virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
 			virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
-			for cc in app.colorchips {
+			for j, cc in app.colorchips {
 				pos_x := f32((f64(cc.x) - virt_cam_x) * app.tile_size)
 				pos_y := f32((f64(cc.y) - virt_cam_y) * app.tile_size)
 				w := f32(int(cc.w) * app.tile_size)
@@ -632,6 +642,9 @@ fn on_frame(mut app App) {
 					}
 				}
 				app.ctx.draw_rect_filled(pos_x, pos_y, w, h, cc.colors[color_i])
+				if app.edit_mode && j == app.selected_colorchip {
+					app.ctx.draw_circle_filled(pos_x, pos_y, selected_cc_circle_r, gg.red)
+				}
 			}
 		}
 
@@ -701,7 +714,8 @@ fn on_frame(mut app App) {
 			if app.edit_color_submode && app.selected_colorchip != -1 {
 				for i in 0 .. app.colorchips[app.selected_colorchip].inputs.len {
 					x := app.ui * (editmenu_offset_inputs_x + editmenu_offset_x) +
-						i % app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
+						i % app.editmenu_nb_inputs_by_row * app.ui * (editmenu_inputsize +
+						editmenu_input_x_space)
 					y := app.ui * (editmenu_offset_inputs_y + editmenu_offset_y) +
 						i / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
 					size := app.ui * editmenu_inputsize
@@ -736,6 +750,29 @@ fn on_frame(mut app App) {
 				app.ctx.draw_text(int(r_x), int(rgb_y), selected_color.r.str(), ui_log_cfg)
 				app.ctx.draw_text(int(g_x), int(rgb_y), selected_color.g.str(), ui_log_cfg)
 				app.ctx.draw_text(int(b_x), int(rgb_y), selected_color.b.str(), ui_log_cfg)
+			}
+			if app.selected_colorchip != -1 {
+				virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
+				virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
+				half := app.tile_size / 2
+				quar := half / 2
+				for i, inp in app.colorchips[app.selected_colorchip].inputs {
+					pos_x := f32((f64(inp.x) - virt_cam_x) * app.tile_size)
+					pos_y := f32((f64(inp.y) - virt_cam_y) * app.tile_size)
+					// check if input button is selected
+					x := app.ui * (editmenu_offset_inputs_x + editmenu_offset_x) +
+						i % app.editmenu_nb_inputs_by_row * app.ui * (editmenu_inputsize +
+						editmenu_input_x_space)
+					y := app.ui * (editmenu_offset_inputs_y + editmenu_offset_y) +
+						i / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
+					if app.edit_color_submode && app.e.mouse_x >= x && app.e.mouse_x < x + app.ui * editmenu_inputsize 
+						&& app.e.mouse_y >= y && app.e.mouse_y < y + app.ui * editmenu_inputsize {
+						app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.input_preview)
+					} else {
+						app.ctx.draw_square_filled(pos_x + quar, pos_y + quar, half, app.palette.input_preview)
+					}
+					app.ctx.draw_text(int(pos_x + half - ui_log_cfg.size/4), int(pos_y + half -ui_log_cfg.size/2), i.str(), ui_log_cfg)
+				}
 			}
 		}
 		if app.debug_mode {
@@ -967,8 +1004,19 @@ fn (mut app App) draw_ingame_ui_buttons() {
 			}
 		} else if app.edit_mode {
 			for button in edit_buttons {
-				app.ctx.draw_image(base_x, app.buttons[button].pos * y_factor + base_y,
-					size, size, app.buttons[button].img)
+				y := app.buttons[button].pos * y_factor + base_y
+				app.ctx.draw_image(base_x, y, size, size, app.buttons[button].img)
+				if button == .choose_colorchip && app.choose_colorchip_submode {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				} else if button == .edit_color && app.edit_color_submode {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				} else if button == .add_input && app.add_input_submode {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				} else if button == .copy_settings && app.copy_settings_submode {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				} else if button == .delete_colorchip && app.delete_colorchip_submode {
+					app.ctx.draw_square_filled(base_x, y, size, app.palette.selected_ui)
+				}
 			}
 		} else { // no mode
 			for button in no_mode_buttons {
@@ -1463,30 +1511,34 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		} else {
 			app.disable_all_ingame_modes()
 			app.colorchips_hidden = false
+			app.edit_mode = true
 			app.edit_color_submode = true
 		}
 	} else if b == .choose_colorchip {
 		app.disable_all_ingame_modes()
+		app.edit_mode = true
 		app.choose_colorchip_submode = true
 	} else if b == .add_input {
 		if app.selected_colorchip == -1 {
 			app.log('No ColorChip selected', .warn)
 		} else {
 			app.disable_all_ingame_modes()
-			app.colorchips_hidden = true
+			app.edit_mode = true
 			app.add_input_submode = true
 		}
-	} else if b == .steal_settings {
+	} else if b == .copy_settings {
 		if app.selected_colorchip == -1 {
 			app.log('No ColorChip selected', .warn)
 		} else {
 			app.disable_all_ingame_modes()
 			app.colorchips_hidden = false
-			app.steal_settings_submode = true
+			app.edit_mode = true
+			app.copy_settings_submode = true
 		}
 	} else if b == .delete_colorchip {
 		app.disable_all_ingame_modes()
 		app.colorchips_hidden = false
+		app.edit_mode = true
 		app.delete_colorchip_submode = true
 	} else if b == .item_nots {
 		if !app.placement_mode {
@@ -1611,6 +1663,10 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		for app.todo.len > 0 {} // wait
 	} else if b == .quit_map {
 		app.quit_map()
+	} else if b == .cc_mode {
+		app.disable_all_ingame_modes()
+		app.edit_mode = true
+		app.choose_colorchip_submode = true
 	} else if b == .hide_colorchips {
 		app.colorchips_hidden = !app.colorchips_hidden
 	} else if b == .keyinput {
@@ -1681,8 +1737,9 @@ fn (app App) check_gates_button_click_y(pos int, mouse_y f32) bool {
 }
 
 fn (mut app App) disable_all_ingame_modes() {
+	app.editmenu_selected_color = 0
 	app.edit_mode = false
-	app.steal_settings_submode = false
+	app.copy_settings_submode = false
 	app.choose_colorchip_submode = false
 	app.create_colorchip_submode = false
 	app.edit_color_submode = false
@@ -1787,7 +1844,8 @@ fn (mut app App) back_to_main_menu() {
 fn (mut app App) check_and_delete_colorchip_input(mouse_x f32, mouse_y f32) {
 	for i in 0 .. app.colorchips[app.selected_colorchip].inputs.len {
 		x := app.ui * (editmenu_offset_inputs_x + editmenu_offset_x) +
-			i % app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
+			i % app.editmenu_nb_inputs_by_row * app.ui * (editmenu_inputsize +
+			editmenu_input_x_space)
 		y := app.ui * (editmenu_offset_inputs_y + editmenu_offset_y) +
 			i / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
 		if mouse_x >= x && mouse_x < x + app.ui * editmenu_inputsize {
@@ -1961,6 +2019,9 @@ fn (mut app App) update_mouse_action() {
 				.rotate_copy {
 					app.mouse_action = '[left] rotate cw [right/left+shift] rotate ccw'
 				}
+				.cc_mode {
+					app.mouse_action = 'colorchips edit mode'
+				}
 				else {
 					app.mouse_action = btn.str()
 				}
@@ -1979,7 +2040,17 @@ fn (mut app App) update_mouse_action() {
 			} else if app.load_gate_mode {
 				app.mouse_action = '[middle] camera'
 			} else if app.edit_mode {
-				app.mouse_action = 'TODO: '
+				if app.choose_colorchip_submode {
+					app.mouse_action = '[left] select colorchip [middle] camera'
+				} else if app.edit_color_submode {
+					app.mouse_action = '[left/right] adjust colorchip settings [middle] camera'
+				} else if app.add_input_submode {
+					app.mouse_action = '[left] new input [right] delete input [middle] camera'
+				} else if app.copy_settings_submode {
+					app.mouse_action = '[left] copy selected settings to clicked colorchip [middle] camera'
+				} else if app.delete_colorchip_submode {
+					app.mouse_action = '[left/right] delete colorchip [middle] camera'
+				}
 			} else {
 				app.mouse_action = '[left/right/middle] camera'
 			}
@@ -2120,13 +2191,24 @@ fn on_event(e &gg.Event, mut app App) {
 							app.delete_colorchip_at(mouse_x, mouse_y)
 						} else if app.create_colorchip_submode { // TODO: delete
 						} else if app.add_input_submode && app.selected_colorchip != -1 {
-							app.colorchips[app.selected_colorchip].inputs << Coo{u32(app.cam_x +
-								(mouse_x / app.tile_size)), u32(app.cam_y +
-								(mouse_y / app.tile_size))}
-							for app.colorchips[app.selected_colorchip].colors.len < pow(2,
-								app.colorchips[app.selected_colorchip].inputs.len) {
+							if e.mouse_button == .left {
+								app.colorchips[app.selected_colorchip].inputs << Coo{u32(app.cam_x +
+									(mouse_x / app.tile_size)), u32(app.cam_y +
+									(mouse_y / app.tile_size))}
+								for app.colorchips[app.selected_colorchip].colors.len < pow(2,
+									app.colorchips[app.selected_colorchip].inputs.len) {
+									app.colorchips[app.selected_colorchip].colors << gg.white
+								}
+							} else if e.mouse_button == .right {
+								coo := Coo{u32(app.cam_x + (mouse_x / app.tile_size)), u32(app.cam_y + (mouse_y / app.tile_size))}
+								i := app.colorchips[app.selected_colorchip].inputs.index(coo)
+								if i >= 0 {
+									app.colorchips[app.selected_colorchip].inputs.delete(i)
+									for app.colorchips[app.selected_colorchip].colors.len > pow(2, app.colorchips[app.selected_colorchip].inputs.len) {
+										app.colorchips[app.selected_colorchip].colors.delete(app.colorchips[app.selected_colorchip].colors.len - 1)
+									}
+								}
 							}
-							app.disable_all_ingame_modes()
 						} else if app.choose_colorchip_submode {
 							map_x := u32(app.cam_x + (mouse_x / app.tile_size))
 							map_y := u32(app.cam_y + (mouse_y / app.tile_size))
@@ -2137,13 +2219,22 @@ fn on_event(e &gg.Event, mut app App) {
 									break
 								}
 							}
-						} else if app.steal_settings_submode && app.selected_colorchip != -1 {
+						} else if app.copy_settings_submode && app.selected_colorchip != -1 {
 							map_x := u32(app.cam_x + (mouse_x / app.tile_size))
 							map_y := u32(app.cam_y + (mouse_y / app.tile_size))
-							for cc in app.colorchips {
+							for i, cc in app.colorchips {
 								if map_x >= cc.x && map_x < cc.x + cc.w && map_y >= cc.y
 									&& map_y < cc.y + cc.h {
-									app.colorchips[app.selected_colorchip].colors = app.colorchips[app.selected_colorchip].colors.clone()
+									app.colorchips[i].inputs = []Coo{cap: app.colorchips[app.selected_colorchip].inputs.len}
+									cur_x := app.colorchips[i].x
+									cur_y :=app.colorchips[i].y
+									sel_x :=app.colorchips[app.selected_colorchip].x
+									sel_y :=app.colorchips[app.selected_colorchip].y
+									for inp in app.colorchips[app.selected_colorchip].inputs {
+										app.colorchips[i].inputs << Coo{inp.x-sel_x+cur_x, inp.y-sel_y+cur_y}
+									}
+									app.colorchips[i].colors = app.colorchips[app.selected_colorchip].colors.clone()
+									app.log('Settings copied', .info)
 									break
 								}
 							}
