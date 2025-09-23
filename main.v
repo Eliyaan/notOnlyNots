@@ -4810,7 +4810,8 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 			y_off += y_dir
 			x_conv := u32(i64(x) + x_off)
 			y_conv := u32(i64(y) + y_off)
-			if check_change_chunkmap(last_cm_x, last_cm_y, x_conv, y_conv) {
+			if x_conv & chunk_inv_bitmask != last_cm_x & chunk_inv_bitmask
+		                || y_conv & chunk_inv_bitmask != last_cm_y & chunk_inv_bitmask { // inlined check_change_chunkmap
 				last_cm_x = x_conv
 				last_cm_y = y_conv
 				chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
