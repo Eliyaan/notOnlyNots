@@ -3445,7 +3445,6 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	}
 	eprintln('\tcheck wires }')
 	for x in x_start .. x_end + 1 {
-		eprintln(x)
 		for y in y_start .. y_end + 1 {
 			if x & chunk_inv_bitmask != last_cm_x & chunk_inv_bitmask
 				|| y & chunk_inv_bitmask != last_cm_y & chunk_inv_bitmask { // inlined check_change_chunkmap
@@ -4146,13 +4145,24 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 	// 			else: add adj_cable to the wire list of cable
 	//			add adj_cable in the stack (with it's wire id on the id_stack)
 	//		else: do nothing
-	mut new_wires := []Wire{len: coo_adj_wires.len, init: Wire{
-		rid:           u64(index)
-		cable_coords:  [coo_adj_wires[index]]
-		cable_chunk_i: [
-			i64(app.get_chunkmap_idx_at_coords(coo_adj_wires[index].x, coo_adj_wires[index].y)),
-		]
-	}}
+	if coo_adj_wires.len <= 0 {
+		return 
+	}
+	mut new_wires := []Wire{len: coo_adj_wires.len}
+	mut old_coo := coo_adj_wires[0]
+	mut c_chunk_i := app.get_chunkmap_idx_at_coords(old_coo.x, old_coo.y) // cached
+	for i, mut w in new_wires {
+		coo := coo_adj_wires[i]
+		if check_change_chunkmap(coo.x, coo.y, old_coo.x, old_coo.y) {
+			c_chunk_i = app.get_chunkmap_idx_at_coords(coo.x, coo.y)
+			old_coo = coo
+		}
+		w = Wire{
+			rid:           u64(i)
+			cable_coords:  [coo]
+			cable_chunk_i: [i64(c_chunk_i)]
+		}
+	}
 	mut c_stack := []Coo{len: coo_adj_wires.len, init: coo_adj_wires[index]}
 	mut id_stack := []u64{len: coo_adj_wires.len, init: u64(index)}
 
@@ -4178,13 +4188,16 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 			if adj_id != empty_id {
 				total_x := u32(i64(cable.x) + x_off)
 				total_y := u32(i64(cable.y) + y_off)
-				chunk_i := app.get_chunkmap_idx_at_coords(total_x, total_y)
-				mut adj_chunkmap := &app.map[chunk_i].id_map
+				adj_coo := Coo{total_x, total_y}
+				if check_change_chunkmap(adj_coo.x, adj_coo.y, old_coo.x, old_coo.y) {
+					c_chunk_i = app.get_chunkmap_idx_at_coords(adj_coo.x, adj_coo.y)
+					old_coo = adj_coo
+				}
+				mut adj_chunkmap := &app.map[c_chunk_i].id_map
 				adj_x_map := total_x & chunk_bitmask
 				adj_y_map := total_y & chunk_bitmask
 				assert adj_id == unsafe { adj_chunkmap[adj_x_map * chunk_size + adj_y_map] }
 				if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
-					adj_coo := Coo{total_x, total_y}
 					m_coo := (u64(total_x) << 32) | u64(total_y)
 					mut wid_adj := which_wire[m_coo] or { u64(-1) } // will be the id of the wire in which the actual adj cable is
 					if wid_adj == u64(-1) { // if the coord is not already in a wire list
@@ -4192,7 +4205,7 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 							if wire.rid == cable_id {
 								wid_adj = cable_id
 								wire.cable_coords << adj_coo // the rest of this wire will get processed
-								wire.cable_chunk_i << chunk_i
+								wire.cable_chunk_i << c_chunk_i
 								which_wire[m_coo] = wire.rid
 								// no need remove it from it's actual wire because it is already done in the modifications in the end
 							}
