@@ -1,6 +1,5 @@
 module main
 
-// TODO: add tests for the backend
 import math { pow }
 import os
 import rand
@@ -226,7 +225,7 @@ const palette_def = Palette{
 	ui_bg:      gg.Color{234, 235, 235, 255}
 }
 
-struct ColorChip { // TODO: save color chips and keyboard inputs too
+struct ColorChip {
 	x u32
 	y u32
 	w u32
@@ -362,10 +361,6 @@ mut:
 	editmenu_hold             int
 	delete_colorchip_submode  bool
 	create_colorchip_submode  bool // select start and end of the new colorchip
-	create_colorchip_x        u32 = u32(-1) // TODO: delete
-	create_colorchip_y        u32 = u32(-1)
-	create_colorchip_endx     u32 = u32(-1)
-	create_colorchip_endy     u32 = u32(-1)
 	choose_colorchip_submode  bool // select a colorchip to edit
 	copy_settings_submode    bool
 	add_input_submode         bool // to add an input to a colorchip
@@ -406,7 +401,7 @@ mut:
 	key_pos       map[u8][]Coo // `n` -> [[0, 3], [32, 53]] : will force the state to ON at x:0 y:3 and x:32 y:53
 	tmp_pos_x     u32 = u32(-1)
 	tmp_pos_y     u32 = u32(-1)
-	// UI on the left border, TODO: need to make it scaling automatically w/ screensize
+	// UI on the left border
 	buttons       map[Buttons]ButtonData = button_map.clone()
 	log           []string
 	log_border    gg.Color
@@ -710,7 +705,6 @@ fn on_frame(mut app App) {
 			}
 		}
 		if app.edit_mode {
-			// TODO: show inputs on map when cc is selected
 			if app.edit_color_submode && app.selected_colorchip != -1 {
 				for i in 0 .. app.colorchips[app.selected_colorchip].inputs.len {
 					x := app.ui * (editmenu_offset_inputs_x + editmenu_offset_x) +
@@ -719,7 +713,7 @@ fn on_frame(mut app App) {
 					y := app.ui * (editmenu_offset_inputs_y + editmenu_offset_y) +
 						i / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
 					size := app.ui * editmenu_inputsize
-					app.ctx.draw_square_filled(x, y, size, app.palette.ui_bg) // TODO: highlight it on the map when selected
+					app.ctx.draw_square_filled(x, y, size, app.palette.ui_bg)
 				}
 
 				last_rel_input_y := (app.colorchips[app.selected_colorchip].inputs.len - 1) / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
@@ -1242,7 +1236,7 @@ fn (mut app App) draw_selection_box() {
 }
 
 // customized version of gg.draw_image_with_config
-fn draw_image_with_config(img_rect gg.Rect, rotation f32) { // TODO: pass only the rect and the rotation
+fn draw_image_with_config(img_rect gg.Rect, rotation f32) { 
 	x0 := img_rect.x
 	y0 := img_rect.y
 	x1 := x0 + img_rect.width
@@ -2189,7 +2183,6 @@ fn on_event(e &gg.Event, mut app App) {
 							app.check_and_select_color_cc(mouse_x, mouse_y)
 						} else if app.delete_colorchip_submode {
 							app.delete_colorchip_at(mouse_x, mouse_y)
-						} else if app.create_colorchip_submode { // TODO: delete
 						} else if app.add_input_submode && app.selected_colorchip != -1 {
 							if e.mouse_button == .left {
 								app.colorchips[app.selected_colorchip].inputs << Coo{u32(app.cam_x +
@@ -2629,7 +2622,6 @@ fn (mut app App) log(message string, log_type Log) {
 		.info { gg.Color{0, 200, 0, 255} }
 	}
 	app.log_timer = 180
-	// TODO: show on screen
 }
 
 struct PlaceInstruction {
