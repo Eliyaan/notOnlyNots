@@ -4815,8 +4815,8 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				last_cm_x = x_conv
 				last_cm_y = y_conv
 				chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
+				next_chunkmap = &app.map[chunk_i].id_map
 			}
-			next_chunkmap = &app.map[chunk_i].id_map
 			next_id = unsafe { next_chunkmap[x_conv & chunk_bitmask][y_conv & chunk_bitmask] }
 		}
 		next_id2, input2, _, _ := app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir),
