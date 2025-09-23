@@ -1306,7 +1306,7 @@ fn (mut app App) draw_map() {
 				if id == empty_id {
 					continue
 				}
-				pos_x := f32((chunk_cam_x + off & chunk_inv_bitmask) * app.tile_size)
+				pos_x := f32((chunk_cam_x + off >> chunk_power) * app.tile_size)
 				pos_y := f32((chunk_cam_y + off & chunk_bitmask) * app.tile_size)
 				if pos_x > size.width {
 					break
@@ -3427,12 +3427,13 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			if cc.x == invalid_coo {
 				break
 			}
-			if check_change_chunkmap(last_cm_x, last_cm_y, cc.x, cc.y) {
+			if cc.x & chunk_inv_bitmask != last_cm_x & chunk_inv_bitmask
+				|| cc.y & chunk_inv_bitmask != last_cm_y & chunk_inv_bitmask { // inlined check_change_chunkmap
 				last_cm_x = cc.x
 				last_cm_y = cc.y
 				chunk_i = app.get_chunkmap_idx_at_coords(cc.x, cc.y)
+				chunkmap = &app.map[chunk_i].id_map
 			}
-			mut chunkmap := &app.map[chunk_i].id_map
 			id := unsafe { chunkmap[(cc.x & chunk_bitmask) * chunk_size + cc.y & chunk_bitmask] }
 			if id & elem_type_mask != elem_wire_bits {
 				return cc.x, cc.y, 'problem: cable coord does not point to wire'
@@ -3441,12 +3442,13 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	}
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
-			if check_change_chunkmap(last_cm_x, last_cm_y, x, y) {
+			if x & chunk_inv_bitmask != last_cm_x & chunk_inv_bitmask
+				|| y & chunk_inv_bitmask != last_cm_y & chunk_inv_bitmask { // inlined check_change_chunkmap
 				last_cm_x = x
 				last_cm_y = y
 				chunk_i = app.get_chunkmap_idx_at_coords(x, y)
+				chunkmap = &app.map[chunk_i].id_map
 			}
-			mut chunkmap := &app.map[chunk_i].id_map
 			x_map := x & chunk_bitmask
 			y_map := y & chunk_bitmask
 			id := unsafe { chunkmap[x_map * chunk_size + y_map] }
