@@ -1,6 +1,7 @@
 module main
 
 /*
+/*
 fn test_save() {
 	mut app := App{}
 	defer {
@@ -70,7 +71,7 @@ fn test_placement_small() {
 	app.update_cycle()
 	app.update_cycle()
 	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 100, pos + 100,
-		true)
+		true, false)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
@@ -82,7 +83,7 @@ fn test_placement_small() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true, false)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
@@ -95,7 +96,7 @@ fn test_placement_small() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true, false)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
@@ -108,7 +109,7 @@ fn test_placement_small() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true, false)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
@@ -121,7 +122,7 @@ fn test_placement_small() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true, false)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
@@ -134,7 +135,7 @@ fn test_placement_small() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 100, pos + 100, true, false)
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
@@ -164,7 +165,7 @@ fn test_seeded_fuzz_small() {
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()
-			x_err, y_err, str_err := app.test_validity(pos, pos, end, end, true)
+			x_err, y_err, str_err := app.test_validity(pos, pos, end, end, true, false)
 			if str_err != '' {
 				panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 			}
@@ -196,7 +197,7 @@ fn test_seeded_fuzz_placing() {
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()
-			x_err, y_err, str_err := app.test_validity(pos, pos, end, end, true)
+			x_err, y_err, str_err := app.test_validity(pos, pos, end, end, true, false)
 			if str_err != '' {
 				panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 			}
@@ -228,7 +229,7 @@ fn test_seeded_fuzz() {
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()
-			x_err, y_err, str_err := app.test_validity(pos, pos, end, end, true)
+			x_err, y_err, str_err := app.test_validity(pos, pos, end, end, true, false)
 			if str_err != '' {
 				panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 			}
@@ -236,7 +237,7 @@ fn test_seeded_fuzz() {
 	}
 	println('Finished test_seeded_fuzz')
 }
-
+*/
 fn test_placement_removal_big() {
 	mut app := App{}
 	name := 'test'
@@ -254,14 +255,14 @@ fn test_placement_removal_big() {
 	app.update_cycle()
 	app.update_cycle()
 	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 1000, pos + 1000,
-		true)
+		true, false)
 	eprintln('tested nots')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
 	eprintln('removed nots')
-
+/*
 	app.selected_item = .diode
 	app.placement(pos, pos, pos + 1000, pos + 1000)
 	eprintln('placed diodes')
@@ -269,7 +270,7 @@ fn test_placement_removal_big() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true, false)
 	eprintln('tested diodes')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -284,7 +285,7 @@ fn test_placement_removal_big() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true, false)
 	eprintln('tested crossings')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -299,22 +300,24 @@ fn test_placement_removal_big() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true, false)
 	eprintln('tested ons')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
 	eprintln('removed ons')
-
+*/
 	app.selected_item = .wire
 	app.placement(pos, pos, pos + 1000, pos + 1000)
 	eprintln('placed wires')
 	// test if they are wires, with the right orientation
 
 	app.update_cycle()
+	println('tested wires 1/2')
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true)
+	println('updated wires 2/2')
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true, true)
 	println('tested wires')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')

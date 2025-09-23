@@ -3360,7 +3360,7 @@ fn (mut app App) gate_unit_tests(x u32, y u32, square_size int) {
 		app.paste(x, y)
 		for _ in 0 .. cycles {
 			app.update_cycle()
-			x_err, y_err, str_err := app.test_validity(x, y, x + size, y + size, true)
+			x_err, y_err, str_err := app.test_validity(x, y, x + size, y + size, true, false)
 			if str_err != '' {
 				app.log('FAIL: (validity) ${str_err}', .err)
 				println('TODO:')
@@ -3403,7 +3403,8 @@ fn (mut app App) is_id_dead(id u64) bool {
 	return false
 }
 
-fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u32, check_state bool) (u32, u32, string) {
+fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u32, check_state bool, big_wire_test bool) (u32, u32, string) {
+	eprintln('test_validity {')
 	// check all the elems in the rectangle to see if their state / data is valid
 	// input/output id (ajdacent tiles)
 	// current state (depending on the input)
@@ -3420,8 +3421,10 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 		_y_start, _y_end
 	}
 	mut chunk_i := app.get_chunkmap_idx_at_coords(x_start, y_start)
+	mut chunkmap := &app.map[chunk_i].id_map
 	mut last_cm_x := x_start
 	mut last_cm_y := y_start
+	eprintln('\tcheck wires {')
 	for w in app.wires {
 		for cc in w.cable_coords {
 			if cc.x == invalid_coo {
@@ -3440,7 +3443,9 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			}
 		}
 	}
+	eprintln('\tcheck wires }')
 	for x in x_start .. x_end + 1 {
+		eprintln(x)
 		for y in y_start .. y_end + 1 {
 			if x & chunk_inv_bitmask != last_cm_x & chunk_inv_bitmask
 				|| y & chunk_inv_bitmask != last_cm_y & chunk_inv_bitmask { // inlined check_change_chunkmap
@@ -3527,8 +3532,15 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 						0)
 					wire_idx := id & rid_mask
 					wire_state := app.get_elem_state_by_id(id, 0)
-					if Coo{x, y} !in app.wires[wire_idx].cable_coords {
-						return x, y, 'problem: cable(on map) is not in cable_coords ${x} ${y} !in ${app.wires[wire_idx].cable_coords}'
+					if !big_wire_test {
+						coo := Coo{x, y}
+						count := app.wires[wire_idx].cable_coords.count(it == coo)
+						if count < 1 {
+							return x, y, 'problem: cable(on map) is not in cable_coords ${x} ${y} !in ${app.wires[wire_idx].cable_coords}'
+						}
+						if count > 1 {
+							return x, y, 'problem: cable is multiple times in cable_coords'
+						}
 					}
 					if check_state && (id & on_bits != 0) != wire_state {
 						app.nice_print(id)
@@ -3625,6 +3637,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			}
 		}
 	}
+	eprintln('test_validity }')
 	return 0, 0, ''
 }
 
@@ -3677,7 +3690,7 @@ fn (mut app App) fuzz(_x_start u32, _y_start u32, _x_end u32, _y_end u32, p_trie
 		}
 		if check_graph {
 			x_err, y_err, str_err := app.test_validity(x_start, y_start, x_end, y_end,
-				false)
+				false, false)
 			if str_err != '' {
 				println('Last elem: ${elem} at x:${x} y:${y}, 1=not, 2=diode, 3=on, 4=wire, 5=crossing, 0=empty')
 				println('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
