@@ -1495,8 +1495,6 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		app.disable_all_ingame_modes()
 		app.tmp_pos_x = u32(-1)
 		app.tmp_pos_y = u32(-1)
-		app.create_colorchip_x = u32(-1)
-		app.create_colorchip_endx = u32(-1)
 		app.place_start_x = u32(-1)
 		app.text_input = ''
 	} else if b == .edit_color {
