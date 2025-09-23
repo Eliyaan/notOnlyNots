@@ -38,7 +38,9 @@ const elem_type_mask = u64(0xC000_0000_0000_0000) // 1100_0000...
 const id_mask = rid_mask | elem_type_mask // unique
 const ori_mask = u64(0x1800_0000_0000_0000) // 0001_1000...
 const chunk_size = 128
+const chunk_power = 7
 const chunk_bitmask = chunk_size - 1
+const chunk_inv_bitmask = ~chunk_bitmask
 const invalid_coo = u32(-1)
 const cardinal_coords = [[0, 1]!, [0, -1]!, [1, 0]!, [-1, 0]!]!
 const diode_poly_unscaled = [
@@ -153,7 +155,7 @@ enum Buttons {
 	create_color_chip // selection
 	add_input         // edit
 	item_diode        // no/placement
-	copy_settings    // edit
+	copy_settings     // edit
 	item_crossing     // no/placement
 	delete_colorchip  // edit
 	item_on           // no/placement
@@ -282,7 +284,7 @@ const button_map = {
 	.item_diode:           ButtonData{
 		pos: 4
 	}
-	.copy_settings:       ButtonData{
+	.copy_settings:        ButtonData{
 		pos: 4
 	}
 	.item_crossing:        ButtonData{
@@ -363,7 +365,7 @@ mut:
 	delete_colorchip_submode  bool
 	create_colorchip_submode  bool // select start and end of the new colorchip
 	choose_colorchip_submode  bool // select a colorchip to edit
-	copy_settings_submode    bool
+	copy_settings_submode     bool
 	add_input_submode         bool // to add an input to a colorchip
 	edit_color_submode        bool // edit colors of a colorchip
 	selected_colorchip        int  // index of the selected colorchip
@@ -760,13 +762,15 @@ fn on_frame(mut app App) {
 						editmenu_input_x_space)
 					y := app.ui * (editmenu_offset_inputs_y + editmenu_offset_y) +
 						i / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
-					if app.edit_color_submode && app.e.mouse_x >= x && app.e.mouse_x < x + app.ui * editmenu_inputsize 
-						&& app.e.mouse_y >= y && app.e.mouse_y < y + app.ui * editmenu_inputsize {
+					if app.edit_color_submode && app.e.mouse_x >= x
+						&& app.e.mouse_x < x + app.ui * editmenu_inputsize && app.e.mouse_y >= y
+						&& app.e.mouse_y < y + app.ui * editmenu_inputsize {
 						app.ctx.draw_square_filled(pos_x, pos_y, app.tile_size, app.palette.input_preview)
 					} else {
 						app.ctx.draw_square_filled(pos_x + quar, pos_y + quar, half, app.palette.input_preview)
 					}
-					app.ctx.draw_text(int(pos_x + half - ui_log_cfg.size/4), int(pos_y + half -ui_log_cfg.size/2), i.str(), ui_log_cfg)
+					app.ctx.draw_text(int(pos_x + half - ui_log_cfg.size / 4), int(pos_y + half - ui_log_cfg.size / 2),
+						i.str(), ui_log_cfg)
 				}
 			}
 		}
@@ -1237,7 +1241,7 @@ fn (mut app App) draw_selection_box() {
 }
 
 // customized version of gg.draw_image_with_config
-fn draw_image_with_config(img_rect gg.Rect, rotation f32) { 
+fn draw_image_with_config(img_rect gg.Rect, rotation f32) {
 	x0 := img_rect.x
 	y0 := img_rect.y
 	x1 := x0 + img_rect.width
@@ -2184,19 +2188,21 @@ fn on_event(e &gg.Event, mut app App) {
 							app.delete_colorchip_at(mouse_x, mouse_y)
 						} else if app.add_input_submode && app.selected_colorchip != -1 {
 							if e.mouse_button == .left {
-								app.colorchips[app.selected_colorchip].inputs << Coo{u32(app.cam_x +
-									(mouse_x / app.tile_size)), u32(app.cam_y +
+								app.colorchips[app.selected_colorchip].inputs << Coo{u32(
+									app.cam_x + (mouse_x / app.tile_size)), u32(app.cam_y +
 									(mouse_y / app.tile_size))}
 								for app.colorchips[app.selected_colorchip].colors.len < pow(2,
 									app.colorchips[app.selected_colorchip].inputs.len) {
 									app.colorchips[app.selected_colorchip].colors << gg.white
 								}
 							} else if e.mouse_button == .right {
-								coo := Coo{u32(app.cam_x + (mouse_x / app.tile_size)), u32(app.cam_y + (mouse_y / app.tile_size))}
+								coo := Coo{u32(app.cam_x + (mouse_x / app.tile_size)), u32(
+									app.cam_y + (mouse_y / app.tile_size))}
 								i := app.colorchips[app.selected_colorchip].inputs.index(coo)
 								if i >= 0 {
 									app.colorchips[app.selected_colorchip].inputs.delete(i)
-									for app.colorchips[app.selected_colorchip].colors.len > pow(2, app.colorchips[app.selected_colorchip].inputs.len) {
+									for app.colorchips[app.selected_colorchip].colors.len > pow(2,
+										app.colorchips[app.selected_colorchip].inputs.len) {
 										app.colorchips[app.selected_colorchip].colors.delete(app.colorchips[app.selected_colorchip].colors.len - 1)
 									}
 								}
@@ -2219,11 +2225,12 @@ fn on_event(e &gg.Event, mut app App) {
 									&& map_y < cc.y + cc.h {
 									app.colorchips[i].inputs = []Coo{cap: app.colorchips[app.selected_colorchip].inputs.len}
 									cur_x := app.colorchips[i].x
-									cur_y :=app.colorchips[i].y
-									sel_x :=app.colorchips[app.selected_colorchip].x
-									sel_y :=app.colorchips[app.selected_colorchip].y
+									cur_y := app.colorchips[i].y
+									sel_x := app.colorchips[app.selected_colorchip].x
+									sel_y := app.colorchips[app.selected_colorchip].y
 									for inp in app.colorchips[app.selected_colorchip].inputs {
-										app.colorchips[i].inputs << Coo{inp.x-sel_x+cur_x, inp.y-sel_y+cur_y}
+										app.colorchips[i].inputs << Coo{inp.x - sel_x + cur_x,
+											inp.y - sel_y + cur_y}
 									}
 									app.colorchips[i].colors = app.colorchips[app.selected_colorchip].colors.clone()
 									app.log('Settings copied', .info)
@@ -5114,13 +5121,13 @@ fn (mut app App) update_cycle() {
 
 @[inline]
 fn check_change_chunkmap(x u32, y u32, x1 u32, y1 u32) bool {
-	return (x / chunk_size) * chunk_size != (x1 / chunk_size) * chunk_size
-		|| (y / chunk_size) * chunk_size != (y1 / chunk_size) * chunk_size
+	return x & chunk_inv_bitmask != x1 & chunk_inv_bitmask
+		|| y & chunk_inv_bitmask != y1 & chunk_inv_bitmask
 }
 
 fn (mut app App) get_chunkmap_idx_at_coords(x u32, y u32) int {
-	x_ := (x / chunk_size) * chunk_size
-	y_ := (y / chunk_size) * chunk_size
+	x_ := x & chunk_inv_bitmask
+	y_ := y & chunk_inv_bitmask
 	coo := (u64(x_) << 32) | u64(y_)
 	return app.chunk_cache[coo] or {
 		for i, chunk in app.map {
