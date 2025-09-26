@@ -3404,7 +3404,7 @@ fn (mut app App) is_id_dead(id u64) bool {
 }
 
 fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u32, check_state bool, big_wire_test bool) (u32, u32, string) {
-	eprintln('test_validity {')
+	// eprintln('test_validity {')
 	// check all the elems in the rectangle to see if their state / data is valid
 	// input/output id (ajdacent tiles)
 	// current state (depending on the input)
@@ -3424,7 +3424,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	mut chunkmap := &app.map[chunk_i].id_map
 	mut last_cm_x := x_start
 	mut last_cm_y := y_start
-	eprintln('\tcheck wires {')
+	//eprintln('\tcheck wires {')
 	for w in app.wires {
 		for cc in w.cable_coords {
 			if cc.x == invalid_coo {
@@ -3443,7 +3443,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			}
 		}
 	}
-	eprintln('\tcheck wires }')
+	//eprintln('\tcheck wires }')
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
 			if x & chunk_inv_bitmask != last_cm_x & chunk_inv_bitmask
@@ -3636,7 +3636,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			}
 		}
 	}
-	eprintln('test_validity }')
+	//eprintln('test_validity }')
 	return 0, 0, ''
 }
 
@@ -4093,6 +4093,9 @@ fn (mut app App) removal(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					// Separate the wires:
 					if coo_adj_wire.len > 1 {
+						i := app.wires[id].cable_coords.index(Coo{x, y})
+						app.wires[id].cable_coords.delete(i)
+						app.wires[id].cable_chunk_i.delete(i)
 						app.separate_wires(coo_adj_wire, id)
 					} else if coo_adj_wire.len == 0 {
 						idx := id & rid_mask
@@ -4148,126 +4151,144 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 	if coo_adj_wires.len <= 0 {
 		return 
 	}
-	mut new_wires := []Wire{len: coo_adj_wires.len}
-	mut old_coo := coo_adj_wires[0]
-	mut c_chunk_i := app.get_chunkmap_idx_at_coords(old_coo.x, old_coo.y) // cached
-	for i, mut w in new_wires {
-		coo := coo_adj_wires[i]
-		if check_change_chunkmap(coo.x, coo.y, old_coo.x, old_coo.y) {
-			c_chunk_i = app.get_chunkmap_idx_at_coords(coo.x, coo.y)
-			old_coo = coo
+
+	idx := id & rid_mask
+
+// TODO: Idea: do a similar thing for chunks? Possible problem: the virt_map would be too big/store too little info if sparse chunks
+
+	// 1- iterate through the original wire cable list -> create an array (virt_map) of size max_x * max_y with info: is_wire & new_wires_id
+	// 2- do the flood fill
+	// 3- recreate the new wires from the virt_map + original wire cable list(chunk_i..) + flood fill inputs/outputs
+
+	// Get the area of the wire
+	mut min, mut max := app.wires[id].cable_coords[0], app.wires[id].cable_coords[0]
+	for cc in app.wires[id].cable_coords {
+		if cc.x > max.x {
+			max.x = cc.x
+		} else if cc.x < min.x {
+			min.x = cc.x
 		}
-		w = Wire{
-			rid:           u64(i)
-			cable_coords:  [coo]
-			cable_chunk_i: [i64(c_chunk_i)]
+		if cc.y > max.y {
+			max.y = cc.y
+		} else if cc.y < min.y {
+			min.y = cc.y
 		}
 	}
-	mut c_stack := []Coo{len: coo_adj_wires.len, init: coo_adj_wires[index]}
-	mut id_stack := []u64{len: coo_adj_wires.len, init: u64(index)}
+	c_area := Coo{max.x-min.x+1, max.y-min.y+1}
 
-	mut which_wire := map[u64]u64{} // rid of the above
-	for i, w in coo_adj_wires {
-		m_coo := (u64(w.x) << 32) | u64(w.y)
-		which_wire[m_coo] = u64(i)
+	// Init work area
+	mut virt_map := []u8{len: int(c_area.x*c_area.y), init: -2} // -2: not wire, -1: not yet processed, >=0: new wire id
+	for cc in app.wires[id].cable_coords {
+		virt_cc := Coo{cc.x - min.x, cc.y - min.y}
+		virt_map[virt_cc.x*c_area.y + virt_cc.y] = -1
+	}
+	mut inputs := [][]u64{len: coo_adj_wires.len}
+	mut outputs := [][]u64{len: coo_adj_wires.len}
+	for i, cc in coo_adj_wires {
+		virt_cc := Coo{cc.x - min.x, cc.y - min.y}
+		virt_map[virt_cc.x*c_area.y + virt_cc.y] = u8(i)
+	}
+	
+	// Flood fill
+	mut c_stack := []Coo{len: coo_adj_wires.len, cap: app.wires[idx].cable_coords.len}
+	for i, cc in coo_adj_wires {
+		c_stack[i] = cc
 	}
 
 	cable_stack: for c_stack.len > 0 { // for each wire in the stack
 		cable := c_stack.pop()
-		cable_id := id_stack.pop()
-		for w in new_wires {
-			if w.rid != cable_id {
-				if cable in w.cable_coords {
-					continue cable_stack // cable was already processed and the id is outdated
+		virt_cc := Coo{cable.x - min.x, cable.y - min.y}
+		cable_id := virt_map[virt_cc.x*c_area.y + virt_cc.y]
+		for coo in cardinal_coords { // for each adjacent tile
+			mut adj_cc := Coo{u32(i64(cable.x) + coo[0]), u32(i64(cable.y) + coo[1])}
+			mut v_adj_cc := Coo{u32(i64(virt_cc.x) + coo[0]), u32(i64(virt_cc.y) + coo[1])}
+			if v_adj_cc.x == -1 || v_adj_cc.y == -1 || v_adj_cc.x >= c_area.x || v_adj_cc.y >= c_area.y {
+				// info: -1 is for u32(i64(0) - 1) that is > than 0. the coords should not get < -1
+				// out of the virt_map -> check if is input/output and continue loop
+				adj_id, is_input, _, _ := app.wire_next_gate_id_coo(cable.x, cable.y, coo[0], coo[1])
+				if adj_id == empty_id {
+					continue
+				}
+				// is NOT a cable -> else it would be in the same wire
+				//add to the inputs/outputs
+				if is_input {
+					inputs[cable_id] << adj_id
+				} else {
+					outputs[cable_id] << adj_id
+				}
+				continue
+			}
+			mut map_idx := v_adj_cc.x * c_area.y + v_adj_cc.y
+			mut map_val := virt_map[map_idx]
+			if map_val == u8(-2) {
+				// not wire -> check if here is a junction leading to a cable or an input/output
+				adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable.x, cable.y, coo[0], coo[1])
+				if adj_id == empty_id {
+					continue
+				}
+				if adj_id & elem_type_mask != elem_wire_bits { // if NOT a wire
+					//add to the inputs/outputs
+					if is_input {
+						inputs[cable_id] << adj_id
+					} else {
+						outputs[cable_id] << adj_id
+					}
+					continue
+				} else { // if is a wire
+					// process it
+					adj_cc = Coo{u32(i64(cable.x) + x_off), u32(i64(cable.y) + y_off)}
+					v_adj_cc = Coo{adj_cc.x - min.x, adj_cc.y - min.y}
+					map_idx = v_adj_cc.x * c_area.y + v_adj_cc.y
+					map_val = virt_map[map_idx]
+					// will be checked/processed by the next if
 				}
 			}
-		}
-		for coo in cardinal_coords { // for each adjacent tile
-			adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable.x, cable.y,
-				coo[0], coo[1])
-			if adj_id != empty_id {
-				total_x := u32(i64(cable.x) + x_off)
-				total_y := u32(i64(cable.y) + y_off)
-				adj_coo := Coo{total_x, total_y}
-				if check_change_chunkmap(adj_coo.x, adj_coo.y, old_coo.x, old_coo.y) {
-					c_chunk_i = app.get_chunkmap_idx_at_coords(adj_coo.x, adj_coo.y)
-					old_coo = adj_coo
-				}
-				mut adj_chunkmap := &app.map[c_chunk_i].id_map
-				adj_x_map := total_x & chunk_bitmask
-				adj_y_map := total_y & chunk_bitmask
-				assert adj_id == unsafe { adj_chunkmap[adj_x_map * chunk_size + adj_y_map] }
-				if adj_id & elem_type_mask == elem_wire_bits { // if is a wire
-					m_coo := (u64(total_x) << 32) | u64(total_y)
-					mut wid_adj := which_wire[m_coo] or { u64(-1) } // will be the id of the wire in which the actual adj cable is
-					if wid_adj == u64(-1) { // if the coord is not already in a wire list
-						for mut wire in new_wires { // find the wire where cable is
-							if wire.rid == cable_id {
-								wid_adj = cable_id
-								wire.cable_coords << adj_coo // the rest of this wire will get processed
-								wire.cable_chunk_i << c_chunk_i
-								which_wire[m_coo] = wire.rid
-								// no need remove it from it's actual wire because it is already done in the modifications in the end
-							}
-						}
-						if wid_adj == u64(-1) {
-							app.log_quit('${@LOCATION} should have found the appropriate wire')
-						}
-					} else {
-						if wid_adj != cable_id { // if is in a list but not the same as cable
-							// merge the lists
-							// get the two lists
-							mut i_first := -1
-							mut i_sec := -1
-							for iw, wire in new_wires {
-								if wire.rid == cable_id {
-									i_first = iw
-								} else if wire.rid == wid_adj {
-									i_sec = iw
-								}
-							}
-							wid_adj = cable_id
-							// merge
-							for cc in new_wires[i_sec].cable_coords {
-								cc_m_coo := (u64(cc.x) << 32) | u64(cc.y)
-								which_wire[cc_m_coo] = cable_id
-							}
-							new_wires[i_first].cable_coords << new_wires[i_sec].cable_coords
-							new_wires[i_first].cable_chunk_i << new_wires[i_sec].cable_chunk_i
-							new_wires[i_first].inps << new_wires[i_sec].inps
-							new_wires[i_first].outs << new_wires[i_sec].outs
-							for mut ids in id_stack {
-								if ids == i_sec {
-									ids = u64(i_first)
-								}
-							}
-							new_wires.delete(i_sec)
-						} else {
-							continue // was already processed
+			if map_val == u8(-1) {
+				// not processed wire -> process it
+				virt_map[map_idx] = cable_id
+				c_stack << adj_cc
+			} else {
+				if map_val != cable_id {
+					// the two cables need to be merged
+					for cc in app.wires[idx].cable_coords {
+						v_cc := Coo{cc.x - min.x, cc.y - min.y}
+						if virt_map[v_cc.x * c_area.y + v_cc.y] == map_val {
+							virt_map[v_cc.x * c_area.y + v_cc.y] = cable_id
 						}
 					}
-					// put the actual adj cable on the stack
-					c_stack << adj_coo
-					id_stack << wid_adj
-				} else {
-					// it is an input or an output, or else the wire_next_gate_id_coo function would have returned empty_id
-					for mut wire in new_wires { // find the wire where cable is
-						if wire.rid == cable_id {
-							if is_input {
-								wire.inps << adj_id
-							} else {
-								wire.outs << adj_id
-							}
-						}
-					}
+					// join the inputs and outputs
+					inputs[cable_id] << inputs[map_val]
+					outputs[cable_id] << outputs[map_val]
+					inputs[map_val].clear()
+					outputs[map_val].clear()
 				}
 			}
 		}
 	}
+	
+	// reconstruct the wires
+	mut new_wires := []Wire{len: coo_adj_wires.len}
+	for i, mut w in new_wires {
+		w.rid = u64(i)
+		w.inps << inputs[i]
+		w.outs << outputs[i]
+	}
+	
+	for i, cc in app.wires[idx].cable_coords {
+		virt_cc := Coo{cc.x - min.x, cc.y - min.y}
+		map_val := virt_map[virt_cc.x * c_area.y + virt_cc.y]
+		new_wires[map_val].cable_coords << cc
+		new_wires[map_val].cable_chunk_i << app.wires[idx].cable_chunk_i[i]
+	}
+	
+	for i := new_wires.len - 1; i >= 0; i-- {
+		if new_wires[i].cable_coords.len == 0 {
+			new_wires.delete(i)
+		}
+	}
 
 	// Create/Modify the new wires
-	idx := id & rid_mask
-	new_wires[0].rid = id & rid_mask
+	new_wires[0].rid = idx
 	app.wires[idx] = new_wires[0]
 	state0 := app.w_states[0][idx]
 	state1 := app.w_states[1][idx]
@@ -5253,7 +5274,7 @@ mut:
 	rid           u64   // real id
 	inps          []u64 // id of the input elements outputing to the wire
 	outs          []u64 // id of the output elements whose inputs are the wire
-	cable_coords  []Coo // all the x y coordinates of the induvidual cables (elements) the wire is made of
+	cable_coords  []Coo // all the x y coordinates of the individual cables (elements) the wire is made of
 	cable_chunk_i []i64 // chunk index for each cable
 }
 

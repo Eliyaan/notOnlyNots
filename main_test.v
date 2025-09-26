@@ -1,6 +1,6 @@
 module main
 
-/*
+///*
 /*
 fn test_save() {
 	mut app := App{}
@@ -158,7 +158,7 @@ fn test_seeded_fuzz_small() {
 	nb_cycles := 10000
 	seed_offset := 67897
 	for i in 0 .. 1000 {
-		eprintln(i)
+		eprint('\r${i}')
 		app.removal(pos, pos, end, end)
 		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i],
 			false)
@@ -190,7 +190,7 @@ fn test_seeded_fuzz_placing() {
 	nb_cycles := 10
 	seed_offset := 237823
 	for i in 0 .. 30000 {
-		eprintln(i)
+		eprint('\r${i}')
 		app.removal(pos, pos, end, end)
 		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i],
 			false)
@@ -222,7 +222,7 @@ fn test_seeded_fuzz() {
 	nb_cycles := 100
 	seed_offset := 973
 	for i in 0 .. 300 {
-		eprintln(i)
+		eprint('\r${i}')
 		app.removal(pos, pos, end, end)
 		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i],
 			false) // TODO: set the 0 to an offset
@@ -237,7 +237,7 @@ fn test_seeded_fuzz() {
 	}
 	println('Finished test_seeded_fuzz')
 }
-*/
+//*/
 fn test_placement_removal_big() {
 	mut app := App{}
 	name := 'test'
@@ -262,7 +262,7 @@ fn test_placement_removal_big() {
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
 	eprintln('removed nots')
-/*
+///*
 	app.selected_item = .diode
 	app.placement(pos, pos, pos + 1000, pos + 1000)
 	eprintln('placed diodes')
@@ -307,7 +307,7 @@ fn test_placement_removal_big() {
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
 	eprintln('removed ons')
-*/
+//*/
 	app.selected_item = .wire
 	app.placement(pos, pos, pos + 1000, pos + 1000)
 	eprintln('placed wires')
