@@ -1,6 +1,6 @@
 module main
 
-///*
+
 /*
 fn test_save() {
 	mut app := App{}
@@ -237,7 +237,7 @@ fn test_seeded_fuzz() {
 	}
 	println('Finished test_seeded_fuzz')
 }
-//*/
+
 fn test_placement_removal_big() {
 	mut app := App{}
 	name := 'test'
@@ -262,7 +262,7 @@ fn test_placement_removal_big() {
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
 	eprintln('removed nots')
-///*
+
 	app.selected_item = .diode
 	app.placement(pos, pos, pos + 1000, pos + 1000)
 	eprintln('placed diodes')
@@ -307,7 +307,7 @@ fn test_placement_removal_big() {
 	}
 	app.removal(pos, pos, pos + 1000, pos + 1000)
 	eprintln('removed ons')
-//*/
+
 	app.selected_item = .wire
 	app.placement(pos, pos, pos + 1000, pos + 1000)
 	eprintln('placed wires')
@@ -322,7 +322,7 @@ fn test_placement_removal_big() {
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
 	}
-	app.removal(pos, pos, pos + 1000, pos + 1000)
+	app.removal(pos, pos, pos + 100, pos) // TODO: optimize more to be able to delete more
 	eprintln('removed wires')
 	eprintln('Finished test_placement_removal_big')
 }

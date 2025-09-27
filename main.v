@@ -2843,7 +2843,7 @@ fn (mut app App) load_map(map_name string) ! {
 		app.wires = []
 		for _ in 0 .. wires_len {
 			mut new_w := Wire{
-				rid: f.read_raw[u64]()!
+				//rid: f.read_raw[u64]()!
 			}
 			inps_len := f.read_raw[i64]()!
 			for _ in 0 .. inps_len {
@@ -3016,10 +3016,12 @@ fn (mut app App) save_map(map_name string) ! {
 	}
 	offset += sizeof(i64)
 	for wire in app.wires {
+		/*
 		file.write_raw_at(wire.rid, offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
+		*/
 		offset += sizeof(u64)
 
 		file.write_raw_at(i64(wire.inps.len), offset) or {
@@ -4269,7 +4271,6 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 	// reconstruct the wires
 	mut new_wires := []Wire{len: coo_adj_wires.len}
 	for i, mut w in new_wires {
-		w.rid = u64(i)
 		w.inps << inputs[i]
 		w.outs << outputs[i]
 	}
@@ -4288,13 +4289,14 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 	}
 
 	// Create/Modify the new wires
-	new_wires[0].rid = idx
+	mut rids := []u64{len:new_wires.len}
+	rids[0] = idx
 	app.wires[idx] = new_wires[0]
 	state0 := app.w_states[0][idx]
 	state1 := app.w_states[1][idx]
-	for mut wire in new_wires[1..] {
+	for i, mut wire in new_wires[1..] {
 		mut dead_rid := app.get_free_dead_rid(.wire)
-		wire.rid = if dead_rid == 0 {
+		rids[i + 1] = if dead_rid == 0 {
 			u64(app.wires.len)
 		} else {
 			u64(dead_rid)
@@ -4309,7 +4311,7 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 	}
 
 	// change the ids of the cables on the map and the I/O's i/o (actual I/O of the new wires)
-	for wire in new_wires {
+	for j, wire in new_wires {
 		for i, coo in wire.cable_coords {
 			chunk_i := wire.cable_chunk_i[i]
 			mut adj_chunkmap := &app.map[chunk_i].id_map
@@ -4317,15 +4319,15 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 			adj_y_map := coo.y & chunk_bitmask
 			unsafe {
 				adj_chunkmap[adj_x_map * chunk_size + adj_y_map] &= on_bits // keep the state
-				adj_chunkmap[adj_x_map * chunk_size + adj_y_map] |= wire.rid | elem_wire_bits // add the new id
+				adj_chunkmap[adj_x_map * chunk_size + adj_y_map] |= rids[j] | elem_wire_bits // add the new id
 			}
 		}
 
 		for inp in wire.inps {
-			app.add_output(inp, wire.rid | elem_wire_bits)
+			app.add_output(inp, rids[j] | elem_wire_bits)
 		}
 		for out in wire.outs {
-			app.add_input(out, wire.rid | elem_wire_bits)
+			app.add_input(out, rids[j] | elem_wire_bits)
 		}
 	}
 }
@@ -4395,9 +4397,9 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
 					if dead_rid == 0 {
-						app.nots << Nots{u64(rid), i64(chunk_i), inp_id, x, y}
+						app.nots << Nots{i64(chunk_i), inp_id, x, y}
 					} else {
-						app.nots[rid] = Nots{u64(rid), i64(chunk_i), inp_id, x, y}
+						app.nots[rid] = Nots{i64(chunk_i), inp_id, x, y}
 					}
 					app.n_states[0] << false // default state & important to do the two lists
 					app.n_states[1] << false // default state
@@ -4441,9 +4443,9 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 					// 2. done
 					inp_id := app.next_gate_id(x, y, -x_ori, -y_ori, id & ori_mask)
 					if dead_rid == 0 {
-						app.diodes << Diode{u64(rid), i64(chunk_i), inp_id, x, y}
+						app.diodes << Diode{i64(chunk_i), inp_id, x, y}
 					} else {
-						app.diodes[dead_rid] = Diode{u64(rid), i64(chunk_i), inp_id, x, y}
+						app.diodes[dead_rid] = Diode{i64(chunk_i), inp_id, x, y}
 					}
 					app.d_states[0] << false // default state & important to do the two lists
 					app.d_states[1] << false // default state
@@ -4547,11 +4549,11 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						adjacent_wires << id
 						if dead_rid == 0 {
 							app.wires << Wire{
-								rid: u64(rid)
+								//rid: u64(rid)
 							}
 						} else {
 							app.wires[dead_rid] = Wire{
-								rid: u64(rid)
+								//rid: u64(rid)
 							}
 						}
 						app.w_states[0] << false
@@ -5242,7 +5244,6 @@ mut:
 // A gate that outputs the opposite of the input signal
 struct Nots {
 mut:
-	rid     u64 // real id
 	chunk_i i64
 	inp     u64 // id of the input element of the not gate
 	// Map coordinates
@@ -5253,7 +5254,6 @@ mut:
 // A gate that transmit the input signal to the output element (unidirectionnal) and adds 1 tick delay (1 update cycle to update)
 struct Diode {
 mut:
-	rid     u64 // real id
 	chunk_i i64
 	inp     u64 // id of the input element of the not gate
 	// Map coordinates
@@ -5271,7 +5271,6 @@ mut:
 // It outputs the OR of all it's inputs
 struct Wire {
 mut:
-	rid           u64   // real id
 	inps          []u64 // id of the input elements outputing to the wire
 	outs          []u64 // id of the output elements whose inputs are the wire
 	cable_coords  []Coo // all the x y coordinates of the individual cables (elements) the wire is made of
