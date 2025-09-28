@@ -368,7 +368,7 @@ mut:
 	copy_settings_submode     bool
 	add_input_submode         bool // to add an input to a colorchip
 	edit_color_submode        bool // edit colors of a colorchip
-	selected_colorchip        int  // index of the selected colorchip
+	selected_colorchip        int = -1 // index of the selected colorchip
 	// test mode
 	test_mode bool
 	// camera moving -> default mode
