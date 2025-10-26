@@ -8,6 +8,12 @@ import gg
 import sokol.sgl
 import toml
 
+// NEXT BIG STEPS:
+// MULTITHREADING
+// MULTIPLAYER
+// PUZZLES / LEADERBOARDS
+
+
 const game_data_path = 'game_data/'
 const player_data_path = 'player_data/'
 const sprites_path = game_data_path + 'sprites/'
@@ -401,7 +407,7 @@ mut:
 	save_gate_mode bool
 	// keyboard input (force state of a gate to ON) mode
 	keyinput_mode bool
-	key_pos       map[u8][]Coo // `n` -> [[0, 3], [32, 53]] : will force the state to ON at x:0 y:3 and x:32 y:53
+	key_pos       map[u8][]Coo // `n` -> [[0, 3], [32, 53]] : will force the state to ON at x:0 y:3 and x:32 y:53 if the key is pressed
 	tmp_pos_x     u32 = u32(-1)
 	tmp_pos_y     u32 = u32(-1)
 	// UI on the left border
@@ -432,30 +438,30 @@ mut:
 	map_name          string // to fill when loading a map
 	comp_running      bool   // is a map loaded and running
 	pause             bool   // is the map updating
-	nb_updates        int = 5 // number of updates per second
+	nb_updates        i32 = 5 // number of updates per second
 	avg_update_time   f64 // nanosecs
 	todo              []TodoInfo
 	selected_item     Elem
 	selected_ori      u64 = north
 	copied            []PlaceInstruction
-	actual_state      int // indicate which list is the old state list and which is the actual one, 0 for the first, 1 for the second
+	actual_state      i32 // indicate which list is the old state list and which is the actual one, 0 for the first, 1 for the second
 	nots              []Nots    = nots_array_default.clone() // to start the rid at 1
 	n_states          [2][]bool = [[false], [false]]! // the old state and the actual state list
 	dead_nots         []u64 // stores the rid of the dead nots (with invalid_coo, the ones that were removed)
-	dead_nots_lower   int   // marks the beggining of the valid dead nots (invalids not removed from the array)
+	dead_nots_lower   i64   // marks the beggining of the valid dead nots (invalids not removed from the array)
 	diodes            []Diode   = diode_array_default.clone()
 	d_states          [2][]bool = [[false], [false]]!
 	dead_diodes       []u64
-	dead_diodes_lower int
+	dead_diodes_lower i64
 	wires             []Wire    = wire_array_default.clone()
 	w_states          [2][]bool = [[false], [false]]!
 	dead_wires        []u64
-	dead_wires_lower  int
+	dead_wires_lower  i64
 	forced_states     []Coo       // forced to ON state by a keyboard input
 	colorchips        []ColorChip // screens
 	palette           Palette = palette_def // TODO: edit palette and save palette
 	comp_alive        bool
-	chunk_cache       map[u64]int // x u32 y u32 -> index of app.map
+	chunk_cache       map[u64]i32 // x u32 y u32 -> index of app.map
 }
 
 // graphics
@@ -2901,142 +2907,214 @@ fn (mut app App) save_map(map_name string) ! {
 	//
 	// i64(app.map.len)
 	// for each chunk:
-	// 	chunk.x chunk.y
-	// 	chunk's content
+	// 	chunk.x u32 chunk.y u32
+	// 	chunk's content []u64
 	//
-	// actual_state (which array)
+	// nb_updates i32
+	//
+	// actual_state i32 (which array)
 	//
 	// i64(app.nots.len)
 	// all the nots (their data)
-	// nots' state array
+	// 	chunk_i i64 inp u64 x u32 y u32
+	// nots' state array [actual_state][]bool
+	// 
+	// i64(dead_nots.len)
+	// all the dead nots []u64
+	// dead_nots_lower i64
 	//
 	// i64(app.diodes.len)
 	// all the diodes (their data)
-	// diode's state array
+	// 	chunk_i i64 inp u64 x u32 y u32
+	// diode's state array [actual_state][]bool
+	// 
+	// i64(dead_diodes.len)
+	// all the dead diodes []u64
+	// dead_diodes_lower i64
 	//
 	// i64(app.wires.len)
 	// for each wire:
-	// 	rid
 	//	i64(wire.inps.len)
-	//	all the inputs
+	//	all the inputs []u64
 	//	i64(wire.outs.len)
-	//	all the outputs
+	//	all the outputs []u64
 	//	i64(wire.cable_coords.len)
 	// 	for all the cables:
-	// 	cable.x  cable.y
-	// wire's state array
+	// 		cable.x u32 cable.y u32
+	// 	for all the cables:
+	//	 	cable_chunk_i i64
+	// wire's state array [actual_state][]bool
+	//
+	// i64(dead_wires.len)
+	// all the dead wires []u64
+	// dead_wires_lower i64
 	//
 	// i64(app.forced_states.len)
-	// forced_states ([2]u32)
+	// forced_states []Coo u32 u32
+	//
+	// i64(app.key_pos.keys().len)
+	// for each key:
+	// 	key u8
+	// 	app.key_pos[key].len i64
+	//	every Coo in app.key_pos[key] x u32 y u32
 	//
 	// i64(app.colorchips.len)
 	// for each cc:
-	// 	x, y, w, h
+	// 	x u32 y u32 w u32 h u32
 	//	i64(cc.colors.len)
-	//	colors gg.Color r g b
+	//	colors []gg.Color r g b u8 u8 u8
 	//	i64(cc.inputs.len)
-	//	inputs [2]u32
+	//	inputs []Coo x u32 y u32
+	//
+	// i64(app.chunk_cache.values().len)
+	// for each value
+	// 	u64 value
+	//	i32 associated index
 
-	mut file := os.open_file(maps_path + map_name, 'w') or {
+	mut file := os.open_file(maps_path + map_name, 'w') or { // TODO: open a tmp file, and then copy it to the true one
 		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	defer {
 		file.close()
 	}
-	dump('file opened')
 	mut offset := u64(0)
+
 	save_version := u32(0) // must be careful when V changes of int size, especially for array lenghts
 	file.write_raw_at(save_version, offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
-	dump('save version written')
-	offset += sizeof(save_version)
+	offset += sizeof(u32)
+
 	file.write_raw_at(i64(app.map.len), offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
-	dump(offset)
 	for mut chunk in app.map {
 		file.write_raw_at(chunk.x, offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
-		offset += sizeof(chunk.x)
+		offset += sizeof(u32)
 		file.write_raw_at(chunk.y, offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
-		offset += sizeof(chunk.y)
+		offset += sizeof(u32)
 		unsafe {
-			// for i in 0 .. chunk_size {
-			// file.write_ptr_at(chunk.id_map[i], chunk_size * int(sizeof(u64)), offset)
-			//}
+			file.write_ptr_at(chunk.id_map.data, chunk_size * chunk_size * int(sizeof(u64)), offset)
 		}
 		offset += chunk_size * chunk_size * sizeof(u64)
 	}
-	file.write_raw_at(app.actual_state, offset) or {
+
+	file.write_raw_at(i32(app.nb_updates), offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
-	offset += sizeof(app.actual_state) // int
+	offset += sizeof(i32)
+
+	file.write_raw_at(i32(app.actual_state), offset) or {
+		app.log('${@LOCATION}: ${err}', .err)
+		return
+	}
+	offset += sizeof(i32)
+
 	file.write_raw_at(i64(app.nots.len), offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
-	unsafe { file.write_ptr_at(app.nots, app.nots.len * int(sizeof(Nots)), offset) }
-	offset += u64(app.nots.len) * sizeof(Nots)
+	for n in app.nots {
+		file.write_raw_at(n.chunk_i, offset) or {
+		offset += sizeof(i64)
+		file.write_raw_at(n.inp, offset) or {
+		offset += sizeof(u64)
+		file.write_raw_at(n.x, offset) or {
+		offset += sizeof(u32)
+		file.write_raw_at(n.y, offset) or {
+		offset += sizeof(u32)
+	}
 	unsafe {
 		file.write_ptr_at(app.n_states[app.actual_state].data, app.nots.len * int(sizeof(bool)),
 			offset)
 	}
-	offset += u64(app.diodes.len) * sizeof(bool)
+	offset += u64(app.nots.len) * sizeof(bool)
 
-	dump(offset)
+	file.write_raw_at(i64(app.dead_nots.len), offset) or {
+		app.log('${@LOCATION}: ${err}', .err)
+		return
+	}
+	offset += sizeof(i64)
+	unsafe {
+		file.write_ptr_at(app.dead_nots.data, app.nots.len * int(sizeof(u64)),
+			offset)
+	}
+	offset += u64(app.dead_nots.len) * sizeof(u64)
+	file.write_raw_at(i64(app.dead_nots_lower), offset) or {
+		app.log('${@LOCATION}: ${err}', .err)
+		return
+	}
+	offset += sizeof(i64)
+
 	file.write_raw_at(i64(app.diodes.len), offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
-	unsafe { file.write_ptr_at(app.diodes, app.diodes.len * int(sizeof(Diode)), offset) }
-	offset += u64(app.diodes.len) * sizeof(Diode)
+	for d in app.diodes {
+		file.write_raw_at(d.chunk_i, offset) or {
+		offset += sizeof(i64)
+		file.write_raw_at(d.inp, offset) or {
+		offset += sizeof(u64)
+		file.write_raw_at(d.x, offset) or {
+		offset += sizeof(u32)
+		file.write_raw_at(d.y, offset) or {
+		offset += sizeof(u32)
+	}
 	unsafe {
 		file.write_ptr_at(app.d_states[app.actual_state].data, app.diodes.len * int(sizeof(bool)),
 			offset)
 	}
 	offset += u64(app.diodes.len) * sizeof(bool)
 
-	dump(offset)
+	file.write_raw_at(i64(app.dead_diodes.len), offset) or {
+		app.log('${@LOCATION}: ${err}', .err)
+		return
+	}
+	offset += sizeof(i64)
+	unsafe {
+		file.write_ptr_at(app.dead_diodes.data, app.diodes.len * int(sizeof(u64)),
+			offset)
+	}
+	offset += u64(app.dead_diodes.len) * sizeof(u64)
+	file.write_raw_at(i64(app.dead_diodes_lower), offset) or {
+		app.log('${@LOCATION}: ${err}', .err)
+		return
+	}
+	offset += sizeof(i64)
+
 	file.write_raw_at(i64(app.wires.len), offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
 	offset += sizeof(i64)
 	for wire in app.wires {
-		/*
-		file.write_raw_at(wire.rid, offset) or {
-			app.log('${@LOCATION}: ${err}', .err)
-			return
-		}
-		*/
-		offset += sizeof(u64)
-
 		file.write_raw_at(i64(wire.inps.len), offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(i64)
 		unsafe { file.write_ptr_at(wire.inps.data, wire.inps.len * int(sizeof(u64)), offset) }
-
+		offset += sizeof(wire.inps.len * int(sizeof(u64)))
 		file.write_raw_at(i64(wire.outs.len), offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(i64)
 		unsafe { file.write_ptr_at(wire.outs.data, wire.outs.len * int(sizeof(u64)), offset) }
+		offset += sizeof(wire.outs.len * int(sizeof(u64)))
 
 		file.write_raw_at(i64(wire.cable_coords.len), offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
@@ -3055,14 +3133,36 @@ fn (mut app App) save_map(map_name string) ! {
 			}
 			offset += sizeof(u32)
 		}
+		for c_i in wire.cable_chunk_i {
+			file.write_raw_at(c_i, offset) or {
+				app.log('${@LOCATION}: ${err}', .err)
+				return
+			}
+			offset += sizeof(i64)
+		}
 	}
 	unsafe {
-		file.write_ptr_at(app.w_states[app.actual_state].data, app.diodes.len * int(sizeof(bool)),
+		file.write_ptr_at(app.w_states[app.actual_state].data, app.wires.len * int(sizeof(bool)),
 			offset)
 	}
 	offset += u64(app.wires.len) * sizeof(bool)
 
-	dump(offset)
+	file.write_raw_at(i64(app.dead_wires.len), offset) or {
+		app.log('${@LOCATION}: ${err}', .err)
+		return
+	}
+	offset += sizeof(i64)
+	unsafe {
+		file.write_ptr_at(app.dead_wires.data, app.wires.len * int(sizeof(u64)),
+			offset)
+	}
+	offset += u64(app.dead_wires.len) * sizeof(u64)
+	file.write_raw_at(i64(app.dead_wires_lower), offset) or {
+		app.log('${@LOCATION}: ${err}', .err)
+		return
+	}
+	offset += sizeof(i64)
+
 	file.write_raw_at(i64(app.forced_states.len), offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
@@ -3080,8 +3180,37 @@ fn (mut app App) save_map(map_name string) ! {
 		}
 		offset += sizeof(u32)
 	}
+	
+	file.write_raw_at(i64(app.key_pos.keys().len), offset) or {
+		app.log('${@LOCATION}: ${err}', .err)
+		return
+	}
+	offset += sizeof(i64)
+	for k, v in app.key_pos {
+		file.write_raw_at(k, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
+		offset += sizeof(u8)
+		file.write_raw_at(i64(v.len), offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
+		offset += sizeof(i64)
+		for c in v {
+			file.write_raw_at(c.x, offset) or {
+				app.log('${@LOCATION}: ${err}', .err)
+				return
+			}
+			offset += sizeof(u32)
+			file.write_raw_at(c.y, offset) or {
+				app.log('${@LOCATION}: ${err}', .err)
+				return
+			}
+			offset += sizeof(u32)
+		}
+	}
 
-	dump(offset)
 	file.write_raw_at(i64(app.colorchips.len), offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
@@ -3109,7 +3238,6 @@ fn (mut app App) save_map(map_name string) ! {
 		}
 		offset += sizeof(u32)
 
-		dump(offset)
 		file.write_raw_at(i64(cc.colors.len), offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
@@ -3133,7 +3261,6 @@ fn (mut app App) save_map(map_name string) ! {
 			offset += sizeof(u8)
 		}
 
-		dump(offset)
 		file.write_raw_at(i64(cc.inputs.len), offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
@@ -3152,7 +3279,24 @@ fn (mut app App) save_map(map_name string) ! {
 			offset += sizeof(u32)
 		}
 	}
-	dump(offset)
+	
+	file.write_raw_at(i64(app.chunk_cache.keys().len), offset) or {
+		app.log('${@LOCATION}: ${err}', .err)
+		return
+	}
+	offset += sizeof(i64)
+	for k, v in app.chunk_cache {
+		file.write_raw_at(k, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
+		offset += sizeof(u64)
+		file.write_raw_at(v, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
+		offset += sizeof(i32)
+	}
 }
 
 struct OldPlaceInstruction {
