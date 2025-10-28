@@ -2769,115 +2769,116 @@ fn (mut app App) save_copied(name_ string) ! {
 }
 
 fn (mut app App) load_map(map_name string) ! {
-	// u32(version)
-	//
-	// i64(app.map.len)
-	// for each chunk:
-	// 	chunk.x chunk.y
-	// 	chunk's content
-	//
-	// actual_state (which array)
-	//
-	// i64(app.nots.len)
-	// all the nots (their data)
-	// nots' state array
-	//
-	// i64(app.diodes.len)
-	// all the diodes (their data)
-	// diode's state array
-	//
-	// i64(app.wires.len)
-	// for each wire:
-	// 	rid
-	//	i64(wire.inps.len)
-	//	all the inputs
-	//	i64(wire.outs.len)
-	//	all the outputs
-	//	i64(wire.cable_coords.len)
-	// 	for all the cables:
-	// 	cable.x  cable.y
-	// wire's state array
-	//
-	// i64(app.forced_states.len)
-	// forced_states ([2]u32)
-	//
-	// i64(app.colorchips.len)
-	// for each cc:
-	// 	x, y, w, h
-	//	i64(cc.colors.len)
-	//	colors gg.Color r g b
-	//	i64(cc.inputs.len)
-	//	inputs [2]u32
-
 	if os.exists(maps_path) {
-		dump('heyy')
 		mut f := os.open(maps_path + map_name)!
-		assert f.read_raw[u32]()! == 0
+		version := f.read_raw[u32]()!
+		assert version == 0
+
 		map_len := f.read_raw[i64]()!
-		app.map = []
-		mut new_c := Chunk{}
+		app.map = []Chunk{cap:map_len}
 		for _ in 0 .. map_len {
-			f.read_struct(mut new_c)!
+			mut new_c := Chunk{
+				x: f.read_raw[u32]()!
+				y: f.read_raw[u32]()!
+				id_map: []u64{len:chunk_size * chunk_size}
+			}
+			f.read_into_ptr(new_c.id_map.data, chunk_size * chunk_size * int(sizeof(u64)))!
 			app.map << new_c
 		}
-		dump('Chunkmap')
-		app.actual_state = f.read_raw[int]()!
+
+		app.nb_updates = f.read_raw[i32]()!
+
+		app.actual_state = f.read_raw[i32]()!
 
 		nots_len := f.read_raw[i64]()!
-		mut new_n := Nots{}
-		app.nots = []
+		app.nots = []Nots{cap:nots_len}
 		for _ in 0 .. nots_len {
-			f.read_struct(mut new_n)!
+			mut new_n := Nots{
+				chunk_i: f.read_raw[i64]()!
+				inp: f.read_raw[u64]()!
+				x: f.read_raw[u32]()!
+				y: f.read_raw[u32]()!
+			}
 			app.nots << new_n
 		}
 		app.n_states[app.actual_state] = []bool{len: int(nots_len)} // to have an array in a good shape
-		f.read_into_ptr(app.n_states[app.actual_state].data, int(nots_len))!
+		f.read_into_ptr(app.n_states[app.actual_state].data, nots_len * int(sizeof(bool)))!
 		app.n_states[(app.actual_state + 1) / 2] = []bool{len: int(nots_len)}
-		dump('Nots')
+
+		dead_nots_len := f.read_raw[i64]()!
+		app.dead_nots = []u64{len: dead_nots_len}
+		f.read_into_ptr(app.dead_nots.data, dead_nots_len * int(sizeof(bool)))!
+		app.dead_nots_lower = f.read_raw[i64]()!
+
 		diodes_len := f.read_raw[i64]()!
-		mut new_d := Diode{}
-		app.diodes = []
+		app.diodes = []Diode{cap:diodes_len}
 		for _ in 0 .. diodes_len {
-			f.read_struct(mut new_d)!
+			mut new_d := Diode{
+				chunk_i: f.read_raw[i64]()!
+				inp: f.read_raw[u64]()!
+				x: f.read_raw[u32]()!
+				y: f.read_raw[u32]()!
+			}
 			app.diodes << new_d
 		}
 		app.d_states[app.actual_state] = []bool{len: int(diodes_len)}
-		f.read_into_ptr(app.d_states[app.actual_state].data, int(diodes_len))!
+		f.read_into_ptr(app.d_states[app.actual_state].data, int(diodes_len * sizeof(bool)))!
 		app.d_states[(app.actual_state + 1) / 2] = []bool{len: int(diodes_len)}
-		dump('Didodes')
+
+		dead_diodes_len := f.read_raw[i64]()!
+		app.dead_diodes = []u64{len: dead_diodes_len}
+		f.read_into_ptr(app.dead_diodes.data, dead_diodes_len * int(sizeof(bool)))!
+		app.dead_diodes_lower = f.read_raw[i64]()!
+
 		wires_len := f.read_raw[i64]()!
-		app.wires = []
+		app.wires = []Wire{cap:wires_len}
 		for _ in 0 .. wires_len {
-			mut new_w := Wire{
-				//rid: f.read_raw[u64]()!
-			}
 			inps_len := f.read_raw[i64]()!
-			for _ in 0 .. inps_len {
-				new_w.inps << f.read_raw[u64]()!
-			}
 			outs_len := f.read_raw[i64]()!
-			for _ in 0 .. outs_len {
-				new_w.outs << f.read_raw[u64]()!
+			cable_coords_len := f.read_raw[i64]()!
+			mut new_w := Wire{
+				inps: []u64{len:inps_len}
+				outs: []u64{len:outs_len}
+				cable_coords: []Coo{cap:cable_coords_len}
+				cable_chunk_i: []u64{len:cable_coords_len}
 			}
-			cable_len := f.read_raw[i64]()!
-			for _ in 0 .. cable_len {
-				new_w.cable_coords << Coo{f.read_raw[u32]()!, f.read_raw[u32]()!}
+			f.read_into_ptr(new_w.inps.data, int(inps_len * sizeof(u64)))!
+			f.read_into_ptr(new_w.outs.data, int(outs_len * sizeof(u64)))!
+			for _ in 0 .. cable_coords_len {
+				new_w.cable_coords << Coo{
+					x: f.read_raw[u32]()!
+					y: f.read_raw[u32]()!
+				}
 			}
+			f.read_into_ptr(new_w.cable_chunk_i.data, int(cable_coords_len * sizeof(i64)))!
 			app.wires << new_w
 		}
 		app.w_states[app.actual_state] = []bool{len: int(wires_len)}
-		f.read_into_ptr(app.w_states[app.actual_state].data, int(wires_len))!
+		f.read_into_ptr(app.w_states[app.actual_state].data, int(wires_len * sizeof(bool)))!
 		app.w_states[(app.actual_state + 1) / 2] = []bool{len: int(wires_len)}
-		dump('Wires')
+
+		dead_wires_len := f.read_raw[i64]()!
+		app.dead_wires = []u64{len: dead_wires_len}
+		f.read_into_ptr(app.dead_wires.data, dead_wires_len * int(sizeof(bool)))!
+		app.dead_wires_lower = f.read_raw[i64]()!
+
 		forced_states_len := f.read_raw[i64]()!
-		dump(forced_states_len)
-		app.forced_states = []
+		app.forced_states = []Coo{cap:forced_states_len}
 		for _ in 0 .. forced_states_len {
 			app.forced_states << Coo{f.read_raw[u32]()!, f.read_raw[u32]()!}
 		}
-		dump('forced states')
+
+		key_pos_len := f.read_raw[i64]()!
+		for _ in 0 .. key_pos_len {
+			key := f.read_raw[u8]()!
+			coords_len := f.read_raw[i64]()!
+			app.key_pos[key] = []Coo{cap:coords_len}
+			for _ in 0 .. coords_len {
+				app.key_pos[key] << Coo{f.read_raw[u32]()!, f.read_raw[u32]()!}
+			}
+		}
+
 		colorchips_len := f.read_raw[i64]()!
-		dump(colorchips_len)
 		app.colorchips = []
 		for _ in 0 .. colorchips_len {
 			mut new_cc := ColorChip{
@@ -2887,17 +2888,20 @@ fn (mut app App) load_map(map_name string) ! {
 				h: f.read_raw[u32]()!
 			}
 			colors_len := f.read_raw[i64]()!
-			dump(colors_len)
 			for _ in 0 .. colors_len {
 				new_cc.colors << gg.Color{f.read_raw[u8]()!, f.read_raw[u8]()!, f.read_raw[u8]()!, 255}
 			}
 			inputs_len := f.read_raw[i64]()!
-			dump(inputs_len)
 			for _ in 0 .. inputs_len {
 				new_cc.inputs << Coo{f.read_raw[u32]()!, f.read_raw[u32]()!}
 			}
 		}
-		dump('Done!')
+
+		chunk_cache_len := f.read_raw[i64]()!
+		for _ in 0 .. chunk_cache_len {
+			app.chunk_cache[f.read_raw[u64]()!] = f.read_raw[i32]()!
+		}
+
 		f.close()
 	}
 }
@@ -2935,10 +2939,10 @@ fn (mut app App) save_map(map_name string) ! {
 	// i64(app.wires.len)
 	// for each wire:
 	//	i64(wire.inps.len)
-	//	all the inputs []u64
 	//	i64(wire.outs.len)
-	//	all the outputs []u64
 	//	i64(wire.cable_coords.len)
+	//	all the inputs []u64
+	//	all the outputs []u64
 	// 	for all the cables:
 	// 		cable.x u32 cable.y u32
 	// 	for all the cables:
@@ -3106,21 +3110,22 @@ fn (mut app App) save_map(map_name string) ! {
 			return
 		}
 		offset += sizeof(i64)
-		unsafe { file.write_ptr_at(wire.inps.data, wire.inps.len * int(sizeof(u64)), offset) }
-		offset += sizeof(wire.inps.len * int(sizeof(u64)))
 		file.write_raw_at(i64(wire.outs.len), offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(i64)
-		unsafe { file.write_ptr_at(wire.outs.data, wire.outs.len * int(sizeof(u64)), offset) }
-		offset += sizeof(wire.outs.len * int(sizeof(u64)))
-
 		file.write_raw_at(i64(wire.cable_coords.len), offset) or {
 			app.log('${@LOCATION}: ${err}', .err)
 			return
 		}
 		offset += sizeof(i64)
+
+		unsafe { file.write_ptr_at(wire.inps.data, wire.inps.len * int(sizeof(u64)), offset) }
+		offset += sizeof(wire.inps.len * int(sizeof(u64)))
+		unsafe { file.write_ptr_at(wire.outs.data, wire.outs.len * int(sizeof(u64)), offset) }
+		offset += sizeof(wire.outs.len * int(sizeof(u64)))
+
 		for cable in wire.cable_coords {
 			file.write_raw_at(cable.x, offset) or {
 				app.log('${@LOCATION}: ${err}', .err)
