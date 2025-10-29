@@ -1,21 +1,28 @@
 module main
 
+import os
 
-/*
 fn test_save() {
 	mut app := App{}
 	defer {
 		app.comp_running = false
 		for app.comp_alive {}
 	}
-	name := 'test'
+	name := 'test_save'
+	os.rm(maps_path + name) or {}
 	app.text_input = name
 	app.create_game()
-	pos := u32(2_000_000_000)
-	app.placement(pos, pos, pos + 100, pos + 100) /// need to separate backend / frontend
-	app.quit_map()
+	pos := u32(1_900_000_000)
+	size := u32(1000)
+	end := pos + size
+	seed_offset := 67832187
+	app.comp_running = false
+	app.cl_thread.wait()
+	app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), 1], false)
+	app.save_map(name)!
+	app.load_map(name)!
+	println('Finished test_save')
 }
-*/
 
 fn test_load() {
 	mut app := App{}
@@ -270,7 +277,8 @@ fn test_placement_removal_big() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true, false)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true,
+		false)
 	eprintln('tested diodes')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -285,7 +293,8 @@ fn test_placement_removal_big() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true, false)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true,
+		false)
 	eprintln('tested crossings')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -300,7 +309,8 @@ fn test_placement_removal_big() {
 
 	app.update_cycle()
 	app.update_cycle()
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true, false)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true,
+		false)
 	eprintln('tested ons')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
@@ -317,7 +327,8 @@ fn test_placement_removal_big() {
 	println('tested wires 1/2')
 	app.update_cycle()
 	println('updated wires 2/2')
-	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true, true)
+	x_err, y_err, str_err = app.test_validity(pos, pos, pos + 1000, pos + 1000, true,
+		true)
 	println('tested wires')
 	if str_err != '' {
 		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')

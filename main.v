@@ -13,7 +13,6 @@ import toml
 // MULTIPLAYER
 // PUZZLES / LEADERBOARDS
 
-
 const game_data_path = 'game_data/'
 const player_data_path = 'player_data/'
 const sprites_path = game_data_path + 'sprites/'
@@ -2774,13 +2773,13 @@ fn (mut app App) load_map(map_name string) ! {
 		version := f.read_raw[u32]()!
 		assert version == 0
 
-		map_len := f.read_raw[i64]()!
-		app.map = []Chunk{cap:map_len}
+		map_len := int(f.read_raw[i64]()!)
+		app.map = []Chunk{cap: map_len}
 		for _ in 0 .. map_len {
 			mut new_c := Chunk{
-				x: f.read_raw[u32]()!
-				y: f.read_raw[u32]()!
-				id_map: []u64{len:chunk_size * chunk_size}
+				x:      f.read_raw[u32]()!
+				y:      f.read_raw[u32]()!
+				id_map: []u64{len: chunk_size * chunk_size}
 			}
 			f.read_into_ptr(new_c.id_map.data, chunk_size * chunk_size * int(sizeof(u64)))!
 			app.map << new_c
@@ -2790,14 +2789,14 @@ fn (mut app App) load_map(map_name string) ! {
 
 		app.actual_state = f.read_raw[i32]()!
 
-		nots_len := f.read_raw[i64]()!
-		app.nots = []Nots{cap:nots_len}
+		nots_len := int(f.read_raw[i64]()!)
+		app.nots = []Nots{cap: nots_len}
 		for _ in 0 .. nots_len {
 			mut new_n := Nots{
 				chunk_i: f.read_raw[i64]()!
-				inp: f.read_raw[u64]()!
-				x: f.read_raw[u32]()!
-				y: f.read_raw[u32]()!
+				inp:     f.read_raw[u64]()!
+				x:       f.read_raw[u32]()!
+				y:       f.read_raw[u32]()!
 			}
 			app.nots << new_n
 		}
@@ -2805,80 +2804,82 @@ fn (mut app App) load_map(map_name string) ! {
 		f.read_into_ptr(app.n_states[app.actual_state].data, nots_len * int(sizeof(bool)))!
 		app.n_states[(app.actual_state + 1) / 2] = []bool{len: int(nots_len)}
 
-		dead_nots_len := f.read_raw[i64]()!
+		dead_nots_len := int(f.read_raw[i64]()!)
 		app.dead_nots = []u64{len: dead_nots_len}
-		f.read_into_ptr(app.dead_nots.data, dead_nots_len * int(sizeof(bool)))!
+		f.read_into_ptr(app.dead_nots.data, dead_nots_len * int(sizeof(u64)))!
 		app.dead_nots_lower = f.read_raw[i64]()!
 
-		diodes_len := f.read_raw[i64]()!
-		app.diodes = []Diode{cap:diodes_len}
+		diodes_len := int(f.read_raw[i64]()!)
+		app.diodes = []Diode{cap: diodes_len}
 		for _ in 0 .. diodes_len {
 			mut new_d := Diode{
 				chunk_i: f.read_raw[i64]()!
-				inp: f.read_raw[u64]()!
-				x: f.read_raw[u32]()!
-				y: f.read_raw[u32]()!
+				inp:     f.read_raw[u64]()!
+				x:       f.read_raw[u32]()!
+				y:       f.read_raw[u32]()!
 			}
 			app.diodes << new_d
 		}
 		app.d_states[app.actual_state] = []bool{len: int(diodes_len)}
-		f.read_into_ptr(app.d_states[app.actual_state].data, int(diodes_len * sizeof(bool)))!
-		app.d_states[(app.actual_state + 1) / 2] = []bool{len: int(diodes_len)}
+		f.read_into_ptr(app.d_states[app.actual_state].data, diodes_len * int(sizeof(bool)))!
+		app.d_states[(app.actual_state + 1) / 2] = []bool{len: diodes_len}
 
-		dead_diodes_len := f.read_raw[i64]()!
+		dead_diodes_len := int(f.read_raw[i64]()!)
 		app.dead_diodes = []u64{len: dead_diodes_len}
-		f.read_into_ptr(app.dead_diodes.data, dead_diodes_len * int(sizeof(bool)))!
+		f.read_into_ptr(app.dead_diodes.data, dead_diodes_len * int(sizeof(u64)))!
 		app.dead_diodes_lower = f.read_raw[i64]()!
 
-		wires_len := f.read_raw[i64]()!
-		app.wires = []Wire{cap:wires_len}
+		wires_len := int(f.read_raw[i64]()!)
+		app.wires = []Wire{cap: wires_len}
 		for _ in 0 .. wires_len {
-			inps_len := f.read_raw[i64]()!
-			outs_len := f.read_raw[i64]()!
-			cable_coords_len := f.read_raw[i64]()!
+			inps_len := int(f.read_raw[i64]()!)
+			outs_len := int(f.read_raw[i64]()!)
+			cable_coords_len := int(f.read_raw[i64]()!)
+			cable_chunk_i_len := int(f.read_raw[i64]()!)
 			mut new_w := Wire{
-				inps: []u64{len:inps_len}
-				outs: []u64{len:outs_len}
-				cable_coords: []Coo{cap:cable_coords_len}
-				cable_chunk_i: []u64{len:cable_coords_len}
+				inps:          []u64{len: inps_len}
+				outs:          []u64{len: outs_len}
+				cable_coords:  []Coo{cap: cable_coords_len}
+				cable_chunk_i: []i64{len: cable_chunk_i_len}
 			}
-			f.read_into_ptr(new_w.inps.data, int(inps_len * sizeof(u64)))!
-			f.read_into_ptr(new_w.outs.data, int(outs_len * sizeof(u64)))!
+			f.read_into_ptr(new_w.inps.data, inps_len * int(sizeof(u64)))!
+			f.read_into_ptr(new_w.outs.data, outs_len * int(sizeof(u64)))!
+
 			for _ in 0 .. cable_coords_len {
 				new_w.cable_coords << Coo{
 					x: f.read_raw[u32]()!
 					y: f.read_raw[u32]()!
 				}
 			}
-			f.read_into_ptr(new_w.cable_chunk_i.data, int(cable_coords_len * sizeof(i64)))!
+			f.read_into_ptr(new_w.cable_chunk_i.data, cable_chunk_i_len * int(sizeof(i64)))!
 			app.wires << new_w
 		}
 		app.w_states[app.actual_state] = []bool{len: int(wires_len)}
-		f.read_into_ptr(app.w_states[app.actual_state].data, int(wires_len * sizeof(bool)))!
-		app.w_states[(app.actual_state + 1) / 2] = []bool{len: int(wires_len)}
+		f.read_into_ptr(app.w_states[app.actual_state].data, wires_len * int(sizeof(bool)))!
+		app.w_states[(app.actual_state + 1) / 2] = []bool{len: wires_len}
 
-		dead_wires_len := f.read_raw[i64]()!
+		dead_wires_len := int(f.read_raw[i64]()!)
 		app.dead_wires = []u64{len: dead_wires_len}
-		f.read_into_ptr(app.dead_wires.data, dead_wires_len * int(sizeof(bool)))!
-		app.dead_wires_lower = f.read_raw[i64]()!
+		f.read_into_ptr(app.dead_wires.data, dead_wires_len * int(sizeof(u64)))!
+		app.dead_wires_lower = f.read_raw[i64]() or { panic(err) }
 
-		forced_states_len := f.read_raw[i64]()!
-		app.forced_states = []Coo{cap:forced_states_len}
+		forced_states_len := int(f.read_raw[i64]()!)
+		app.forced_states = []Coo{cap: forced_states_len}
 		for _ in 0 .. forced_states_len {
 			app.forced_states << Coo{f.read_raw[u32]()!, f.read_raw[u32]()!}
 		}
 
-		key_pos_len := f.read_raw[i64]()!
+		key_pos_len := int(f.read_raw[i64]()!)
 		for _ in 0 .. key_pos_len {
 			key := f.read_raw[u8]()!
-			coords_len := f.read_raw[i64]()!
-			app.key_pos[key] = []Coo{cap:coords_len}
+			coords_len := int(f.read_raw[i64]()!)
+			app.key_pos[key] = []Coo{cap: coords_len}
 			for _ in 0 .. coords_len {
 				app.key_pos[key] << Coo{f.read_raw[u32]()!, f.read_raw[u32]()!}
 			}
 		}
 
-		colorchips_len := f.read_raw[i64]()!
+		colorchips_len := int(f.read_raw[i64]()!)
 		app.colorchips = []
 		for _ in 0 .. colorchips_len {
 			mut new_cc := ColorChip{
@@ -2887,7 +2888,7 @@ fn (mut app App) load_map(map_name string) ! {
 				w: f.read_raw[u32]()!
 				h: f.read_raw[u32]()!
 			}
-			colors_len := f.read_raw[i64]()!
+			colors_len := int(f.read_raw[i64]()!)
 			for _ in 0 .. colors_len {
 				new_cc.colors << gg.Color{f.read_raw[u8]()!, f.read_raw[u8]()!, f.read_raw[u8]()!, 255}
 			}
@@ -2897,7 +2898,7 @@ fn (mut app App) load_map(map_name string) ! {
 			}
 		}
 
-		chunk_cache_len := f.read_raw[i64]()!
+		chunk_cache_len := int(f.read_raw[i64]()!)
 		for _ in 0 .. chunk_cache_len {
 			app.chunk_cache[f.read_raw[u64]()!] = f.read_raw[i32]()!
 		}
@@ -2922,7 +2923,7 @@ fn (mut app App) save_map(map_name string) ! {
 	// all the nots (their data)
 	// 	chunk_i i64 inp u64 x u32 y u32
 	// nots' state array [actual_state][]bool
-	// 
+	//
 	// i64(dead_nots.len)
 	// all the dead nots []u64
 	// dead_nots_lower i64
@@ -2931,7 +2932,7 @@ fn (mut app App) save_map(map_name string) ! {
 	// all the diodes (their data)
 	// 	chunk_i i64 inp u64 x u32 y u32
 	// diode's state array [actual_state][]bool
-	// 
+	//
 	// i64(dead_diodes.len)
 	// all the dead diodes []u64
 	// dead_diodes_lower i64
@@ -2941,6 +2942,7 @@ fn (mut app App) save_map(map_name string) ! {
 	//	i64(wire.inps.len)
 	//	i64(wire.outs.len)
 	//	i64(wire.cable_coords.len)
+	//	i64(wire.cable_chunk_i.len)
 	//	all the inputs []u64
 	//	all the outputs []u64
 	// 	for all the cables:
@@ -3008,7 +3010,8 @@ fn (mut app App) save_map(map_name string) ! {
 		}
 		offset += sizeof(u32)
 		unsafe {
-			file.write_ptr_at(chunk.id_map.data, chunk_size * chunk_size * int(sizeof(u64)), offset)
+			file.write_ptr_at(chunk.id_map.data, chunk_size * chunk_size * int(sizeof(u64)),
+				offset)
 		}
 		offset += chunk_size * chunk_size * sizeof(u64)
 	}
@@ -3032,12 +3035,24 @@ fn (mut app App) save_map(map_name string) ! {
 	offset += sizeof(i64)
 	for n in app.nots {
 		file.write_raw_at(n.chunk_i, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
 		offset += sizeof(i64)
 		file.write_raw_at(n.inp, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
 		offset += sizeof(u64)
 		file.write_raw_at(n.x, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
 		offset += sizeof(u32)
 		file.write_raw_at(n.y, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
 		offset += sizeof(u32)
 	}
 	unsafe {
@@ -3052,8 +3067,7 @@ fn (mut app App) save_map(map_name string) ! {
 	}
 	offset += sizeof(i64)
 	unsafe {
-		file.write_ptr_at(app.dead_nots.data, app.nots.len * int(sizeof(u64)),
-			offset)
+		file.write_ptr_at(app.dead_nots.data, app.nots.len * int(sizeof(u64)), offset)
 	}
 	offset += u64(app.dead_nots.len) * sizeof(u64)
 	file.write_raw_at(i64(app.dead_nots_lower), offset) or {
@@ -3069,12 +3083,24 @@ fn (mut app App) save_map(map_name string) ! {
 	offset += sizeof(i64)
 	for d in app.diodes {
 		file.write_raw_at(d.chunk_i, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
 		offset += sizeof(i64)
 		file.write_raw_at(d.inp, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
 		offset += sizeof(u64)
 		file.write_raw_at(d.x, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
 		offset += sizeof(u32)
 		file.write_raw_at(d.y, offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
 		offset += sizeof(u32)
 	}
 	unsafe {
@@ -3089,8 +3115,7 @@ fn (mut app App) save_map(map_name string) ! {
 	}
 	offset += sizeof(i64)
 	unsafe {
-		file.write_ptr_at(app.dead_diodes.data, app.diodes.len * int(sizeof(u64)),
-			offset)
+		file.write_ptr_at(app.dead_diodes.data, app.diodes.len * int(sizeof(u64)), offset)
 	}
 	offset += u64(app.dead_diodes.len) * sizeof(u64)
 	file.write_raw_at(i64(app.dead_diodes_lower), offset) or {
@@ -3120,11 +3145,16 @@ fn (mut app App) save_map(map_name string) ! {
 			return
 		}
 		offset += sizeof(i64)
+		file.write_raw_at(i64(wire.cable_chunk_i.len), offset) or {
+			app.log('${@LOCATION}: ${err}', .err)
+			return
+		}
+		offset += sizeof(i64)
 
 		unsafe { file.write_ptr_at(wire.inps.data, wire.inps.len * int(sizeof(u64)), offset) }
-		offset += sizeof(wire.inps.len * int(sizeof(u64)))
+		offset += u64(wire.inps.len) * sizeof(u64)
 		unsafe { file.write_ptr_at(wire.outs.data, wire.outs.len * int(sizeof(u64)), offset) }
-		offset += sizeof(wire.outs.len * int(sizeof(u64)))
+		offset += u64(wire.outs.len) * sizeof(u64)
 
 		for cable in wire.cable_coords {
 			file.write_raw_at(cable.x, offset) or {
@@ -3138,13 +3168,9 @@ fn (mut app App) save_map(map_name string) ! {
 			}
 			offset += sizeof(u32)
 		}
-		for c_i in wire.cable_chunk_i {
-			file.write_raw_at(c_i, offset) or {
-				app.log('${@LOCATION}: ${err}', .err)
-				return
-			}
-			offset += sizeof(i64)
-		}
+		unsafe { file.write_ptr_at(wire.cable_chunk_i.data, wire.cable_chunk_i.len * int(sizeof(i64)),
+			offset) }
+		offset += u64(wire.cable_chunk_i.len) * sizeof(i64)
 	}
 	unsafe {
 		file.write_ptr_at(app.w_states[app.actual_state].data, app.wires.len * int(sizeof(bool)),
@@ -3158,8 +3184,7 @@ fn (mut app App) save_map(map_name string) ! {
 	}
 	offset += sizeof(i64)
 	unsafe {
-		file.write_ptr_at(app.dead_wires.data, app.wires.len * int(sizeof(u64)),
-			offset)
+		file.write_ptr_at(app.dead_wires.data, app.wires.len * int(sizeof(u64)), offset)
 	}
 	offset += u64(app.dead_wires.len) * sizeof(u64)
 	file.write_raw_at(i64(app.dead_wires_lower), offset) or {
@@ -3185,7 +3210,7 @@ fn (mut app App) save_map(map_name string) ! {
 		}
 		offset += sizeof(u32)
 	}
-	
+
 	file.write_raw_at(i64(app.key_pos.keys().len), offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
@@ -3284,7 +3309,7 @@ fn (mut app App) save_map(map_name string) ! {
 			offset += sizeof(u32)
 		}
 	}
-	
+
 	file.write_raw_at(i64(app.chunk_cache.keys().len), offset) or {
 		app.log('${@LOCATION}: ${err}', .err)
 		return
@@ -3511,7 +3536,8 @@ fn (mut app App) gate_unit_tests(x u32, y u32, square_size int) {
 		app.paste(x, y)
 		for _ in 0 .. cycles {
 			app.update_cycle()
-			x_err, y_err, str_err := app.test_validity(x, y, x + size, y + size, true, false)
+			x_err, y_err, str_err := app.test_validity(x, y, x + size, y + size, true,
+				false)
 			if str_err != '' {
 				app.log('FAIL: (validity) ${str_err}', .err)
 				println('TODO:')
@@ -3575,26 +3601,28 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 	mut chunkmap := &app.map[chunk_i].id_map
 	mut last_cm_x := x_start
 	mut last_cm_y := y_start
-	//eprintln('\tcheck wires {')
+	// eprintln('\tcheck wires {')
 	for w in app.wires {
-		for cc in w.cable_coords {
-			if cc.x == invalid_coo {
-				break
+		if w.cable_coords[0].x != invalid_coo {
+			if w.cable_coords.len != w.cable_chunk_i.len {
+				return w.cable_coords[0].x, w.cable_coords[0].y, 'problem: not same size ${w.cable_coords.len} != ${w.cable_chunk_i.len}'
 			}
-			if cc.x & chunk_inv_bitmask != last_cm_x & chunk_inv_bitmask
-				|| cc.y & chunk_inv_bitmask != last_cm_y & chunk_inv_bitmask { // inlined check_change_chunkmap
-				last_cm_x = cc.x
-				last_cm_y = cc.y
-				chunk_i = app.get_chunkmap_idx_at_coords(cc.x, cc.y)
-				chunkmap = &app.map[chunk_i].id_map
-			}
-			id := unsafe { chunkmap[(cc.x & chunk_bitmask) * chunk_size + cc.y & chunk_bitmask] }
-			if id & elem_type_mask != elem_wire_bits {
-				return cc.x, cc.y, 'problem: cable coord does not point to wire'
+			for cc in w.cable_coords {
+				if cc.x & chunk_inv_bitmask != last_cm_x & chunk_inv_bitmask
+					|| cc.y & chunk_inv_bitmask != last_cm_y & chunk_inv_bitmask { // inlined check_change_chunkmap
+					last_cm_x = cc.x
+					last_cm_y = cc.y
+					chunk_i = app.get_chunkmap_idx_at_coords(cc.x, cc.y)
+					chunkmap = &app.map[chunk_i].id_map
+				}
+				id := unsafe { chunkmap[(cc.x & chunk_bitmask) * chunk_size + cc.y & chunk_bitmask] }
+				if id & elem_type_mask != elem_wire_bits {
+					return cc.x, cc.y, 'problem: cable coord does not point to wire'
+				}
 			}
 		}
 	}
-	//eprintln('\tcheck wires }')
+	// eprintln('\tcheck wires }')
 	for x in x_start .. x_end + 1 {
 		for y in y_start .. y_end + 1 {
 			if x & chunk_inv_bitmask != last_cm_x & chunk_inv_bitmask
@@ -3787,7 +3815,7 @@ fn (mut app App) test_validity(_x_start u32, _y_start u32, _x_end u32, _y_end u3
 			}
 		}
 	}
-	//eprintln('test_validity }')
+	// eprintln('test_validity }')
 	return 0, 0, ''
 }
 
@@ -4300,12 +4328,12 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 	//			add adj_cable in the stack (with it's wire id on the id_stack)
 	//		else: do nothing
 	if coo_adj_wires.len <= 0 {
-		return 
+		return
 	}
 
 	idx := id & rid_mask
 
-// TODO: Idea: do a similar thing for chunks? Possible problem: the virt_map would be too big/store too little info if sparse chunks
+	// TODO: Idea: do a similar thing for chunks? Possible problem: the virt_map would be too big/store too little info if sparse chunks
 
 	// 1- iterate through the original wire cable list -> create an array (virt_map) of size max_x * max_y with info: is_wire & new_wires_id
 	// 2- do the flood fill
@@ -4325,21 +4353,21 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 			min.y = cc.y
 		}
 	}
-	c_area := Coo{max.x-min.x+1, max.y-min.y+1}
+	c_area := Coo{max.x - min.x + 1, max.y - min.y + 1}
 
 	// Init work area
-	mut virt_map := []u8{len: int(c_area.x*c_area.y), init: -2} // -2: not wire, -1: not yet processed, >=0: new wire id
+	mut virt_map := []u8{len: int(c_area.x * c_area.y), init: -2} // -2: not wire, -1: not yet processed, >=0: new wire id
 	for cc in app.wires[id].cable_coords {
 		virt_cc := Coo{cc.x - min.x, cc.y - min.y}
-		virt_map[virt_cc.x*c_area.y + virt_cc.y] = -1
+		virt_map[virt_cc.x * c_area.y + virt_cc.y] = -1
 	}
 	mut inputs := [][]u64{len: coo_adj_wires.len}
 	mut outputs := [][]u64{len: coo_adj_wires.len}
 	for i, cc in coo_adj_wires {
 		virt_cc := Coo{cc.x - min.x, cc.y - min.y}
-		virt_map[virt_cc.x*c_area.y + virt_cc.y] = u8(i)
+		virt_map[virt_cc.x * c_area.y + virt_cc.y] = u8(i)
 	}
-	
+
 	// Flood fill
 	mut c_stack := []Coo{len: coo_adj_wires.len, cap: app.wires[idx].cable_coords.len}
 	for i, cc in coo_adj_wires {
@@ -4349,19 +4377,21 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 	cable_stack: for c_stack.len > 0 { // for each wire in the stack
 		cable := c_stack.pop()
 		virt_cc := Coo{cable.x - min.x, cable.y - min.y}
-		cable_id := virt_map[virt_cc.x*c_area.y + virt_cc.y]
+		cable_id := virt_map[virt_cc.x * c_area.y + virt_cc.y]
 		for coo in cardinal_coords { // for each adjacent tile
 			mut adj_cc := Coo{u32(i64(cable.x) + coo[0]), u32(i64(cable.y) + coo[1])}
 			mut v_adj_cc := Coo{u32(i64(virt_cc.x) + coo[0]), u32(i64(virt_cc.y) + coo[1])}
-			if v_adj_cc.x == -1 || v_adj_cc.y == -1 || v_adj_cc.x >= c_area.x || v_adj_cc.y >= c_area.y {
+			if v_adj_cc.x == -1 || v_adj_cc.y == -1 || v_adj_cc.x >= c_area.x
+				|| v_adj_cc.y >= c_area.y {
 				// info: -1 is for u32(i64(0) - 1) that is > than 0. the coords should not get < -1
 				// out of the virt_map -> check if is input/output and continue loop
-				adj_id, is_input, _, _ := app.wire_next_gate_id_coo(cable.x, cable.y, coo[0], coo[1])
+				adj_id, is_input, _, _ := app.wire_next_gate_id_coo(cable.x, cable.y,
+					coo[0], coo[1])
 				if adj_id == empty_id {
 					continue
 				}
 				// is NOT a cable -> else it would be in the same wire
-				//add to the inputs/outputs
+				// add to the inputs/outputs
 				if is_input {
 					inputs[cable_id] << adj_id
 				} else {
@@ -4373,12 +4403,13 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 			mut map_val := virt_map[map_idx]
 			if map_val == u8(-2) {
 				// not wire -> check if here is a junction leading to a cable or an input/output
-				adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable.x, cable.y, coo[0], coo[1])
+				adj_id, is_input, x_off, y_off := app.wire_next_gate_id_coo(cable.x, cable.y,
+					coo[0], coo[1])
 				if adj_id == empty_id {
 					continue
 				}
 				if adj_id & elem_type_mask != elem_wire_bits { // if NOT a wire
-					//add to the inputs/outputs
+					// add to the inputs/outputs
 					if is_input {
 						inputs[cable_id] << adj_id
 					} else {
@@ -4416,21 +4447,21 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 			}
 		}
 	}
-	
+
 	// reconstruct the wires
 	mut new_wires := []Wire{len: coo_adj_wires.len}
 	for i, mut w in new_wires {
 		w.inps << inputs[i]
 		w.outs << outputs[i]
 	}
-	
+
 	for i, cc in app.wires[idx].cable_coords {
 		virt_cc := Coo{cc.x - min.x, cc.y - min.y}
 		map_val := virt_map[virt_cc.x * c_area.y + virt_cc.y]
 		new_wires[map_val].cable_coords << cc
 		new_wires[map_val].cable_chunk_i << app.wires[idx].cable_chunk_i[i]
 	}
-	
+
 	for i := new_wires.len - 1; i >= 0; i-- {
 		if new_wires[i].cable_coords.len == 0 {
 			new_wires.delete(i)
@@ -4438,7 +4469,7 @@ fn (mut app App) separate_wires(coo_adj_wires []Coo, id u64) {
 	}
 
 	// Create/Modify the new wires
-	mut rids := []u64{len:new_wires.len}
+	mut rids := []u64{len: new_wires.len}
 	rids[0] = idx
 	app.wires[idx] = new_wires[0]
 	state0 := app.w_states[0][idx]
@@ -4698,11 +4729,11 @@ fn (mut app App) placement(_x_start u32, _y_start u32, _x_end u32, _y_end u32) {
 						adjacent_wires << id
 						if dead_rid == 0 {
 							app.wires << Wire{
-								//rid: u64(rid)
+								// rid: u64(rid)
 							}
 						} else {
 							app.wires[dead_rid] = Wire{
-								//rid: u64(rid)
+								// rid: u64(rid)
 							}
 						}
 						app.w_states[0] << false
@@ -4993,8 +5024,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 	mut last_cm_x := conv_x
 	mut last_cm_y := conv_y
 	mut next_chunkmap := &app.map[chunk_i].id_map
-	mut next_id := unsafe { next_chunkmap[(conv_x & chunk_bitmask) * chunk_size +
-		conv_y & chunk_bitmask] }
+	mut next_id := unsafe {
+		next_chunkmap[(conv_x & chunk_bitmask) * chunk_size + conv_y & chunk_bitmask]
+	}
 	mut input := false
 	// Check if next gate's orientation is matching and not orthogonal
 	if next_id == elem_crossing_bits {
@@ -5013,8 +5045,9 @@ fn (mut app App) wire_next_gate_id_coo(x u32, y u32, x_dir int, y_dir int) (u64,
 				chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
 				next_chunkmap = &app.map[chunk_i].id_map
 			}
-			next_id = unsafe { next_chunkmap[(x_conv & chunk_bitmask) * chunk_size +
-				y_conv & chunk_bitmask] }
+			next_id = unsafe {
+				next_chunkmap[(x_conv & chunk_bitmask) * chunk_size + y_conv & chunk_bitmask]
+			}
 		}
 		next_id2, input2, _, _ := app.wire_next_gate_id_coo(u32(int(x) + x_off - x_dir),
 			u32(int(y) + y_off - y_dir), x_dir, y_dir) // coords of the crossing just before the detected good elem
@@ -5123,8 +5156,9 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 	mut last_cm_x := conv_x
 	mut last_cm_y := conv_y
 	mut next_chunkmap := &app.map[chunk_i].id_map
-	mut next_id := unsafe { next_chunkmap[(conv_x & chunk_bitmask) * chunk_size +
-		conv_y & chunk_bitmask] }
+	mut next_id := unsafe {
+		next_chunkmap[(conv_x & chunk_bitmask) * chunk_size + conv_y & chunk_bitmask]
+	}
 	// Check if next gate's orientation is matching and not orthogonal
 	if next_id == elem_crossing_bits {
 		// check until wire
@@ -5141,8 +5175,9 @@ fn (mut app App) next_gate_id(x u32, y u32, x_dir int, y_dir int, gate_ori u64) 
 				chunk_i = app.get_chunkmap_idx_at_coords(x_conv, y_conv)
 			}
 			next_chunkmap = &app.map[chunk_i].id_map
-			next_id = unsafe { next_chunkmap[(x_conv & chunk_bitmask) * chunk_size +
-				y_conv & chunk_bitmask] }
+			next_id = unsafe {
+				next_chunkmap[(x_conv & chunk_bitmask) * chunk_size + y_conv & chunk_bitmask]
+			}
 		}
 		return app.next_gate_id(u32(int(x) + x_off - x_dir), u32(int(y) + y_off - y_dir),
 			x_dir, y_dir, gate_ori) // coords of the crossing just before the detected good elem
