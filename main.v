@@ -2913,6 +2913,7 @@ fn (mut app App) load_map(map_name string) ! {
 			for _ in 0 .. inputs_len {
 				new_cc.inputs << Coo{f.read_raw[u32]()!, f.read_raw[u32]()!}
 			}
+			app.colorchips << new_cc
 		}
 
 		chunk_cache_len := int(f.read_raw[i64]()!)
@@ -3393,6 +3394,7 @@ fn (mut app App) load_gate_to_copied(gate_name string) ! {
 		app.copied = []
 		mut lplace := LoadPlaceInstruction{}
 		mut place := PlaceInstruction{}
+		mut load := []PlaceInstruction{}
 		for read_n * sizeof(LoadPlaceInstruction) < size {
 			f.read_struct_at(mut lplace, 8 + read_n * sizeof(LoadPlaceInstruction))!
 			// Change back when tcc will understand enum sizes
@@ -3400,9 +3402,10 @@ fn (mut app App) load_gate_to_copied(gate_name string) ! {
 			place.orientation = lplace.orientation
 			place.rel_x = lplace.rel_x
 			place.rel_y = lplace.rel_y
-			app.copied << place
+			load << place
 			read_n += 1
 		}
+		app.copied = load.clone()
 		f.close()
 	}
 }
