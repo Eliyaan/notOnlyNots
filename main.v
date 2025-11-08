@@ -1784,17 +1784,15 @@ fn (mut app App) load_saved_game(name string) {
 	}
 	app.map_name = name
 	app.pause = false
-	app.nb_updates = 5
 	app.todo = []
 	app.selected_item = .not
 	app.selected_ori = north
 	app.copied = []
-	app.actual_state = 0
 	app.comp_running = true
 	///
 	app.solo_menu = false
 	app.text_input = ''
-	spawn app.computation_loop()
+	app.cl_thread = spawn app.computation_loop()
 	app.cam_x = default_camera_pos_x
 	app.cam_y = default_camera_pos_y
 }
@@ -1991,10 +1989,9 @@ fn (mut app App) quit_map() {
 	app.disable_all_ingame_modes()
 	app.todo << TodoInfo{.quit, 0, 0, 0, 0, app.map_name}
 	dump('waiting for save')
-	for app.comp_alive {} // wait for quitting
+	app.cl_thread.wait()
 	dump('finished save')
 	app.main_menu = true
-	app.chunk_cache = {}
 }
 
 fn (mut app App) handle_ingame_ui_button_click(mouse_x f32, mouse_y f32) {
@@ -2702,6 +2699,7 @@ fn (mut app App) computation_loop() {
 					}
 					.load_gate {
 						app.load_gate_to_copied(todo.name) or {
+							app.copied = []
 							app.log('load gate to copied: ${err}', .err)
 						}
 					}
@@ -3550,6 +3548,7 @@ fn (mut app App) gate_unit_tests(x u32, y u32, square_size int) {
 	} {
 		app.load_gate_to_copied('test_gates/' + gate_path) or {
 			app.log('FAIL: cant load the gate: test_gates/${gate_path}, ${err}', .err)
+			app.copied = []
 			continue
 		}
 		app.paste(x, y)
