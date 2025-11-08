@@ -2741,19 +2741,23 @@ fn (mut app App) computation_loop() {
 				break
 			}
 		}
-		for i in done.reverse() {
-			app.todo.delete(i)
-		}
-		now = time.now().unix_nano()
-		if app.todo.len == 0 && cycle_end - now >= 10000 { // 10micro sec
-			time.sleep((cycle_end - now) * time.nanosecond)
-		}
+		if app.comp_running {
+			for i in done.reverse() {
+				app.todo.delete(i)
+			}
+			now = time.now().unix_nano()
+			if app.todo.len == 0 && cycle_end - now >= 10000 { // 10micro sec
+				time.sleep((cycle_end - now) * time.nanosecond)
+			}
 
-		now = time.now().unix_nano()
-		if !app.pause && app.comp_running {
-			app.update_cycle()
+			now = time.now().unix_nano()
+			if !app.pause && app.comp_running {
+				app.update_cycle()
+			}
+			app.avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * app.avg_update_time
+		} else {
+			app.avg_update_time = 0.0
 		}
-		app.avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * app.avg_update_time
 	}
 	app.comp_alive = false
 }
