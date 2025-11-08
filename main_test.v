@@ -20,7 +20,15 @@ fn test_save() {
 	app.cl_thread.wait()
 	app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), 1], false)
 	app.save_map(name)!
+	app.clear_server_state()
 	app.load_map(name)!
+	app.update_cycle()
+	app.update_cycle()
+	mut x_err, mut y_err, mut str_err := app.test_validity(pos, pos, pos + 100, pos + 100,
+		true, false)
+	if str_err != '' {
+		panic('FAIL: (validity) ${str_err} ${x_err} ${y_err}')
+	}
 	println('Finished test_save')
 }
 

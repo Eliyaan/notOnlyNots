@@ -2819,7 +2819,7 @@ fn (mut app App) load_map(map_name string) ! {
 		}
 		app.n_states[app.actual_state] = []bool{len: int(nots_len)} // to have an array in a good shape
 		f.read_into_ptr(app.n_states[app.actual_state].data, nots_len * int(sizeof(bool)))!
-		app.n_states[(app.actual_state + 1) / 2] = []bool{len: int(nots_len)}
+		app.n_states[(app.actual_state + 1) % 2] = []bool{len: int(nots_len)}
 
 		dead_nots_len := int(f.read_raw[i64]()!)
 		app.dead_nots = []u64{len: dead_nots_len}
@@ -2839,7 +2839,7 @@ fn (mut app App) load_map(map_name string) ! {
 		}
 		app.d_states[app.actual_state] = []bool{len: int(diodes_len)}
 		f.read_into_ptr(app.d_states[app.actual_state].data, diodes_len * int(sizeof(bool)))!
-		app.d_states[(app.actual_state + 1) / 2] = []bool{len: diodes_len}
+		app.d_states[(app.actual_state + 1) % 2] = []bool{len: diodes_len}
 
 		dead_diodes_len := int(f.read_raw[i64]()!)
 		app.dead_diodes = []u64{len: dead_diodes_len}
@@ -2873,7 +2873,7 @@ fn (mut app App) load_map(map_name string) ! {
 		}
 		app.w_states[app.actual_state] = []bool{len: int(wires_len)}
 		f.read_into_ptr(app.w_states[app.actual_state].data, wires_len * int(sizeof(bool)))!
-		app.w_states[(app.actual_state + 1) / 2] = []bool{len: wires_len}
+		app.w_states[(app.actual_state + 1) % 2] = []bool{len: wires_len}
 
 		dead_wires_len := int(f.read_raw[i64]()!)
 		app.dead_wires = []u64{len: dead_wires_len}
