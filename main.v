@@ -471,7 +471,7 @@ fn main() {
 	app.log('Start: ${time.now()}', .info)
 	app.ctx = gg.new_context(
 		create_window: true
-		window_title:  'Nots'
+		window_title:  'Not Gates'
 		user_data:     app
 		init_fn:       on_init
 		frame_fn:      on_frame
@@ -1799,28 +1799,42 @@ fn (mut app App) load_saved_game(name string) {
 	app.cam_y = default_camera_pos_y
 }
 
+fn (mut app App) clear_server_state() {
+	app.map = []Chunk{}
+	app.text_input = ''
+	app.pause = false
+	app.nb_updates = 5
+	app.todo = []
+	app.selected_item = .not
+	app.selected_ori = north
+	app.copied = []
+	app.actual_state = 0
+	app.nots = nots_array_default.clone() // to start the rid at 1
+	app.n_states = [[false], [false]]! // the old state and the actual state list
+	app.dead_nots = []
+	app.dead_nots_lower = 0
+	app.diodes = diode_array_default.clone()
+	app.d_states = [[false], [false]]!
+	app.dead_diodes = []
+	app.dead_diodes_lower = 0
+	app.wires = wire_array_default.clone()
+	app.w_states = [[false], [false]]!
+	app.dead_wires = []
+	app.dead_wires_lower = 0
+	app.forced_states = []
+	app.key_pos = {}
+	app.colorchips = []
+	app.chunk_cache = {}
+}
+
 fn (mut app App) create_game() {
 	dump('create_game')
 	if !os.exists(maps_path + app.text_input) {
 		app.disable_all_ingame_modes()
 		app.solo_menu = false
 		/// serverside
-		app.map = []Chunk{}
 		app.map_name = app.text_input
-		app.text_input = ''
-		app.pause = false
-		app.nb_updates = 5
-		app.todo = []
-		app.selected_item = .not
-		app.selected_ori = north
-		app.copied = []
-		app.actual_state = 0
-		app.nots = nots_array_default.clone() // to start the rid at 1
-		app.n_states = [[false], [false]]! // the old state and the actual state list
-		app.diodes = diode_array_default.clone()
-		app.d_states = [[false], [false]]!
-		app.wires = wire_array_default.clone()
-		app.w_states = [[false], [false]]!
+		app.clear_server_state()
 		app.comp_running = true
 		///
 		println('starting computation!!!')
@@ -2718,6 +2732,7 @@ fn (mut app App) computation_loop() {
 						app.save_map(todo.name) or { app.log('save map: ${err}', .err) }
 						dump('saved')
 						app.comp_running = false
+						app.clear_server_state()
 						app.back_to_main_menu()
 					}
 				}
@@ -3889,7 +3904,7 @@ fn (mut app App) debug_view() ! {
 	app.debug_mode = true
 	app.ctx = gg.new_context(
 		create_window: true
-		window_title:  'Nots'
+		window_title:  'Not Gates'
 		user_data:     app
 		init_fn:       on_init
 		frame_fn:      on_frame
