@@ -2766,21 +2766,15 @@ fn (mut app App) save_copied(name_ string) ! {
 		for os.exists(gates_path + name) {
 			name += 'New'
 		}
-		mut file := os.open_file(gates_path + name, 'w')!
-		file.write_raw(u64(0))! // version 0
-		$if tinyc { // TODO: change back when tcc understands enum sizes
-			mut place := LoadPlaceInstruction{}
-			for p in app.copied {
-				place.elem = u8(p.elem)
-				place.orientation = p.orientation
-				place.rel_x = p.rel_x
-				place.rel_y = p.rel_y
-				file.write_struct(&place)!
-			}
-		} $else {
-			unsafe { file.write_ptr(app.copied.data, app.copied.len * int(sizeof(PlaceInstruction))) } // TODO : get the output nb and log it -> successful or not?
+		mut f := os.open_file(gates_path + name, 'w')!
+		f.write_raw(u64(1))! // version 1
+		for p in app.copied {
+			f.write_raw(u8(p.elem))!
+			f.write_raw(p.orientation)!
+			f.write_raw(p.rel_x)!
+			f.write_raw(p.rel_y)!
 		}
-		file.close()
+		f.close()
 	}
 }
 
@@ -3374,14 +3368,6 @@ fn (mut app App) old_load_gate_to_copied(gate_name string) ! {
 	f.close()
 }
 
-struct LoadPlaceInstruction {
-mut:
-	elem        u8
-	orientation u8
-	rel_x       i32
-	rel_y       i32
-}
-
 fn (mut app App) load_gate_to_copied(gate_name string) ! {
 	if gate_name#[0..3] == 'old' {
 		app.old_load_gate_to_copied(gate_name)!
@@ -3389,21 +3375,35 @@ fn (mut app App) load_gate_to_copied(gate_name string) ! {
 		mut f := os.open(gates_path + gate_name)!
 		mut read_n := u32(0)
 		version := f.read_raw[u64]()!
-		assert version == 0
-		size := os.inode(gates_path + gate_name).size - 8 // for the version
 		app.copied = []
-		mut lplace := LoadPlaceInstruction{}
 		mut place := PlaceInstruction{}
 		mut load := []PlaceInstruction{}
-		for read_n * sizeof(LoadPlaceInstruction) < size {
-			f.read_struct_at(mut lplace, 8 + read_n * sizeof(LoadPlaceInstruction))!
-			// Change back when tcc will understand enum sizes
-			place.elem = Elem.from(lplace.elem)!
-			place.orientation = lplace.orientation
-			place.rel_x = lplace.rel_x
-			place.rel_y = lplace.rel_y
-			load << place
-			read_n += 1
+		size := os.inode(gates_path + gate_name).size - 8 // for the version
+		if version == 0 {
+			for read_n * 12 < size {
+				// Change back when tcc will understand enum sizes
+				e := f.read_raw[u8]()!
+				place.elem = Elem.from(e)!
+				place.orientation = f.read_raw[u8]()!
+				_ := f.read_raw[u16]()!
+				place.rel_x = f.read_raw[i32]()!
+				place.rel_y = f.read_raw[i32]()!
+				load << place
+				read_n += 1
+			}
+		} else if version == 1 {
+			for read_n * 10 < size {
+				// Change back when tcc will understand enum sizes
+				e := f.read_raw[u8]()!
+				place.elem = Elem.from(e)!
+				place.orientation = f.read_raw[u8]()!
+				place.rel_x = f.read_raw[i32]()!
+				place.rel_y = f.read_raw[i32]()!
+				load << place
+				read_n += 1
+			}
+		} else {
+			app.log('Load gate: invalid version number ${version}', .warn)
 		}
 		app.copied = load.clone()
 		f.close()
