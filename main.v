@@ -100,12 +100,13 @@ const input_box_w = 250.0
 const input_box_h = 35.0
 const info_text_off = 10.0
 const info_text_spacing = 20.0
-const button_solo_w = f32(600.0)
-const button_solo_h = f32(600.0)
-const button_solo_x = f32(711.0) - button_solo_w / 2.0
-const button_solo_y = f32(400.0) - button_solo_h / 2.0
+const button_solo_w = f32(244.0)
+const button_solo_h = f32(125.0)
+const button_solo_x = f32(900.0) - button_solo_w / 2.0
+const button_solo_y = f32(500.0) - button_solo_h / 2.0
 const button_quit_size = f32(50.0)
 const btn_quit_ofst = f32(20.0)
+const btn_quit_y = f32(700.0)
 const maps_x_offset = f32(50.0)
 const maps_y_offset = f32(50.0)
 const maps_top_spacing = f32(0.0)
@@ -355,8 +356,9 @@ mut:
 	scroll_pos        f32
 	debug_mode        bool
 	// main menu
-	main_menu bool
-	solo_img  gg.Image
+	main_menu  bool
+	solo_img   gg.Image
+	banner_img gg.Image
 	// solo menu TODO: display map info of the hovered map (size bits, nb of hours played, gates placed... fun stuff)
 	solo_menu      bool
 	map_delete_nb  int = -1
@@ -502,17 +504,17 @@ fn (mut app App) init_graphics() ! {
 		app.buttons[.load_gate].img = app.ctx.create_image(sprites_path + 'load_gate.png')!
 		app.buttons[.save_gate].img = app.ctx.create_image(sprites_path + 'save_gate.png')!
 		app.buttons[.edit_color].img = app.ctx.create_image(sprites_path + 'edit_color.png')!
-		app.buttons[.item_nots].img = app.ctx.create_image(sprites_path + 'item_nots.png')!
+		app.buttons[.item_nots].img = app.ctx.create_image(sprites_path + 'not_off.png')!
 		app.buttons[.create_color_chip].img = app.ctx.create_image(sprites_path +
 			'create_color_chip.png')!
 		app.buttons[.add_input].img = app.ctx.create_image(sprites_path + 'add_input.png')!
-		app.buttons[.item_diode].img = app.ctx.create_image(sprites_path + 'item_diode.png')!
+		app.buttons[.item_diode].img = app.ctx.create_image(sprites_path + 'diode_off.png')!
 		app.buttons[.copy_settings].img = app.ctx.create_image(sprites_path + 'steal_settings.png')!
-		app.buttons[.item_crossing].img = app.ctx.create_image(sprites_path + 'item_crossing.png')!
+		app.buttons[.item_crossing].img = app.ctx.create_image(sprites_path + 'junction.png')!
 		app.buttons[.delete_colorchip].img = app.ctx.create_image(sprites_path +
 			'delete_colorchip.png')!
-		app.buttons[.item_on].img = app.ctx.create_image(sprites_path + 'item_on.png')!
-		app.buttons[.item_wire].img = app.ctx.create_image(sprites_path + 'item_wire.png')!
+		app.buttons[.item_on].img = app.ctx.create_image(sprites_path + 'on.png')!
+		app.buttons[.item_wire].img = app.ctx.create_image(sprites_path + 'wire_on.png')!
 		app.buttons[.speed].img = app.ctx.create_image(sprites_path + 'speed.png')!
 		app.buttons[.slow].img = app.ctx.create_image(sprites_path + 'slow.png')!
 		app.buttons[.pause].img = app.ctx.create_image(sprites_path + 'pause.png')!
@@ -537,7 +539,8 @@ fn (mut app App) init_graphics() ! {
 	app.wire_off_img = app.ctx.create_image(sprites_path + 'wire_off.png')!
 	app.junc_img = app.ctx.create_image(sprites_path + 'junction.png')!
 	app.on_img = app.ctx.create_image(sprites_path + 'on.png')!
-	app.solo_img = app.ctx.create_image(sprites_path + 'nots_icon.png')!
+	app.banner_img = app.ctx.create_image(sprites_path + 'banner.png')!
+	app.solo_img = app.ctx.create_image(sprites_path + 'play.png')!
 	app.load_palette()
 }
 
@@ -867,10 +870,11 @@ fn on_frame(mut app App) {
 			}
 		}
 	} else if app.main_menu {
+		app.ctx.draw_image(0, 0, 1422 * app.ui, 800 * app.ui, app.banner_img)
 		app.ctx.draw_image(button_solo_x * app.ui, button_solo_y * app.ui, button_solo_w * app.ui,
 			button_solo_h * app.ui, app.solo_img)
-		app.ctx.draw_image(btn_quit_ofst * app.ui, (button_solo_h + btn_quit_ofst) * app.ui,
-			button_quit_size * app.ui, button_quit_size * app.ui, unsafe { app.buttons[.quit_map].img })
+		app.ctx.draw_image(btn_quit_ofst * app.ui, btn_quit_y * app.ui, button_quit_size * app.ui,
+			button_quit_size * app.ui, unsafe { app.buttons[.quit_map].img })
 	} else if app.solo_menu {
 		for i, m in app.map_names_list.filter(it.contains(app.text_input)) { // the maps are filtered with the search field
 			y := (maps_y_offset + maps_top_spacing) * (i + 1) * app.ui
@@ -895,7 +899,12 @@ fn on_frame(mut app App) {
 		app.ctx.draw_image(back_x, back_y, back_s, back_s, unsafe { app.buttons[.quit_map].img })
 		text_x := int(text_field_x * app.ui)
 		text_y := int((text_field_y + button_new_map_size / 2 - f32(ui_log_cfg.size) / 2) * app.ui)
-		app.ctx.draw_text(text_x, text_y, 'Create/search map: ' + app.text_input, ui_log_cfg)
+		text_input := if app.text_input != '' {
+			app.text_input
+		} else {
+			'[enter a map name]'
+		}
+		app.ctx.draw_text(text_x, text_y, 'Create/search map: ' + text_input, ui_log_cfg)
 	} else {
 		app.disable_all_ingame_modes()
 		app.ctx.draw_square_filled(0, 0, 10, gg.Color{255, 0, 0, 255})
@@ -2105,8 +2114,8 @@ fn on_event(e &gg.Event, mut app App) {
 					app.go_map_menu()
 				} else if mouse_x >= app.ui * btn_quit_ofst
 					&& mouse_x < app.ui * (btn_quit_ofst + button_quit_size)
-					&& mouse_y >= app.ui * (button_solo_h + btn_quit_ofst)
-					&& mouse_y < app.ui * (button_solo_h + btn_quit_ofst + button_quit_size) {
+					&& mouse_y >= app.ui * btn_quit_y
+					&& mouse_y < app.ui * (btn_quit_y + button_quit_size) {
 					exit(0)
 				}
 			} else if app.solo_menu {
@@ -2752,7 +2761,8 @@ fn (mut app App) computation_loop() {
 			if !app.pause && app.comp_running {
 				app.update_cycle()
 			}
-			app.avg_update_time = f32(time.now().unix_nano() - now) * 0.1 + 0.9 * app.avg_update_time
+			app.avg_update_time = f32(time.now().unix_nano() - now) * 0.1 +
+				0.9 * app.avg_update_time
 		} else {
 			app.avg_update_time = 0.0
 		}
@@ -3180,8 +3190,10 @@ fn (mut app App) save_map(map_name string) ! {
 			}
 			offset += sizeof(u32)
 		}
-		unsafe { file.write_ptr_at(wire.cable_chunk_i.data, wire.cable_chunk_i.len * int(sizeof(i64)),
-			offset) }
+		unsafe {
+			file.write_ptr_at(wire.cable_chunk_i.data, wire.cable_chunk_i.len * int(sizeof(i64)),
+				offset)
+		}
 		offset += u64(wire.cable_chunk_i.len) * sizeof(i64)
 	}
 	unsafe {

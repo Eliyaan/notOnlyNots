@@ -240,7 +240,7 @@ fn test_seeded_fuzz() {
 		eprint('\r${i}')
 		app.removal(pos, pos, end, end)
 		app.fuzz(pos, pos, end, end, 2 * size * size, 2 * size, [u32(seed_offset), i],
-			false) // TODO: set the 0 to an offset
+			false)
 		app.update_cycle()
 		for _ in 0 .. nb_cycles {
 			app.update_cycle()
