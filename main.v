@@ -2766,7 +2766,7 @@ fn (mut app App) save_copied(name_ string) ! {
 		for os.exists(gates_path + name) {
 			name += 'New'
 		}
-		mut f := os.open_file(gates_path + name, 'w')!
+		mut f := os.open_file(gates_path + name, 'wb')! // 'wb' because on windows writing 10 to a file translates to 0D 0A 00 00 00 because 0A is new line and 0D carriage return in text mode
 		f.write_raw(u64(1))! // version 1
 		for p in app.copied {
 			f.write_raw(u8(p.elem))!
@@ -2989,7 +2989,7 @@ fn (mut app App) save_map(map_name string) ! {
 	// 	u64 value
 	//	i32 associated index
 
-	mut file := os.open_file(maps_path + map_name, 'w') or { // TODO: open a tmp file, and then copy it to the true one
+	mut file := os.open_file(maps_path + map_name, 'wb') or { // TODO: open a tmp file, and then copy it to the true one
 		app.log('${@LOCATION}: ${err}', .err)
 		return
 	}
@@ -3380,6 +3380,7 @@ fn (mut app App) load_gate_to_copied(gate_name string) ! {
 		mut load := []PlaceInstruction{}
 		size := os.inode(gates_path + gate_name).size - 8 // for the version
 		if version == 0 {
+			app.log('Load gate: version number ${version}', .info)
 			for read_n * 12 < size {
 				// Change back when tcc will understand enum sizes
 				e := f.read_raw[u8]()!
