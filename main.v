@@ -554,14 +554,6 @@ fn (mut app App) load_palette() {
 		app.log('Loading palette: ${err}', .err)
 		return
 	}
-	app.palette.junc = toml_palette_color('junc', doc)
-	app.palette.junc_v = toml_palette_color('junc_v', doc)
-	app.palette.junc_h = toml_palette_color('junc_h', doc)
-	app.palette.wire_on = toml_palette_color('wire_on', doc)
-	app.palette.wire_off = toml_palette_color('wire_off', doc)
-	app.palette.on = toml_palette_color('on', doc)
-	app.palette.not = toml_palette_color('not', doc)
-	app.palette.diode = toml_palette_color('diode', doc)
 	app.palette.background = toml_palette_color('background', doc)
 	app.palette.place_preview = toml_palette_color('place_preview', doc)
 	app.palette.copy_preview = toml_palette_color('copy_preview', doc)
@@ -701,6 +693,18 @@ fn on_frame(mut app App) {
 			app.ctx.draw_text(text_x, text_y, 'Load gate: ${app.text_input}', ui_log_cfg)
 			// search results
 
+			if !os.exists(gates_path) {
+				if !os.exists(player_data_path) {
+					os.mkdir(player_data_path) or {
+						app.log('Cannot create ${player_data_path}, ${err}', .err)
+						return
+					}
+				}
+				os.mkdir(gates_path) or {
+					app.log('Cannot create ${gates_path}, ${err}', .err)
+					return
+				}
+			}
 			app.gate_name_list = os.ls(gates_path) or {
 				app.log('cannot list files in ${gates_path}, ${err}', .err)
 				[]string{}
@@ -1666,7 +1670,7 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		app.pause = !app.pause
 	} else if b == .save_map {
 		app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
-		for app.todo.len > 0 {} // wait
+// WIP
 	} else if b == .quit_map {
 		app.quit_map()
 	} else if b == .cc_mode {
@@ -1767,12 +1771,24 @@ fn (mut app App) go_map_menu() {
 	app.map_delete_nb = -1
 	app.text_input = ''
 	if !os.exists(maps_path) {
+		if !os.exists(player_data_path) {
+			os.mkdir(player_data_path) or {
+				app.log('Cannot create ${player_data_path}, ${err}', .err)
+				return
+			}
+		}
 		os.mkdir(maps_path) or {
 			app.log('Cannot create ${maps_path}, ${err}', .err)
 			return
 		}
 	}
-	if !os.exists(gates_path) { // this one too in case
+	if !os.exists(gates_path) {
+		if !os.exists(player_data_path) {
+			os.mkdir(player_data_path) or {
+				app.log('Cannot create ${player_data_path}, ${err}', .err)
+				return
+			}
+		}
 		os.mkdir(gates_path) or {
 			app.log('Cannot create ${maps_path}, ${err}', .err)
 			return
@@ -2267,6 +2283,19 @@ fn on_event(e &gg.Event, mut app App) {
 					} else if mouse_x < app.ui * ui_width {
 						app.handle_ingame_ui_button_click(mouse_x, mouse_y)
 					} else {
+						if !os.exists(gates_path) {
+							if !os.exists(player_data_path) {
+								os.mkdir(player_data_path) or {
+									app.log('Cannot create ${player_data_path}, ${err}',
+										.err)
+									return
+								}
+							}
+							os.mkdir(gates_path) or {
+								app.log('Cannot create ${gates_path}, ${err}', .err)
+								return
+							}
+						}
 						app.gate_name_list = os.ls(gates_path) or {
 							app.log('cannot list files in ${gates_path}, ${err}', .err)
 							return
@@ -2698,7 +2727,14 @@ fn (mut app App) computation_loop() {
 				dump(todo)
 				match todo.task {
 					.save_map {
-						app.save_map(todo.name) or { app.log('save map: ${err}', .err) }
+						mut failed := false
+						app.save_map(todo.name) or { 
+							app.log('save map: ${err}', .err)
+							failed = true
+						}
+						if !failed {
+							app.log('Map saved successfully', .info)
+						}
 					}
 					.removal {
 						app.removal(todo.x, todo.y, todo.x_end, todo.y_end)
@@ -2735,9 +2771,14 @@ fn (mut app App) computation_loop() {
 						app.copy(todo.x, todo.y, todo.x_end, todo.y_end)
 					}
 					.quit {
-						dump('saving')
-						app.save_map(todo.name) or { app.log('save map: ${err}', .err) }
-						dump('saved')
+						mut failed := false
+						app.save_map(todo.name) or { 
+							app.log('save map: ${err}', .err)
+							failed = true
+						}
+						if !failed {
+							app.log('Map saved successfully', .info)
+						}
 						app.comp_running = false
 						app.clear_server_state()
 						app.back_to_main_menu()
