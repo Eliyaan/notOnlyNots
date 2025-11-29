@@ -8,6 +8,8 @@ import gg
 import sokol.sgl
 import toml
 
+#flag windows --static
+
 // NEXT BIG STEPS:
 // MULTITHREADING
 // MULTIPLAYER
