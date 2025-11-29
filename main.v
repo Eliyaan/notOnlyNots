@@ -8,6 +8,7 @@ import gg
 import sokol.sgl
 import toml
 
+@[mingw]
 #flag windows --static
 
 // NEXT BIG STEPS:
@@ -1672,7 +1673,7 @@ fn (mut app App) handle_ingame_ui_button_interrac(b Buttons) {
 		app.pause = !app.pause
 	} else if b == .save_map {
 		app.todo << TodoInfo{.save_map, 0, 0, 0, 0, app.map_name}
-// WIP
+		// WIP
 	} else if b == .quit_map {
 		app.quit_map()
 	} else if b == .cc_mode {
@@ -2730,7 +2731,7 @@ fn (mut app App) computation_loop() {
 				match todo.task {
 					.save_map {
 						mut failed := false
-						app.save_map(todo.name) or { 
+						app.save_map(todo.name) or {
 							app.log('save map: ${err}', .err)
 							failed = true
 						}
@@ -2774,7 +2775,7 @@ fn (mut app App) computation_loop() {
 					}
 					.quit {
 						mut failed := false
-						app.save_map(todo.name) or { 
+						app.save_map(todo.name) or {
 							app.log('save map: ${err}', .err)
 							failed = true
 						}
