@@ -88,6 +88,8 @@ const wire_array_default = [Wire{
 }]
 
 // UI sizes
+const default_win_height = f32(800.0)
+const default_win_width = f32(1422.0)
 const log_cfg = gg.TextCfg{
 	size:  16
 	color: gg.black
@@ -123,22 +125,22 @@ const btn_back_y = f32(50.0)
 const btn_back_s = f32(40.0)
 const text_field_x = f32(50.0)
 const text_field_y = f32(5.0)
-const editmenu_inputsize = f32(50.0)
-const editmenu_input_x_space = f32(10.0)
-const editmenu_rgb_y = f32(10.0)
+const editmenu_offset_x = default_win_width * 2 / 3
+const editmenu_offset_y = f32(30.0)
+const editmenu_offset_inputs_x = f32(60.0)
+const editmenu_offset_inputs_y = f32(10.0)
+const editmenu_offset_colors_x = f32(60.0)
+const editmenu_offset_colors_y = f32(120.0)
+const editmenu_inputsize = f32(20.0)
+const editmenu_input_x_space = f32(5.0)
+const editmenu_rgb_y = f32(60.0)
 const editmenu_rgb_h = f32(40.0)
 const editmenu_rgb_w = f32(40.0)
 const editmenu_r_x = f32(60.0)
 const editmenu_g_x = f32(110.0)
 const editmenu_b_x = f32(160.0)
-const editmenu_offset_x = f32(160.0)
-const editmenu_offset_y = f32(160.0)
-const editmenu_colorsize = f32(50.0)
+const editmenu_colorsize = f32(20.0)
 const editmenu_colorborder = f32(6.0)
-const editmenu_offset_inputs_x = f32(60.0)
-const editmenu_offset_inputs_y = f32(60.0)
-const editmenu_offset_colors_x = f32(60.0)
-const editmenu_offset_colors_y = f32(120.0)
 const gate_text_off_x = 10.0
 const gate_x_ofst = f32(5.0)
 const gate_y_offset = f32(50.0)
@@ -584,7 +586,7 @@ fn on_frame(mut app App) {
 	app.mouse_map_y = u32(app.cam_y + app.ctx.mouse_pos_y / app.tile_size)
 	app.draw_count = 1
 	app.s = app.ctx.window_size()
-	app.ui = f32(app.s.height) / f32(800.0)
+	app.ui = f32(app.s.height) / f32(default_win_height)
 	// Draw
 	app.ctx.begin()
 	app.ctx.draw_rect_filled(0, 0, app.s.width, app.s.height, app.palette.background)
@@ -724,6 +726,14 @@ fn on_frame(mut app App) {
 		}
 		if app.edit_mode {
 			if app.edit_color_submode && app.selected_colorchip != -1 {
+				last_rel_input_y := (app.colorchips[app.selected_colorchip].inputs.len - 1) / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
+				x_bg := app.ui * (editmenu_offset_x + editmenu_offset_colors_x / 2)
+				y_bg := app.ui * editmenu_offset_y
+				h_bg := app.ui * (editmenu_offset_y + editmenu_offset_colors_y) +
+					(app.colorchips[app.selected_colorchip].colors.len / app.editmenu_nb_color_by_row +
+					1) * app.ui * editmenu_colorsize + last_rel_input_y - y_bg + editmenu_colorsize
+				w_bg := app.ui * 1000
+				app.ctx.draw_rect_filled(x_bg, y_bg, w_bg, h_bg, app.palette.ui_bg)
 				for i in 0 .. app.colorchips[app.selected_colorchip].inputs.len {
 					x := app.ui * (editmenu_offset_inputs_x + editmenu_offset_x) +
 						i % app.editmenu_nb_inputs_by_row * app.ui * (editmenu_inputsize +
@@ -731,10 +741,10 @@ fn on_frame(mut app App) {
 					y := app.ui * (editmenu_offset_inputs_y + editmenu_offset_y) +
 						i / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
 					size := app.ui * editmenu_inputsize
-					app.ctx.draw_square_filled(x, y, size, app.palette.ui_bg)
+					app.ctx.draw_square_filled(x, y, size, app.palette.input_preview)
+					app.ctx.draw_text(int(x), int(y), i.str(), ui_log_cfg)
 				}
 
-				last_rel_input_y := (app.colorchips[app.selected_colorchip].inputs.len - 1) / app.editmenu_nb_inputs_by_row * app.ui * editmenu_inputsize
 				for i, color in app.colorchips[app.selected_colorchip].colors {
 					x := app.ui * (editmenu_offset_x + editmenu_offset_colors_x) +
 						i % app.editmenu_nb_color_by_row * app.ui * editmenu_colorsize
@@ -742,13 +752,25 @@ fn on_frame(mut app App) {
 						i / app.editmenu_nb_color_by_row * app.ui * editmenu_colorsize +
 						last_rel_input_y
 					size := app.ui * editmenu_colorsize
-					border := app.ui * editmenu_colorborder
-					if i == app.editmenu_selected_color {
-						app.ctx.draw_square_filled(x - border, y - border, size + 2 * border,
-							color)
-					}
 					app.ctx.draw_square_filled(x, y, size, color)
 				}
+				// Selected color
+				if app.editmenu_selected_color >= 0
+					&& app.editmenu_selected_color < app.colorchips[app.selected_colorchip].colors.len {
+					x := app.ui * (editmenu_offset_x + editmenu_offset_colors_x) +
+						app.editmenu_selected_color % app.editmenu_nb_color_by_row * app.ui * editmenu_colorsize
+					y := app.ui * (editmenu_offset_y + editmenu_offset_colors_y) +
+						app.editmenu_selected_color / app.editmenu_nb_color_by_row * app.ui * editmenu_colorsize +
+						last_rel_input_y
+					size := app.ui * editmenu_colorsize
+					border := app.ui * editmenu_colorborder
+					app.ctx.draw_square_filled(x - border, y - border, size + 2 * border,
+						app.colorchips[app.selected_colorchip].colors[app.editmenu_selected_color])
+					app.ctx.draw_square_empty(x - border, y - border, size + 2 * border,
+						gg.rgb(39, 188, 235))
+				}
+
+				// rgb picker
 				rgb_y := app.ui * (editmenu_rgb_y + editmenu_offset_y)
 				rgb_h := app.ui * editmenu_rgb_h
 				rgb_w := app.ui * editmenu_rgb_w
@@ -877,7 +899,8 @@ fn on_frame(mut app App) {
 			}
 		}
 	} else if app.main_menu {
-		app.ctx.draw_image(0, 0, 1422 * app.ui, 800 * app.ui, app.banner_img)
+		app.ctx.draw_image(0, 0, default_win_width * app.ui, default_win_height * app.ui,
+			app.banner_img)
 		app.ctx.draw_image(button_solo_x * app.ui, button_solo_y * app.ui, button_solo_w * app.ui,
 			button_solo_h * app.ui, app.solo_img)
 		app.ctx.draw_image(btn_quit_ofst * app.ui, btn_quit_y * app.ui, button_quit_size * app.ui,
@@ -1888,13 +1911,15 @@ fn (mut app App) check_and_delete_colorchip_input(mouse_x f32, mouse_y f32) {
 		if mouse_x >= x && mouse_x < x + app.ui * editmenu_inputsize {
 			if mouse_y >= y && mouse_y < y + app.ui * editmenu_inputsize {
 				if app.e.mouse_button == .right {
+					/*
 					app.colorchips[app.selected_colorchip].inputs.delete(i)
 					for app.colorchips[app.selected_colorchip].colors.len > pow(2, app.colorchips[app.selected_colorchip].inputs.len) {
 						app.colorchips[app.selected_colorchip].colors.delete(app.colorchips[app.selected_colorchip].colors.len - 1)
 					}
+					*/
 				} else if app.e.mouse_button == .left {
-					app.cam_x = app.colorchips[app.selected_colorchip].inputs[i].x
-					app.cam_y = app.colorchips[app.selected_colorchip].inputs[i].y
+					app.cam_x = app.colorchips[app.selected_colorchip].inputs[i].x - u32(app.s.width / 2 / app.tile_size)
+					app.cam_y = app.colorchips[app.selected_colorchip].inputs[i].y - u32(app.s.height / 2 / app.tile_size)
 				}
 			}
 		}
@@ -2098,7 +2123,7 @@ fn (mut app App) update_mouse_action() {
 
 fn on_event(e &gg.Event, mut app App) {
 	app.s = app.ctx.window_size()
-	app.ui = f32(app.s.height) / f32(800.0)
+	app.ui = f32(app.s.height) / f32(default_win_height)
 	unsafe {
 		app.e = e
 	}
@@ -2227,12 +2252,17 @@ fn on_event(e &gg.Event, mut app App) {
 							app.delete_colorchip_at(mouse_x, mouse_y)
 						} else if app.add_input_submode && app.selected_colorchip != -1 {
 							if e.mouse_button == .left {
-								app.colorchips[app.selected_colorchip].inputs << Coo{u32(
-									app.cam_x + (mouse_x / app.tile_size)), u32(app.cam_y +
-									(mouse_y / app.tile_size))}
-								for app.colorchips[app.selected_colorchip].colors.len < pow(2,
-									app.colorchips[app.selected_colorchip].inputs.len) {
-									app.colorchips[app.selected_colorchip].colors << gg.white
+								if app.colorchips[app.selected_colorchip].inputs.len < 9 {
+									app.colorchips[app.selected_colorchip].inputs << Coo{u32(
+										app.cam_x + (mouse_x / app.tile_size)), u32(app.cam_y +
+										(mouse_y / app.tile_size))}
+									for app.colorchips[app.selected_colorchip].colors.len < pow(2,
+										app.colorchips[app.selected_colorchip].inputs.len) {
+										app.colorchips[app.selected_colorchip].colors << gg.white
+									}
+								} else {
+									app.log('Cannot add more inputs to the colorchip',
+										.info)
 								}
 							} else if e.mouse_button == .right {
 								coo := Coo{u32(app.cam_x + (mouse_x / app.tile_size)), u32(

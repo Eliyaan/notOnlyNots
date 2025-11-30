@@ -21,4 +21,4 @@ os.mkdir(windows_dir)!
 os.mkdir(windows_dir + '/player_data')!
 os.cp('player_data/palette.toml', windows_dir + '/player_data/palette.toml')!
 os.cp_all('game_data', windows_dir + '/game_data', true)!
-println(os.execute('v -os windows -prod -no-bounds-checking -o ${windows_dir}/${exec_name_windows} .'))
+println(os.execute('v -subsystem windows -os windows -prod -no-bounds-checking -o ${windows_dir}/${exec_name_windows} .'))
