@@ -1827,7 +1827,6 @@ fn (mut app App) go_map_menu() {
 }
 
 fn (mut app App) load_saved_game(name string) {
-	dump('load_saved_game')
 	/// server side
 	app.load_map(name) or {
 		app.log('Cannot load map ${name}, ${err}', .err)
@@ -1877,7 +1876,6 @@ fn (mut app App) clear_server_state() {
 }
 
 fn (mut app App) create_game() {
-	dump('create_game')
 	if !os.exists(maps_path + app.text_input) {
 		app.disable_all_ingame_modes()
 		app.solo_menu = false
@@ -1886,7 +1884,6 @@ fn (mut app App) create_game() {
 		app.clear_server_state()
 		app.comp_running = true
 		///
-		println('starting computation!!!')
 		app.cl_thread = spawn app.computation_loop()
 		app.cam_x = default_camera_pos_x
 		app.cam_y = default_camera_pos_y
@@ -2038,12 +2035,9 @@ fn (mut app App) placement_released_at(mouse_x f32, mouse_y f32, e &gg.Event) {
 }
 
 fn (mut app App) quit_map() {
-	dump('quit_map')
 	app.disable_all_ingame_modes()
 	app.todo << TodoInfo{.quit, 0, 0, 0, 0, app.map_name}
-	dump('waiting for save')
 	app.cl_thread.wait()
-	dump('finished save')
 	app.main_menu = true
 }
 
@@ -2701,7 +2695,6 @@ fn (mut app App) log(message string, log_type Log) {
 		println('LOG: ${log_type} ${message}\n${err}')
 	}
 	f.close()
-	println(message)
 	// x2 because size is the height of the char and the width of the char is size/2
 	app.log = message.wrap(width: 2 * log_width / log_cfg.size).split('\n')
 	app.log_border = match log_type {
@@ -2757,7 +2750,6 @@ fn (mut app App) computation_loop() {
 		for i, todo in app.todo {
 			now = time.now().unix_nano()
 			if now < cycle_end || i == 0 {
-				dump(todo)
 				match todo.task {
 					.save_map {
 						mut failed := false
