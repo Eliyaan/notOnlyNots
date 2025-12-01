@@ -2401,7 +2401,7 @@ fn on_event(e &gg.Event, mut app App) {
 		.mouse_scroll {
 			app.scroll()
 		}
-		.key_up {
+		.key_down {
 			if !(app.solo_menu || app.load_gate_mode || app.keyinput_mode || app.save_gate_mode) {
 				match e.key_code {
 					._0, ._1, ._2, ._3, ._4, ._5, ._6, ._7, ._8, ._9 {
@@ -2419,8 +2419,6 @@ fn on_event(e &gg.Event, mut app App) {
 					else {}
 				}
 			}
-		}
-		.key_down {
 			if app.placement_mode {
 				if e.key_code == .r {
 					if e.modifiers & 1 == 1 { // shift: 1<<0
@@ -2446,6 +2444,12 @@ fn on_event(e &gg.Event, mut app App) {
 			if app.solo_menu {
 				if e.key_code == .backspace {
 					app.text_input = app.text_input#[..-1]
+				} else if e.key_code == .enter {
+					if app.text_input != '' {
+						app.create_game()
+					}
+				} else if e.key_code == .escape {
+					app.back_to_main_menu()
 				}
 			} else if app.load_gate_mode {
 				if e.key_code == .backspace {
@@ -2455,12 +2459,10 @@ fn on_event(e &gg.Event, mut app App) {
 			} else if app.save_gate_mode {
 				if e.key_code == .backspace {
 					app.text_input = app.text_input#[..-1]
+				} else if e.key_code == .enter {
+					app.handle_ingame_ui_button_interrac(.confirm_save_gate)
 				}
 			} else {
-				match e.key_code {
-					.escape {}
-					else {}
-				}
 				match e.key_code {
 					.z, .w, .up { app.cam_y -= 1 }
 					.s, .down { app.cam_y += 1 }
@@ -2469,10 +2471,13 @@ fn on_event(e &gg.Event, mut app App) {
 					else {}
 				}
 			}
+			if e.key_code == .escape {
+				app.handle_ingame_ui_button_interrac(.cancel_button)
+			}
 		}
 		else {}
 	}
-	if e.char_code != 0 && e.char_code != 8 { // nothing, backspace
+	if e.char_code >= 32 && e.char_code <= 126 {
 		if app.solo_menu {
 			app.text_input += u8(e.char_code).ascii_str()
 		} else if app.load_gate_mode {
