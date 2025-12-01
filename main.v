@@ -5341,7 +5341,7 @@ fn (mut app App) set_elem_state_by_pos(x u32, y u32) {
 		unsafe {
 			chunkmap[xmap * chunk_size + ymap] = chunkmap[xmap * chunk_size + ymap] | on_bits
 		}
-		app.w_states[app.actual_state][i] = false
+		app.w_states[app.actual_state][i] = true
 		mut last_cm_x := x
 		mut last_cm_y := y
 		for cc in app.wires[i].cable_coords {
