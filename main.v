@@ -1,6 +1,6 @@
 module main
 
-import math { pow }
+import math { pow, smoothstep }
 import os
 import rand
 import time
@@ -1328,18 +1328,71 @@ fn (mut app App) draw_map() {
 	// map rendering
 	virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
 	virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
-	if app.tile_size > 8 {
-		for i in 0 .. (size.width) / app.tile_size + 1 {
-			pos_x := f32((int(virt_cam_x) - virt_cam_x + i) * app.tile_size)
-			app.ctx.draw_line(pos_x, 0, pos_x, size.height, app.palette.grid)
-			app.draw_count += 1
-		}
-		for i in 0 .. (size.height) / app.tile_size + 1 {
-			pos_y := f32((int(virt_cam_y) - virt_cam_y + i) * app.tile_size)
-			app.ctx.draw_line(0, pos_y, size.width, pos_y, app.palette.grid)
-			app.draw_count += 1
-		}
-	}
+
+  // grid sizes: 1 8 64
+  fact := 8
+  grid_size := fact * app.tile_size
+  sub_intensity := smoothstep[f32](f32(fact), f32(fact * 8), f32(app.tile_size))
+  sup_intensity := smoothstep[f32](f32(fact), f32(fact / 8), f32(app.tile_size))
+  main_intensity := f32(1.0 - sup_intensity - sub_intensity)
+
+  // sub grid
+  if sub_intensity > 0.0 {
+    level_fact := fact / 8
+    level_size := grid_size / 8
+    offset_x := int(virt_cam_x / level_fact) - virt_cam_x / level_fact
+    grid_color := mix_color(app.palette.grid, app.palette.background, sub_intensity)
+    for i in 1 .. size.width / level_size + 1 {
+      // if int(i + offset_x / level_fact) & 7 == 0 { continue } // TODO: stop overdraw
+      pos_x := f32((offset_x + i) * level_size)
+      app.ctx.draw_line(pos_x, 0, pos_x, size.height, grid_color)
+      app.draw_count += 1
+    }
+    offset_y := int(virt_cam_y / level_fact) - virt_cam_y / level_fact
+    for i in 0 .. size.height / level_size + 1 {
+      // if int(i + offset_y) & 7 == 0 { continue } // TODO: ~7 above
+      pos_y := f32((offset_y + i) * level_size)
+      app.ctx.draw_line(0, pos_y, size.width, pos_y, grid_color)
+    }
+  }
+
+  // main grid
+  if main_intensity > sub_intensity {
+    level_fact := fact
+    level_size := grid_size
+    offset_x := int(virt_cam_x / level_fact) - virt_cam_x / level_fact
+    grid_color := mix_color(app.palette.grid, app.palette.background, main_intensity)
+    for i in 1 .. size.width / level_size + 1 {
+      // if i & 7 == 0 { continue } // TODO: ^ same as last
+      pos_x := f32((offset_x + i) * level_size)
+      app.ctx.draw_line(pos_x, 0, pos_x, size.height, grid_color)
+      app.draw_count += 1
+    }
+    offset_y := int(virt_cam_y / level_fact) - virt_cam_y / level_fact
+    for i in 0 .. size.height / level_size + 1 {
+      // if i & 7 == 0 { continue } // TODO: look above
+      pos_y := f32((offset_y + i) * level_size)
+      app.ctx.draw_line(0, pos_y, size.width, pos_y, grid_color)
+    }
+  }
+
+  // super grid
+  if sup_intensity > main_intensity {
+    level_fact := fact * 8
+    level_size := grid_size * 8
+    offset_x := int(virt_cam_x / level_fact) - virt_cam_x / level_fact
+    grid_color := mix_color(app.palette.grid, app.palette.background, sup_intensity)
+    for i in 1 .. size.width / level_size + 1 {
+      pos_x := f32((offset_x + i) * level_size)
+      app.ctx.draw_line(pos_x, 0, pos_x, size.height, grid_color)
+      app.draw_count += 1
+    }
+    offset_y := int(virt_cam_y / level_fact) - virt_cam_y / level_fact
+    for i in 0 .. size.height / level_size + 1 {
+      pos_y := f32((offset_y + i) * level_size)
+      app.ctx.draw_line(0, pos_y, size.width, pos_y, grid_color)
+    }
+  }
 
 	for chunk in app.map {
 		chunk_cam_x := chunk.x - virt_cam_x
