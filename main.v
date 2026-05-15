@@ -1313,6 +1313,15 @@ fn draw_image_with_config(img_rect gg.Rect, rotation f32) {
 	}
 }
 
+fn mix_color(x gg.Color, y gg.Color, fact f32) gg.Color {
+  return gg.Color{
+    r: u8(x.r*fact + (1.0-fact)*y.r)
+    g: u8(x.g*fact + (1.0-fact)*y.g)
+    b: u8(x.b*fact + (1.0-fact)*y.b)
+    a: u8(x.a*fact + (1.0-fact)*y.a)
+  }
+}
+
 @[direct_array_access]
 fn (mut app App) draw_map() {
 	app.not_on_coo.clear()
