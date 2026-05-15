@@ -1339,7 +1339,7 @@ fn (mut app App) draw_map() {
 	virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
 
   // grid sizes: 1 8 64
-  sub_intensity := smoothstep[f32](f32(8), f32(64), f32(app.tile_size))
+  sub_intensity := smoothstep[f32](f32(8), f32(32), f32(app.tile_size))
   sup_intensity := smoothstep[f32](f32(8), f32(1), f32(app.tile_size))
   main_intensity := f32(1.0 - sup_intensity - sub_intensity)
 
