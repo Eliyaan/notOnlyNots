@@ -1368,7 +1368,7 @@ fn (mut app App) draw_map() {
     grid_size := app.tile_size * 8
     offset_x := int(virt_cam_x / 8) - virt_cam_x / 8
     grid_color := mix_color(app.palette.grid, app.palette.background, main_intensity)
-    for i in 1 .. size.width / grid_size + 1 {
+    for i in 1 .. size.width / grid_size + 2 {
       if sup_intensity > main_intensity && int(i + virt_cam_x / 8) & 7 == 0 { continue }
       pos_x := f32((offset_x + i) * grid_size)
       app.ctx.draw_line(pos_x, 0, pos_x, size.height, grid_color)
