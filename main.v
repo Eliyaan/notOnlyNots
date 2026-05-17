@@ -1,6 +1,6 @@
 module main
 
-import math { pow }
+import math { pow, smoothstep }
 import os
 import rand
 import time
@@ -1313,6 +1313,15 @@ fn draw_image_with_config(img_rect gg.Rect, rotation f32) {
 	}
 }
 
+fn mix_color(x gg.Color, y gg.Color, fact f32) gg.Color {
+  return gg.Color{
+    r: u8(x.r*fact + (1.0-fact)*y.r)
+    g: u8(x.g*fact + (1.0-fact)*y.g)
+    b: u8(x.b*fact + (1.0-fact)*y.b)
+    a: u8(x.a*fact + (1.0-fact)*y.a)
+  }
+}
+
 @[direct_array_access]
 fn (mut app App) draw_map() {
 	app.not_on_coo.clear()
@@ -1328,18 +1337,69 @@ fn (mut app App) draw_map() {
 	// map rendering
 	virt_cam_x := app.cam_x - (app.drag_x - app.click_x) / app.tile_size
 	virt_cam_y := app.cam_y - (app.drag_y - app.click_y) / app.tile_size
-	if app.tile_size > 8 {
-		for i in 0 .. (size.width) / app.tile_size + 1 {
-			pos_x := f32((int(virt_cam_x) - virt_cam_x + i) * app.tile_size)
-			app.ctx.draw_line(pos_x, 0, pos_x, size.height, app.palette.grid)
-			app.draw_count += 1
-		}
-		for i in 0 .. (size.height) / app.tile_size + 1 {
-			pos_y := f32((int(virt_cam_y) - virt_cam_y + i) * app.tile_size)
-			app.ctx.draw_line(0, pos_y, size.width, pos_y, app.palette.grid)
-			app.draw_count += 1
-		}
-	}
+
+  // grid sizes: 1 8 64
+  sub_intensity := smoothstep[f32](f32(8), f32(32), f32(app.tile_size))
+  sup_intensity := smoothstep[f32](f32(8), f32(1), f32(app.tile_size))
+  main_intensity := f32(1.0 - sup_intensity - sub_intensity)
+
+  // sub grid
+  if sub_intensity > 0.0 {
+    grid_size := app.tile_size
+    offset_x := int(virt_cam_x) - virt_cam_x
+    grid_color := mix_color(app.palette.grid, app.palette.background, sub_intensity)
+    for i in 1 .. size.width / grid_size + 2 {
+      if main_intensity > sub_intensity && int(i + virt_cam_x) & 7 == 0 { continue }
+      pos_x := f32((offset_x + i) * grid_size)
+      app.ctx.draw_line(pos_x, 0, pos_x, size.height, grid_color)
+      app.draw_count += 1
+    }
+    offset_y := int(virt_cam_y) - virt_cam_y
+    for i in 0 .. size.height / grid_size + 2 {
+      if main_intensity > sub_intensity && int(i + virt_cam_y) & 7 == 0 { continue }
+      pos_y := f32((offset_y + i) * grid_size)
+      app.ctx.draw_line(0, pos_y, size.width, pos_y, grid_color)
+      app.draw_count += 1
+    }
+  }
+
+  // main grid
+  if main_intensity > sub_intensity {
+    grid_size := app.tile_size * 8
+    offset_x := int(virt_cam_x / 8) - virt_cam_x / 8
+    grid_color := mix_color(app.palette.grid, app.palette.background, main_intensity)
+    for i in 1 .. size.width / grid_size + 2 {
+      if sup_intensity > main_intensity && int(i + virt_cam_x / 8) & 7 == 0 { continue }
+      pos_x := f32((offset_x + i) * grid_size)
+      app.ctx.draw_line(pos_x, 0, pos_x, size.height, grid_color)
+      app.draw_count += 1
+    }
+    offset_y := int(virt_cam_y / 8) - virt_cam_y / 8
+    for i in 0 .. size.height / grid_size + 2 {
+      if sup_intensity > main_intensity && int(i + virt_cam_y / 8) & 7 == 0 { continue }
+      pos_y := f32((offset_y + i) * grid_size)
+      app.ctx.draw_line(0, pos_y, size.width, pos_y, grid_color)
+      app.draw_count += 1
+    }
+  }
+
+  // super grid
+  if sup_intensity > main_intensity {
+    grid_size := app.tile_size * 64
+    offset_x := int(virt_cam_x / 64) - virt_cam_x / 64
+    grid_color := mix_color(app.palette.grid, app.palette.background, sup_intensity)
+    for i in 1 .. size.width / grid_size + 2 {
+      pos_x := f32((offset_x + i) * grid_size)
+      app.ctx.draw_line(pos_x, 0, pos_x, size.height, grid_color)
+      app.draw_count += 1
+    }
+    offset_y := int(virt_cam_y / 64) - virt_cam_y / 64
+    for i in 0 .. size.height / grid_size + 2 {
+      pos_y := f32((offset_y + i) * grid_size)
+      app.ctx.draw_line(0, pos_y, size.width, pos_y, grid_color)
+      app.draw_count += 1
+    }
+  }
 
 	for chunk in app.map {
 		chunk_cam_x := chunk.x - virt_cam_x
