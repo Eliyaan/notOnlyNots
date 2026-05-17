@@ -1349,14 +1349,14 @@ fn (mut app App) draw_map() {
     offset_x := int(virt_cam_x) - virt_cam_x
     grid_color := mix_color(app.palette.grid, app.palette.background, sub_intensity)
     for i in 1 .. size.width / grid_size + 2 {
-      if main_intensity > sub_intensity && int(i + int(virt_cam_x)) & 7 == 0 { continue }
+      if main_intensity > sub_intensity && int(i + virt_cam_x) & 7 == 0 { continue }
       pos_x := f32((offset_x + i) * grid_size)
       app.ctx.draw_line(pos_x, 0, pos_x, size.height, grid_color)
       app.draw_count += 1
     }
     offset_y := int(virt_cam_y) - virt_cam_y
     for i in 0 .. size.height / grid_size + 2 {
-      if main_intensity > sub_intensity && int(i + int(virt_cam_y)) & 7 == 0 { continue }
+      if main_intensity > sub_intensity && int(i + virt_cam_y) & 7 == 0 { continue }
       pos_y := f32((offset_y + i) * grid_size)
       app.ctx.draw_line(0, pos_y, size.width, pos_y, grid_color)
       app.draw_count += 1
@@ -1368,15 +1368,15 @@ fn (mut app App) draw_map() {
     grid_size := app.tile_size * 8
     offset_x := int(virt_cam_x / 8) - virt_cam_x / 8
     grid_color := mix_color(app.palette.grid, app.palette.background, main_intensity)
-    for i in 1 .. size.width / grid_size + 2 {
-      if sup_intensity > main_intensity && int(i + int(virt_cam_x) / 8) & 7 == 0 { continue }
+    for i in 1 .. size.width / grid_size + 1 {
+      if sup_intensity > main_intensity && int(i + virt_cam_x / 8) & 7 == 0 { continue }
       pos_x := f32((offset_x + i) * grid_size)
       app.ctx.draw_line(pos_x, 0, pos_x, size.height, grid_color)
       app.draw_count += 1
     }
     offset_y := int(virt_cam_y / 8) - virt_cam_y / 8
     for i in 0 .. size.height / grid_size + 2 {
-      if sup_intensity > main_intensity && int(i + int(virt_cam_y) / 8) & 7 == 0 { continue }
+      if sup_intensity > main_intensity && int(i + virt_cam_y / 8) & 7 == 0 { continue }
       pos_y := f32((offset_y + i) * grid_size)
       app.ctx.draw_line(0, pos_y, size.width, pos_y, grid_color)
       app.draw_count += 1
