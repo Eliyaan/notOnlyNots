@@ -536,16 +536,16 @@ fn (mut app App) init_graphics() ! {
 			'selection_delete.png')!
 		app.buttons[.trash].img = app.ctx.create_image(sprites_path + 'trash.png')!
 	}
-	app.not_on_img = app.ctx.create_image(sprites_path + 'not_on.png')!
-	app.not_off_img = app.ctx.create_image(sprites_path + 'not_off.png')!
-	app.diode_on_img = app.ctx.create_image(sprites_path + 'diode_on.png')!
-	app.diode_off_img = app.ctx.create_image(sprites_path + 'diode_off.png')!
-	app.wire_on_img = app.ctx.create_image(sprites_path + 'wire_on.png')!
-	app.wire_off_img = app.ctx.create_image(sprites_path + 'wire_off.png')!
-	app.junc_img = app.ctx.create_image(sprites_path + 'junction.png')!
-	app.on_img = app.ctx.create_image(sprites_path + 'on.png')!
-	app.banner_img = app.ctx.create_image(sprites_path + 'banner.png')!
-	app.solo_img = app.ctx.create_image(sprites_path + 'play.png')!
+	app.not_on_img = app.ctx.create_image(sprites_path + 'not_on.png', max_mipmaps: 0)!
+	app.not_off_img = app.ctx.create_image(sprites_path + 'not_off.png', max_mipmaps: 0)!
+	app.diode_on_img = app.ctx.create_image(sprites_path + 'diode_on.png', max_mipmaps: 0)!
+	app.diode_off_img = app.ctx.create_image(sprites_path + 'diode_off.png', max_mipmaps: 0)!
+	app.wire_on_img = app.ctx.create_image(sprites_path + 'wire_on.png', max_mipmaps: 0)!
+	app.wire_off_img = app.ctx.create_image(sprites_path + 'wire_off.png', max_mipmaps: 0)!
+	app.junc_img = app.ctx.create_image(sprites_path + 'junction.png', max_mipmaps: 0)!
+	app.on_img = app.ctx.create_image(sprites_path + 'on.png', max_mipmaps: 0)!
+	app.banner_img = app.ctx.create_image(sprites_path + 'banner.png', max_mipmaps: 0)!
+	app.solo_img = app.ctx.create_image(sprites_path + 'play.png', max_mipmaps: 0)!
 	app.load_palette()
 }
 
